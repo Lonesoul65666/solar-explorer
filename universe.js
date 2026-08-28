@@ -1434,6 +1434,9 @@ let _welcomeKeyHandler = null;
 // Set by the "Replay Intro" menu action so the warp sequence plays again even
 // though localStorage records that it has already been seen.
 let _forceIntroReplay = false;
+// True while the warp tunnel is on screen, so gameplay input stays inert
+// instead of firing behind the cinematic.
+let _introActive = false;
 
 // Where the warp intro hands off to.
 //
@@ -1570,6 +1573,7 @@ function openSun(addHistory=true) {
   animateCameraTo({x:0,y:8,z:18},{x:0,y:0,z:0});
   document.getElementById('panel-name').textContent = 'The Sun';
   document.getElementById('panel-tagline').textContent = 'Our Star — 4.6 Billion Years of Light';
+  _setSpeakBtnTarget('sun');
   document.getElementById('location-label').textContent = 'The Sun';
   updatePanelPreview('sun');
   const body = document.getElementById('panel-body-content');
@@ -1634,6 +1638,7 @@ function openPlanet(id, addHistory=true) {
   // Build panel
   document.getElementById('panel-name').textContent = pdata.name;
   document.getElementById('panel-tagline').textContent = pdata.tagline;
+  _setSpeakBtnTarget(pdata.id);
   document.getElementById('location-label').textContent = pdata.name;
   updatePanelPreview(id);
 
@@ -4216,6 +4221,7 @@ function runCinematic() {
   _forceIntroReplay = false;
   try { localStorage.setItem('ue_seen_intro', '1'); } catch (e) {}
 
+  _introActive = true;
   const div    = document.getElementById('cinematic');
   const canvas = document.getElementById('cine-canvas');
   const textDiv= document.getElementById('cine-text');
@@ -4264,6 +4270,7 @@ function runCinematic() {
   function endCinematic() {
     if(dead) return;
     dead = true;
+    _introActive = false;
     window.removeEventListener('resize', resize);
     if (_cineSkipKeys) {
       document.removeEventListener('keydown', _cineSkipKeys);
@@ -5621,6 +5628,11 @@ setTimeout(createComet, 15000);
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     // Skip if quiz modal is open
     if(document.getElementById('quiz-modal').classList.contains('open')) return;
+    // Skip while the warp intro is playing. These shortcuts used to stay live
+    // underneath it, so a stray keypress opened planet panels and flew the
+    // camera around behind the cinematic. The intro's own handler still
+    // receives Escape/Space/Enter to skip.
+    if(_introActive) return;
 
     const key = e.key;
 
@@ -5814,6 +5826,143 @@ function speakNarration(text, opts) {
 
 function stopNarration() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TALKING PLANETS
+// ═══════════════════════════════════════════════════════════════════════════════
+// Each body speaks for itself, in its own voice. The only thing separating
+// Jupiter from Mercury is a rate/pitch pair on the same Web Speech voice — no
+// extra assets, no downloads, but it reads as genuinely different characters:
+// Jupiter slow and booming, Mercury quick and bright, Pluto small and hopeful.
+//
+// First person matters here. "Jupiter has 95 moons" is a fact to memorise;
+// "I have ninety-five moons, and I'm still finding new ones" is a character
+// telling you something. That difference is the whole point.
+const PLANET_VOICES = {
+  sun:     { rate:0.72, pitch:0.45, lines:[
+    "I am the Sun. I have been burning for four and a half billion years, and I am only halfway through my life.",
+    "Every second, I turn six hundred and twenty million tonnes of hydrogen into helium. You feel that as warmth on your face.",
+    "One point three million Earths would fit inside me. And yet I am an ordinary star. There are billions like me in this galaxy alone.",
+    "The light landing in your eyes right now left me eight minutes ago. You are always seeing me slightly in the past." ]},
+  mercury: { rate:1.18, pitch:1.30, lines:[
+    "I'm Mercury, the smallest planet and the closest to the Sun. I race around it in just eighty-eight days.",
+    "You would think I'd be the hottest, but I'm not. I have almost no atmosphere to hold heat, so my nights fall to minus one hundred and eighty degrees.",
+    "One of my days lasts fifty-nine Earth days. Sunrise here takes its time.",
+    "I'm covered in craters because I have no air to burn up incoming rocks. Every scar I've ever taken is still visible." ]},
+  venus:   { rate:0.92, pitch:1.12, lines:[
+    "I'm Venus. People call me Earth's twin, but I am nothing like your home.",
+    "My air is thick carbon dioxide and my clouds are sulphuric acid. The pressure at my surface would crush a submarine.",
+    "I am the hottest planet — four hundred and sixty-five degrees, everywhere, all the time. Hotter than Mercury, though I'm further away.",
+    "I spin backwards, and so slowly that my day is longer than my year. My sunrise comes in the west." ]},
+  earth:   { rate:0.95, pitch:1.0,  lines:[
+    "I'm Earth. I'm the only place in the universe where anyone is known to be listening.",
+    "Seventy-one percent of me is ocean, and I'm the only world where water sits stable as liquid, ice and vapour all at once.",
+    "My atmosphere is a fifth oxygen — made almost entirely by living things. Life did not just appear on me. Life rebuilt me.",
+    "I have one Moon, and it's enormous for my size. It steadies my tilt, and without it your seasons would wander." ]},
+  mars:    { rate:0.94, pitch:0.86, lines:[
+    "I'm Mars. I'm cold, dry and rust-red — my soil is full of iron oxide.",
+    "I have the tallest volcano in the solar system. Olympus Mons is twenty-two kilometres high, nearly three times your Everest.",
+    "I once had rivers, lakes and possibly an ocean. You can still read the channels they cut into me.",
+    "There are working robots on my surface right now. I am the only planet besides Earth that is currently inhabited — by machines." ]},
+  jupiter: { rate:0.70, pitch:0.42, lines:[
+    "I am Jupiter. I am more massive than every other planet combined, twice over.",
+    "My Great Red Spot is a storm wider than the whole Earth, and it has been turning for at least three hundred and fifty years.",
+    "I have ninety-five known moons, and we keep finding more. Ganymede is larger than the planet Mercury.",
+    "I am mostly hydrogen and helium, with no solid surface to land on. Fall into me and you would simply keep falling, until the pressure crushed you.",
+    "I shield you. My gravity catches comets that might otherwise have struck the inner planets." ]},
+  saturn:  { rate:0.80, pitch:0.62, lines:[
+    "I am Saturn, and my rings are made of billions of pieces of ice and rock, most no bigger than your hand.",
+    "My rings stretch two hundred and eighty thousand kilometres across, yet they are often only about ten metres thick. Impossibly thin.",
+    "I am the least dense planet. If you could find an ocean vast enough, I would float on it.",
+    "My moon Titan has rivers, lakes and rain — but they are liquid methane, not water. It is the only other world with weather like yours.",
+    "At my north pole there is a spinning hexagon of cloud, thirty thousand kilometres wide. Nobody is entirely sure why it is a hexagon." ]},
+  uranus:  { rate:0.86, pitch:0.72, lines:[
+    "I am Uranus, and I am tipped completely on my side. I roll around the Sun instead of spinning upright.",
+    "Something enormous struck me long ago and knocked me over. My poles now take turns facing the Sun for forty-two years at a time.",
+    "I am the coldest planet — minus two hundred and twenty-four degrees — even though Neptune sits further out.",
+    "Only one spacecraft has ever visited me. Voyager 2 passed by in 1986, and no one has been back since." ]},
+  neptune: { rate:0.84, pitch:0.66, lines:[
+    "I am Neptune, the farthest planet from the Sun. Sunlight reaches me nine hundred times fainter than it reaches Earth.",
+    "My winds are the fastest in the solar system — over two thousand kilometres an hour, faster than the speed of sound on Earth.",
+    "I was found by mathematics before anyone saw me. Astronomers predicted exactly where to point the telescope, and there I was.",
+    "One of my years lasts one hundred and sixty-five Earth years. I have completed only one orbit since humans discovered me." ]},
+  pluto:   { rate:1.02, pitch:1.22, lines:[
+    "I'm Pluto. I was called the ninth planet for seventy-six years, and now I'm a dwarf planet. I don't mind — there are others like me out here.",
+    "I have a frozen heart. It's a plain of nitrogen ice called Tombaugh Regio, and it's the size of Texas.",
+    "My moon Charon is half my width. We're so close in size that we orbit each other, like a pair spinning while holding hands.",
+    "I'm so far away that one of my years is two hundred and forty-eight Earth years. I haven't finished a single orbit since I was discovered.",
+    "In 2015, New Horizons flew past me after nine and a half years of travel. For one day, somebody finally saw my face." ]},
+};
+
+// Which line each body is on, so repeated presses continue the conversation
+// instead of replaying the same greeting.
+const _planetVoiceIdx = {};
+let _speakingPlanet = null;
+// Bodies already heard from, so the curiosity bonus is awarded only once each.
+const _voicedBodies = new Set();
+
+function speakAsPlanet(id) {
+  const v = PLANET_VOICES[id];
+  if (!v) return;
+
+  // Pressing again while a body is mid-sentence stops it, so the button also
+  // works as "be quiet".
+  if (_speakingPlanet === id && window.speechSynthesis && window.speechSynthesis.speaking) {
+    stopNarration();
+    _speakingPlanet = null;
+    _syncSpeakBtn();
+    return;
+  }
+
+  const i = _planetVoiceIdx[id] || 0;
+  _planetVoiceIdx[id] = (i + 1) % v.lines.length;
+  _speakingPlanet = id;
+  _syncSpeakBtn();
+
+  speakNarration(v.lines[i], {
+    rate: v.rate,
+    pitch: v.pitch,
+    onend:   () => { if (_speakingPlanet === id) { _speakingPlanet = null; _syncSpeakBtn(); } },
+    onerror: () => { if (_speakingPlanet === id) { _speakingPlanet = null; _syncSpeakBtn(); } },
+  });
+
+  // Speaking is a discovery too — reward curiosity, once per body.
+  if (typeof awardPoints === 'function' && !_voicedBodies.has(id)) {
+    _voicedBodies.add(id);
+    awardPoints(25);
+  }
+}
+
+function _syncSpeakBtn() {
+  const btn = document.getElementById('panel-speak');
+  if (!btn) return;
+  const talking = !!_speakingPlanet;
+  btn.classList.toggle('speaking', talking);
+  const label = document.getElementById('panel-speak-label');
+  if (label) label.textContent = talking ? 'Stop' : 'Hear it speak';
+}
+
+document.getElementById('panel-speak').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const id = e.currentTarget.dataset.body;
+  if (id) speakAsPlanet(id);
+});
+
+// Closing the panel must silence whoever was mid-sentence, otherwise a planet
+// keeps talking about itself over an empty screen.
+document.getElementById('panel-close').addEventListener('click', () => {
+  if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
+});
+
+// Keep the button's name in step with whichever body the panel is showing.
+function _setSpeakBtnTarget(id) {
+  const btn = document.getElementById('panel-speak');
+  if (!btn) return;
+  const has = !!PLANET_VOICES[id];
+  btn.style.display = has ? '' : 'none';
+  btn.dataset.body = id || '';
+  _syncSpeakBtn();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -780,3 +780,25 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #intro:not(.hide) ~ #music-credit,
 #intro:not(.hide) ~ #ambient-indicator,
 #intro:not(.hide) ~ #explore-launcher { visibility: hidden; }
+
+/* ── Talking planets: the "hear it speak" control on the info panel ────────── */
+#panel-speak{display:flex;align-items:center;gap:9px;width:100%;margin:0 0 16px;padding:11px 14px;
+  background:linear-gradient(135deg,rgba(0,212,255,.13),rgba(0,150,200,.05));
+  border:1px solid rgba(0,212,255,.34);border-radius:9px;color:var(--cyan);
+  font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;cursor:pointer;transition:all .2s}
+#panel-speak:hover{background:linear-gradient(135deg,rgba(0,212,255,.24),rgba(0,150,200,.11));
+  border-color:rgba(0,212,255,.6);box-shadow:0 0 22px rgba(0,212,255,.18)}
+#panel-speak-icon{font-size:14px;line-height:1}
+#panel-speak-label{flex:1;text-align:left}
+/* Equaliser bars, hidden until the body is actually talking. */
+.speak-wave{display:flex;align-items:flex-end;gap:2px;height:13px;opacity:0;transition:opacity .25s}
+#panel-speak.speaking .speak-wave{opacity:1}
+.speak-wave i{width:2px;height:4px;background:var(--cyan);border-radius:1px;display:block}
+#panel-speak.speaking .speak-wave i{animation:speak-bounce .62s ease-in-out infinite}
+#panel-speak.speaking .speak-wave i:nth-child(2){animation-delay:.14s}
+#panel-speak.speaking .speak-wave i:nth-child(3){animation-delay:.28s}
+#panel-speak.speaking .speak-wave i:nth-child(4){animation-delay:.42s}
+@keyframes speak-bounce{0%,100%{height:3px;opacity:.5}50%{height:13px;opacity:1}}
+#panel-speak.speaking{background:linear-gradient(135deg,rgba(0,212,255,.28),rgba(0,150,200,.13));
+  border-color:rgba(0,212,255,.7)}
