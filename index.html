@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Universe Explorer — Solar System</title>
+<!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
+     so the app renders correctly offline and on networks that block it. -->
+<link rel="stylesheet" href="vendor/fonts/orbitron.css">
+<link rel="stylesheet" href="universe.css?v=4">
+<script>
+// Catch any JS errors and show them on-screen so we can diagnose
+window.addEventListener('error', function(e) {
+  var d = document.getElementById('_err');
+  if (!d) { d = document.createElement('div'); d.id='_err';
+    d.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#c00;color:#fff;padding:8px 12px;z-index:99999;font-size:11px;font-family:monospace;white-space:pre-wrap';
+    document.body.appendChild(d); }
+  d.textContent += (e.message||e) + ' @ ' + (e.filename||'?') + ':' + (e.lineno||'?') + '\n';
+});
+window.addEventListener('unhandledrejection', function(e) {
+  var d = document.getElementById('_err');
+  if (!d) { d = document.createElement('div'); d.id='_err';
+    d.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#900;color:#fff;padding:8px 12px;z-index:99999;font-size:11px;font-family:monospace;white-space:pre-wrap';
+    document.body.appendChild(d); }
+  d.textContent += 'PROMISE: ' + (e.reason||e) + '\n';
+});
+</script>
+</head>
+<body>
+
+<!-- Intro Screen -->
+<div id="intro">
+  <canvas id="intro-canvas"></canvas>
+  <canvas id="intro-particles"></canvas>
+  <div class="intro-vignette"></div>
+  <div class="intro-grid"></div>
+  <div class="intro-scanline"></div>
+
+  <!-- TL corner -->
+  <div class="intro-corner-wrap tl">
+    <svg viewBox="0 0 120 120"><g class="c-arc-outer"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M2,40 L2,2 L40,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="2" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="4" y1="60" x2="10" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
+    <div class="corner-data">SYS: ONLINE<br/>LAT: +23.4°<br/>ALT: 149.6M km</div>
+  </div>
+  <!-- TR corner -->
+  <div class="intro-corner-wrap tr">
+    <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,40 L118,2 L80,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="116" y1="60" x2="110" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
+    <div class="corner-data">BODIES: 9<br/>SOL: 1 AU<br/>VER: 2.4.1</div>
+  </div>
+  <!-- BL corner -->
+  <div class="intro-corner-wrap bl">
+    <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-duration:9s"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner" style="animation-duration:3s"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M2,80 L2,118 L40,118" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="2" cy="118" r="2.5" fill="rgba(0,212,255,.9)"/></g></svg>
+    <div class="corner-data">DRAG: ORBIT<br/>SCROLL: ZOOM<br/>CLICK: EXPLORE</div>
+  </div>
+  <!-- BR corner -->
+  <div class="intro-corner-wrap br">
+    <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-duration:15s;animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,80 L118,118 L80,118" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="118" r="2.5" fill="rgba(0,212,255,.9)"/></g></svg>
+    <div class="corner-data">PLANETS: 8<br/>MOONS: 200+<br/>MISSIONS: LIVE</div>
+  </div>
+
+  <div class="intro-content">
+    <div class="intro-badge">An Interactive Journey Through Space</div>
+    <div class="intro-title">
+      <span class="intro-title-main">UNIVERSE</span>
+      <span class="intro-title-sub">EXPLORER</span>
+    </div>
+    <div class="intro-divider"><span class="intro-divider-dot"></span></div>
+    <div id="intro-loader">
+      <div id="intro-loader-track"><div id="intro-loader-fill"></div></div>
+      <div id="intro-loader-label">Initializing Solar System</div>
+    </div>
+    <button id="start-btn" disabled>Begin Your Journey</button>
+    <div class="intro-dedication">
+      <span class="intro-ded-text">"The sky is the limit &mdash; so I bring it a little closer for you"</span>
+      <span class="intro-ded-sig">Love, Scott &nbsp;&#10084;</span>
+    </div>
+    <div class="intro-hint">Click any planet &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Drag to orbit &nbsp;&middot;&nbsp; Press ? for shortcuts</div>
+  </div>
+</div>
+
+<!-- Flash & warp overlays -->
+<div id="screen-flash"></div>
+<div id="warp-overlay"></div>
+<div id="flare-overlay"></div>
+<div id="flare-warning">
+  <span id="flare-warning-icon">⚡</span>
+  <span id="flare-warning-text">Solar Flare Detected</span>
+</div>
+<div id="levelup-card"><div id="levelup-flash"></div><div id="levelup-text"><div id="levelup-star">★</div><div id="levelup-title">RANK UP</div><div id="levelup-rank">NAVIGATOR</div></div></div>
+
+<!-- Cinematic Premiere Overlay -->
+<div id="cinematic-overlay">
+  <div id="cine-caption"><div id="cine-caption-text"></div></div>
+  <div id="cine-big-title"><div id="cine-big-title-main"></div><div id="cine-big-title-sub"></div></div>
+  <div id="cine-progress"></div>
+  <button id="cine-skip-btn">Skip &#9654;&#9654;</button>
+</div>
+
+<!-- Mission HUD -->
+<div id="mission-hud">
+  <div id="mhud-chapter">Mission 1 of 9</div>
+  <div id="mhud-title">Signal Detected</div>
+  <div id="mhud-objective">Navigate to Earth</div>
+  <div id="mhud-track"><div id="mhud-bar"></div></div>
+  <div id="mhud-free">Free Explore &#8599;</div>
+</div>
+
+<!-- Mission Briefing -->
+<div id="mission-briefing">
+  <div id="mbriefing-card">
+    <div id="mbrief-chapter">Mission 1 of 9</div>
+    <span id="mbrief-icon">&#127758;</span>
+    <div id="mbrief-title">Signal Detected</div>
+    <div id="mbrief-target">Target: Earth</div>
+    <div id="mbrief-text">Your investigation begins here.</div>
+    <div id="mbrief-task-box">
+      <div id="mbrief-task-label">Your Objective</div>
+      <div id="mbrief-task-text">Navigate to Earth</div>
+    </div>
+    <div id="mbrief-reward">&#127869; Reward: Medal &middot; +100 XP</div>
+    <button id="mbrief-start">Begin Mission &#9654;</button>
+  </div>
+</div>
+
+<!-- Mission Complete -->
+<div id="mission-complete">
+  <div id="mcomplete-card">
+    <div id="mc-chapter-label">Mission Complete</div>
+    <span id="mc-medal">&#127869;</span>
+    <div id="mc-title">MISSION COMPLETE</div>
+    <div id="mc-subtitle">Well done, Explorer</div>
+    <div id="mc-xp">+100 XP</div>
+    <button id="mc-next-btn">Next Mission &#9654;</button>
+    <div id="mc-free-btn">Free Explore Instead</div>
+  </div>
+</div>
+
+<!-- Cinematic Intro Sequence -->
+<div id="cinematic">
+  <canvas id="cine-canvas"></canvas>
+  <div id="cine-text"></div>
+  <div id="cine-bottom">
+    <div id="cine-progress-wrap"><div id="cine-progress-legacy"></div></div>
+    <button id="cine-skip">Skip &rsaquo;&rsaquo;</button>
+  </div>
+</div>
+
+<!-- The background score is generated procedurally in the Web Audio API
+     (see "PLANETARIUM BGM" in universe.js) — there is no audio file to load.
+     A 5.6MB music/soundtrack.mp3 and its <audio> element used to live here;
+     nothing in the code ever played it, so both were removed. -->
+
+<!-- Floating EXPLORE menu launcher -->
+<div id="explore-launcher" title="Open Menu">
+  <div id="explore-launcher-tab">
+    <span id="explore-launcher-icon">&#9776;</span>
+    <span id="explore-launcher-text">Explore</span>
+    <span id="explore-launcher-pip"></span>
+  </div>
+</div>
+
+<!-- Three.js Canvas -->
+<div id="canvas-container"></div>
+<canvas id="comet-canvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:80;pointer-events:none;"></canvas>
+<div id="xp-popup"></div>
+<div id="click-burst"><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span><span class="burst-dot"></span></div>
+
+<!-- Top Navigation Bar -->
+<div id="topbar">
+  <div id="nav-btns">
+    <button class="nav-btn" id="btn-back" title="Back" disabled>&#8592;</button>
+    <button class="nav-btn" id="btn-fwd" title="Forward" disabled>&#8594;</button>
+  </div>
+  <div id="breadcrumb">Solar System &rsaquo; <span id="location-label">Overview</span></div>
+  <div id="planet-counter" title="Planets explored"><div id="planet-counter-icon">&#9793;</div><div id="planet-counter-value">0/0</div></div>
+  <div id="rank-display" title="Explorer Rank"><div id="rank-icon">★</div><div id="rank-name">CADET</div></div>
+  <div id="score-display"><div id="score-label">Score</div><div id="score-value">0</div></div>
+  <button id="audio-btn" title="Toggle Audio">&#128263;</button>
+  <button id="menu-btn" title="Open Mission Control Menu" aria-label="Open menu"><span style="font-size:16px">&#9776;</span>&nbsp;MENU</button>
+</div>
+
+<!-- Side Menu Panel -->
+<div id="side-menu">
+  <div id="side-menu-header">
+    <div id="side-menu-title">&#9670; MISSION CONTROL</div>
+    <button id="side-menu-close">&#10005;</button>
+  </div>
+  <div id="side-menu-body">
+    <div class="smenu-section-label">EXPLORE</div>
+    <button class="smenu-btn" id="tour-btn">&#127758; Guided Tour<span class="smenu-hint">Cinematic journey Sun → Pluto</span></button>
+    <button class="smenu-btn" id="missions-btn">&#9678; Space Missions<span class="smenu-hint">8 spacecraft — ISS, JWST &amp; more</span></button>
+    <button class="smenu-btn" id="rocket-mode-btn">&#128640; Rocket Mode<span class="smenu-hint">Launch to any planet — hear its story en route!</span></button>
+    <button class="smenu-btn" id="achievements-btn">&#9733; My Achievements<span class="smenu-hint">View your progress and explorer score</span></button>
+    <button class="smenu-btn" id="surprise-btn">&#10024; Surprise Me<span class="smenu-hint">Teleport to a random planet</span></button>
+    <div class="smenu-section-label">VIEW</div>
+    <button class="smenu-btn" id="comparison-toggle">&#9632; Compare Planets<span class="smenu-hint">True relative sizes</span></button>
+    <button class="smenu-btn" id="scale-toggle">&#9654; True Scale Mode<span class="smenu-hint">Real AU orbital distances</span></button>
+    <div class="smenu-section-label">SIMULATION</div>
+    <div id="smenu-speed-row">
+      <span class="smenu-speed-label">Speed</span>
+      <button class="smenu-speed-btn" id="tc-slower">&#171;</button>
+      <button class="smenu-speed-btn tc-btn active" id="tc-play">&#9646;&#9646;</button>
+      <button class="smenu-speed-btn" id="tc-faster">&#187;</button>
+      <input type="range" id="speed-slider" min="0" max="100" value="27"/>
+      <span id="speed-display">0.5× speed</span>
+    </div>
+    <div id="smenu-date-row"><span id="date-display">Year 2024</span></div>
+  </div>
+</div>
+<div id="side-menu-overlay"></div>
+
+<!-- Apollo Site Popup -->
+<div class="apollo-popup" id="apollo-popup">
+  <div class="apollo-popup-title" id="apollo-title"></div>
+  <div class="apollo-popup-crew" id="apollo-crew"></div>
+  <div class="apollo-popup-desc" id="apollo-desc"></div>
+</div>
+
+<!-- Planet Comparison Bar -->
+<div id="comparison-bar"></div>
+
+<!-- Missions Dropdown -->
+<div id="missions-dropdown">
+  <div id="missions-dropdown-title">&#9670; Space Missions &amp; Satellites</div>
+</div>
+
+<!-- Mission Detail Panel -->
+<div id="mission-panel">
+  <button id="mission-panel-close">&#10005;</button>
+  <div id="mission-scroll"></div>
+</div>
+
+<!-- Rocket Launchpad Panel -->
+<div id="rocket-launchpad">
+  <div id="rl-header">
+    <div id="rl-title-row">
+      <div id="rl-title">&#128640; LAUNCH CONTROL</div>
+      <button id="rl-close">&#10005;</button>
+    </div>
+    <div id="rl-subtitle">Where are we going today, astronaut?</div>
+  </div>
+  <div id="rl-scroll">
+    <div class="rl-section-label">&#9672; Planets</div>
+    <div id="rl-dest-planets" class="rl-dest-grid"></div>
+    <div class="rl-section-label">&#9672; Missions &amp; Spacecraft</div>
+    <div id="rl-dest-missions" class="rl-dest-grid"></div>
+  </div>
+  <div id="rl-launch-footer">
+    <button id="rl-launch-btn">&#9654;&nbsp;&nbsp;LAUNCH MISSION</button>
+  </div>
+</div>
+
+<!-- Rocket Countdown Overlay -->
+<div id="rocket-countdown">
+  <div id="rcd-inner">
+    <div id="rcd-mission-label">MISSION TO <span id="rcd-dest-name"></span></div>
+    <div id="rcd-number">3</div>
+    <div id="rcd-blast">BLAST OFF! &#128640;</div>
+  </div>
+</div>
+
+<!-- Rocket Flight HUD (story cards) -->
+<div id="rocket-flight-hud">
+  <div id="rfh-story-card">
+    <span id="rfh-fact-counter"></span>
+    <span id="rfh-icon">&#128640;</span>
+    <div id="rfh-text">Preparing for launch...</div>
+  </div>
+  <div id="rfh-progress-row">
+    <span id="rfh-dest-label">DESTINATION</span>
+    <div id="rfh-bar-track"><div id="rfh-bar-fill"></div></div>
+    <span id="rfh-eta">—</span>
+  </div>
+  <button id="rfh-abort-btn">&#10006; Abort Mission</button>
+</div>
+
+<!-- Rocket Arrival Banner -->
+<div id="rocket-arrival">
+  <span id="ra-emoji">&#127881;</span>
+  <div id="ra-title"></div>
+  <div id="ra-msg"></div>
+</div>
+
+<!-- Achievement Panel -->
+<div id="achievement-panel">
+  <div id="ach-card">
+    <button id="ach-close">&#10005;</button>
+    <div id="ach-title">&#9733; MISSION ACHIEVEMENTS</div>
+    <div id="ach-subtitle">Explore, learn, and unlock rewards</div>
+    <div id="ach-score-row">
+      <div>
+        <div id="ach-score-val">0</div>
+        <div id="ach-score-label">Explorer Points</div>
+      </div>
+      <div style="font-size:11px;color:var(--dim);line-height:1.6;font-family:'Segoe UI',system-ui,sans-serif">Complete quizzes and take the<br>guided tour to unlock achievements!</div>
+    </div>
+    <div id="ach-list"></div>
+  </div>
+</div>
+
+<!-- Planet Nav Bar (replaces time controls at bottom) -->
+<div id="planet-nav">
+  <button class="pnav-btn" id="pnav-prev" title="Previous planet">&#8592;</button>
+  <div id="pnav-label">Solar System</div>
+  <button class="pnav-btn" id="pnav-next" title="Next planet">&#8594;</button>
+</div>
+
+<!-- Info Panel -->
+<div id="info-panel">
+  <button id="panel-close">&#10005;</button>
+  <div id="panel-scroll">
+    <canvas id="panel-canvas" width="320" height="320"></canvas>
+    <div id="panel-name">Earth</div>
+    <div id="panel-tagline">Our Blue Home</div>
+    <div id="panel-body-content"></div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip"></div>
+
+<!-- Music credit (CC Attribution) -->
+<div id="music-credit">&#9834; Generative Planetarium Score</div>
+
+<!-- Achievement Toast -->
+<div id="achievement-toast">
+  <div id="toast-icon">★</div>
+  <div id="toast-info">
+    <div id="toast-label">Achievement Unlocked</div>
+    <div id="toast-title"></div>
+    <div id="toast-desc"></div>
+  </div>
+</div>
+
+<!-- Discovery Overlay — first-visit planet celebration -->
+<div id="discovery-overlay">
+  <div id="discovery-card">
+    <div id="disc-found">&#9670; New World Discovered &#9670;</div>
+    <div id="disc-planet-name"></div>
+    <div id="disc-tagline"></div>
+    <div id="disc-xp">+100 XP</div>
+  </div>
+  <div class="disc-ring"></div>
+  <div class="disc-ring" style="animation-delay:.25s;width:500px;height:500px"></div>
+</div>
+
+<!-- Keyboard Shortcut Modal -->
+<div id="kb-modal">
+  <div id="kb-card">
+    <div id="kb-title">&#9670;&nbsp; KEYBOARD SHORTCUTS &nbsp;&#9670;</div>
+    <div class="kb-section">Navigation</div>
+    <div class="kb-row"><span class="kb-key">1 – 8</span><span class="kb-desc">Jump to planet (Mercury–Neptune)</span></div>
+    <div class="kb-row"><span class="kb-key">0</span><span class="kb-desc">Select the Sun</span></div>
+    <div class="kb-row"><span class="kb-key">Esc</span><span class="kb-desc">Close panel / dismiss screen</span></div>
+    <div class="kb-section">Features</div>
+    <div class="kb-row"><span class="kb-key">T</span><span class="kb-desc">Start Guided Tour</span></div>
+    <div class="kb-row"><span class="kb-key">R</span><span class="kb-desc">Toggle Rocket Mode</span></div>
+    <div class="kb-row"><span class="kb-key">M</span><span class="kb-desc">Toggle Side Menu</span></div>
+    <div class="kb-row"><span class="kb-key">C</span><span class="kb-desc">Toggle Planet Comparison</span></div>
+    <div class="kb-row"><span class="kb-key">S</span><span class="kb-desc">Toggle True Scale Mode</span></div>
+    <div class="kb-row"><span class="kb-key">X</span><span class="kb-desc">Surprise Me — random planet</span></div>
+    <div class="kb-section">Interface</div>
+    <div class="kb-row"><span class="kb-key">A</span><span class="kb-desc">Toggle Audio</span></div>
+    <div class="kb-row"><span class="kb-key">?</span><span class="kb-desc">Show / hide this help screen</span></div>
+    <button id="kb-close-btn">GOT IT</button>
+  </div>
+</div>
+
+<!-- Ambient Sound Indicator -->
+<div id="ambient-indicator">
+  <div class="ambient-bars">
+    <div class="ambient-bar" style="--d:.5s;--h:6px"></div>
+    <div class="ambient-bar" style="--d:.7s;--h:11px"></div>
+    <div class="ambient-bar" style="--d:.6s;--h:8px"></div>
+    <div class="ambient-bar" style="--d:.8s;--h:5px"></div>
+  </div>
+  <span id="ambient-label">Planetarium</span>
+</div>
+
+<!-- Quiz Modal -->
+<div id="quiz-flash"></div>
+<div id="quiz-modal">
+  <div id="quiz-card">
+    <button id="quiz-close">&#10005;</button>
+    <div id="quiz-planet-name"></div>
+    <div id="quiz-progress"></div>
+    <div id="quiz-question"></div>
+    <div id="quiz-timer-wrap"><div id="quiz-timer-bar"></div></div>
+    <div id="quiz-streak"></div>
+    <div id="quiz-options"></div>
+    <div class="quiz-feedback" id="quiz-feedback"></div>
+    <button id="quiz-next">Next Question &#8594;</button>
+    <div id="quiz-result"></div>
+  </div>
+</div>
+
+<!-- Moon Detail Modal -->
+<div id="moon-detail">
+  <div id="moon-card">
+    <button id="moon-close">&#10005;</button>
+    <h2 id="moon-name">The Moon</h2>
+    <div class="tagline" id="moon-tagline"></div>
+    <p id="moon-desc"></p>
+    <div class="stat-grid" id="moon-stats"></div>
+  </div>
+</div>
+
+<!-- Welcome / Guide Screen -->
+<div id="welcome-screen">
+  <canvas id="wc-solar-canvas"></canvas>
+  <div id="wc-vignette"></div>
+
+  <div id="welcome-card">
+    <div id="wc-badge">An Interactive Journey Through Space</div>
+
+    <div id="wc-title">
+      <span id="wc-title-main">UNIVERSE</span>
+      <span id="wc-title-sub">EXPLORER</span>
+    </div>
+
+    <div id="wc-tagline">"The cosmos is within us. We are made of star-stuff." &mdash; Carl Sagan</div>
+
+    <button id="wc-start-btn">BEGIN YOUR JOURNEY</button>
+    <button id="wc-tour-btn">&#127758; TAKE A GUIDED TOUR</button>
+    <div id="wc-hint">Click any planet &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Drag to orbit &nbsp;&middot;&nbsp; Press&nbsp;?&nbsp;for shortcuts</div>
+  </div>
+</div>
+
+<!-- Guided Tour Side Panel -->
+<div id="tour-panel">
+  <div id="tour-panel-header">
+    <div id="tour-journey-label">&#127775; A Journey Through the Cosmos</div>
+    <div id="tour-progress"></div>
+  </div>
+  <div id="tour-scroll">
+    <!-- Planet identity -->
+    <div id="tour-planet-title"></div>
+    <div id="tour-planet-subtitle"></div>
+
+    <!-- Sagan-style narrator quote -->
+    <div id="tour-sagan-block">
+      <div id="tour-sagan-text"></div>
+    </div>
+
+    <!-- Wow-fact cycler: one mind-blowing fact at a time -->
+    <div id="tour-wow-card">
+      <div id="tour-wow-icon"></div>
+      <div id="tour-wow-headline"></div>
+      <div id="tour-wow-body"></div>
+      <div id="tour-wow-nav">
+        <button id="tour-wow-prev" aria-label="Previous fact">&#8592;</button>
+        <span id="tour-wow-counter">1 / 3</span>
+        <button id="tour-wow-next" aria-label="Next fact">&#8594;</button>
+      </div>
+    </div>
+
+    <!-- Optional photos -->
+    <div id="tour-photos"></div>
+  </div>
+  <div id="tour-panel-footer">
+    <button class="tour-nav-btn" id="tour-prev">&#8592; Back</button>
+    <div id="tour-stop-num"></div>
+    <button class="tour-nav-btn primary" id="tour-next">Next &#8594;</button>
+    <button class="tour-nav-btn exit" id="tour-exit">&#10005;</button>
+  </div>
+</div>
+<!-- Cinematic planet title card (center screen) -->
+<div id="tour-title-card"><div id="tour-title-inner"><div id="tour-title-name"></div><div id="tour-title-sub"></div></div></div>
+<div id="tour-lightbox"><img id="tour-lightbox-img" src="" alt=""></div>
+<div id="planet-labels"></div>
+<div id="tour-rocket-flash"><canvas id="tour-warp-canvas"></canvas><div id="trf-inner"></div></div>
+<div id="tour-sagan-quote"><div id="tsq-text"></div><div id="tsq-author"></div></div>
+
+<!-- ── First-Run Tutorial Overlay ── -->
+<div id="hint-overlay">
+  <div id="hint-card">
+    <div id="hint-steps-wrap">
+
+      <div class="hint-step active" data-step="0">
+        <div class="hint-step-icon">🌌</div>
+        <div class="hint-step-title">Welcome to Universe Explorer</div>
+        <div class="hint-step-body">Your interactive window to the cosmos. <strong>Click any planet</strong> to open its profile. <strong>Scroll</strong> to zoom in and out. <strong>Click &amp; drag</strong> to orbit around the solar system.</div>
+        <div class="hint-step-visual">
+          <div class="hint-ui-mock">
+            <div class="hmock-planet sun-mock"></div>
+            <div class="hmock-planet p1"></div>
+            <div class="hmock-planet p2"></div>
+            <div class="hmock-planet p3"></div>
+            <div class="hmock-gesture">👆 click</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hint-step" data-step="1">
+        <div class="hint-step-icon">🚀</div>
+        <div class="hint-step-title">Three Ways to Explore</div>
+        <div class="hint-step-body">
+          <div class="hint-mode-row"><span class="hint-mode-icon">🗺</span><div><strong>Guided Tour</strong> — The camera flies to each planet automatically with Sagan-style narration.</div></div>
+          <div class="hint-mode-row"><span class="hint-mode-icon">🚀</span><div><strong>Rocket Mode</strong> — Launch a rocket and travel to any destination. Kid-friendly facts along the way!</div></div>
+          <div class="hint-mode-row"><span class="hint-mode-icon">🧠</span><div><strong>Space Quiz</strong> — Test how much you know about our solar system.</div></div>
+        </div>
+        <div class="hint-arrow-callout" style="top:8px;right:12px">
+          <span class="hint-arrow-text">☰ menu<br><span style="font-size:10px;opacity:.6">top right</span></span>
+          <div class="hint-arrow-line"></div>
+        </div>
+      </div>
+
+      <div class="hint-step" data-step="2">
+        <div class="hint-step-icon">⬅ ➡</div>
+        <div class="hint-step-title">Planet Navigator</div>
+        <div class="hint-step-body">The bar at the <strong>bottom center</strong> of the screen cycles through every planet. Use the arrows to jump from world to world — it wraps all the way around from Pluto back to the Sun!</div>
+        <div class="hint-nav-demo">
+          <div class="hint-nav-mock">
+            <div class="hnm-btn">←</div>
+            <div class="hnm-label">Earth</div>
+            <div class="hnm-btn">→</div>
+          </div>
+          <div style="font-size:11px;color:var(--dim);text-align:center;margin-top:8px">↑ bottom of your screen</div>
+        </div>
+      </div>
+
+      <div class="hint-step" data-step="3">
+        <div class="hint-step-icon">⏱</div>
+        <div class="hint-step-title">Control Time</div>
+        <div class="hint-step-body">Open the <strong>☰ menu</strong> to find the time speed slider. Speed up to watch all planets orbit at once, or slow down to study a single planet's path. Press <kbd>P</kbd> to pause anytime.</div>
+        <div class="hint-step-body" style="margin-top:10px">Press <kbd>?</kbd> at any time to see all keyboard shortcuts.</div>
+      </div>
+
+    </div>
+
+    <div id="hint-dots"></div>
+
+    <div id="hint-footer">
+      <button id="hint-skip">Skip tutorial</button>
+      <button id="hint-next">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- three.js is vendored locally (vendor/three/) rather than loaded from a CDN.
+     School and corporate networks frequently block CDNs, and a CDN dependency
+     also means the app can't run offline or from a USB stick. Pinned to the
+     same version this was built against: three r165. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/"
+  }
+}
+</script>
+
+
+<script type="module" src="universe.js?v=4"></script>
+</body>
+</html>

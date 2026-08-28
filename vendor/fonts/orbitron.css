@@ -1,0 +1,10 @@
+/* Orbitron (SIL Open Font License 1.1) self-hosted instead of Google Fonts.
+   Variable font: one file covers weights 400-900. Self-hosted so the app works
+   offline and on networks that block fonts.googleapis.com. */
+@font-face {
+  font-family: 'Orbitron';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('./orbitron-variable.woff2') format('woff2');
+}
