@@ -763,3 +763,20 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #mc-next-btn:hover{box-shadow:0 0 20px rgba(0,212,255,.18)}
 #mc-free-btn{font-size:9px;color:rgba(0,212,255,.28);cursor:pointer;font-family:'Orbitron',sans-serif;letter-spacing:.1em;text-transform:uppercase;transition:color .2s}
 #mc-free-btn:hover{color:rgba(0,212,255,.55)}
+
+/* ── Intro screen: suppress in-app UI chrome ─────────────────────────────────
+   #intro is intentionally background:transparent, so the live 3D scene shows
+   through behind the title — that part looks good and is kept. But the app's
+   UI chrome was showing through too: planet name labels ("Neptune", "Jupiter"…)
+   and the topbar ("CADET", "BODIES: 9") rendered straight across the UNIVERSE
+   EXPLORER wordmark, and the planet-nav bar sat under the dedication text.
+   All of these are siblings that appear after #intro in the document, so they
+   can be hidden until the intro takes its .hide class — no JS needed.
+   visibility (not opacity) is used to avoid clashing with the opacity
+   transitions these elements animate with on entry. */
+#intro:not(.hide) ~ #topbar,
+#intro:not(.hide) ~ #planet-labels,
+#intro:not(.hide) ~ #planet-nav,
+#intro:not(.hide) ~ #music-credit,
+#intro:not(.hide) ~ #ambient-indicator,
+#intro:not(.hide) ~ #explore-launcher { visibility: hidden; }
