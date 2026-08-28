@@ -1431,6 +1431,36 @@ let _missionRingParent = null;
 // forever, throwing on first access from the hoisted showWelcomeScreen().
 let _welcomeKeyHandler = null;
 
+// Set by the "Replay Intro" menu action so the warp sequence plays again even
+// though localStorage records that it has already been seen.
+let _forceIntroReplay = false;
+
+// Where the warp intro hands off to.
+//
+// Previously the launch path was: intro screen -> welcome screen -> cinematic
+// premiere -> mission briefing. That is three full-screen gates, each with its
+// own "begin" button, before the user could touch a planet. The warp tunnel now
+// lands directly on the mission briefing. The premiere is still good material,
+// so it stays reachable from the menu rather than being deleted.
+function _enterAfterIntro() {
+  paused = false;
+  controls.enabled = true;
+  // Match the standard overview framing so we never land zoomed or rolled.
+  camera.position.set(0, 28, 55);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  if (!audioCtx) initAudio();
+  if (audioCtx) {
+    // The warp score is in E minor and ends on a resolve; cross into the
+    // ambient planetarium bed rather than cutting to silence.
+    audioCtx.resume().then(startPlanetariumBGM).catch(startPlanetariumBGM);
+    audioEnabled = true;
+    syncAudioBtn();
+  }
+  setTimeout(() => showMissionBriefing(_completedMissions.size), 500);
+}
+
 function pushHistory(entry) {
   history = history.slice(0, historyIndex+1);
   history.push(entry);
@@ -4149,12 +4179,42 @@ document.getElementById('missions-btn').addEventListener('click', () => {
 
 // startRocketFlightToMission is now handled through launchRocket(missionId)
 
+// Replay actions for both cinematics. Neither is on the critical launch path
+// any more, so they need a way back in.
+document.getElementById('replay-intro-btn').addEventListener('click', () => {
+  closeSideMenu();
+  closeAllPanels({keepMenu:false});
+  stopNarration();
+  _forceIntroReplay = true;
+  // Reset the canvas the warp draws on; it was faded out and hidden on exit.
+  const cd = document.getElementById('cinematic');
+  cd.style.display = ''; cd.style.opacity = ''; cd.style.transition = '';
+  runCinematic();
+});
+document.getElementById('replay-premiere-btn').addEventListener('click', () => {
+  closeSideMenu();
+  closeAllPanels({keepMenu:false});
+  stopNarration();
+  startCinematicPremiere();
+});
+
 // ─── CINEMATIC INTRO SEQUENCE ────────────────────────────────────────────────
 function runCinematic() {
-  // Old warp cinematic replaced by the new cinematic premiere system.
-  // Go straight to the welcome screen — premiere plays after "Begin Exploration".
-  showWelcomeScreen();
-  return;
+  // The warp-tunnel intro: a 62-second flight through interstellar space that
+  // decelerates into the solar system, scored in three acts.
+  //
+  // This entire sequence was previously unreachable — an early `return` right
+  // here sent the user to a plain welcome screen instead, leaving ~470 lines
+  // below as dead code. The tunnel is the intro; it is back on the launch path.
+  //
+  // It only plays in full on a first visit. Sixty-two seconds is a great
+  // cinematic once and an obstacle on the fifth run, so returning visitors drop
+  // straight into the game and can replay it from the menu whenever they like.
+  let seenIntro = false;
+  try { seenIntro = localStorage.getItem('ue_seen_intro') === '1'; } catch (e) {}
+  if (seenIntro && !_forceIntroReplay) { _enterAfterIntro(); return; }
+  _forceIntroReplay = false;
+  try { localStorage.setItem('ue_seen_intro', '1'); } catch (e) {}
 
   const div    = document.getElementById('cinematic');
   const canvas = document.getElementById('cine-canvas');
@@ -4164,6 +4224,8 @@ function runCinematic() {
   div.classList.add('active');
 
   let W, H, dead = false;
+  // Assigned further down, once endCinematic exists to tear it down again.
+  let _cineSkipKeys = null;
   function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
   resize();
   window.addEventListener('resize', resize);
@@ -4203,13 +4265,18 @@ function runCinematic() {
     if(dead) return;
     dead = true;
     window.removeEventListener('resize', resize);
+    if (_cineSkipKeys) {
+      document.removeEventListener('keydown', _cineSkipKeys);
+      _cineSkipKeys = null;
+    }
     if(lineEl) lineEl.style.opacity = '0';
     div.style.transition = 'opacity 2s ease';
     div.style.opacity = '0';
     setTimeout(() => { div.style.display = 'none'; }, 2200);
     stopCinematicScore();
-    // Show welcome guide screen after cinematic fades
-    setTimeout(showWelcomeScreen, 1800);
+    // Land straight in the solar system. This used to hand off to a welcome
+    // screen whose only job was a second "Begin your journey" button.
+    setTimeout(_enterAfterIntro, 1800);
   }
 
   function showWelcomeScreen() {
@@ -4454,6 +4521,17 @@ function runCinematic() {
   }
 
   document.getElementById('cine-skip').addEventListener('click', endCinematic, {once:true});
+
+  // A 62-second cinematic needs an unmissable exit. Escape, Space and Enter all
+  // skip it. endCinematic() detaches this itself, so it cannot leak into
+  // gameplay — Escape is the app's normal "close panel" key.
+  _cineSkipKeys = (e) => {
+    if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      endCinematic();
+    }
+  };
+  document.addEventListener('keydown', _cineSkipKeys);
 
   function frame(ts) {
     if(dead) return;
