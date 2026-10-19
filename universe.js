@@ -38,12 +38,6 @@ const PLANETS = [
       composition:[{gas:'H (plasma)',pct:73,color:'#ffdd40'},{gas:'He',pct:25,color:'#ffaa30'},{gas:'C/O/Ne/other',pct:2,color:'#ff8800'}],
       pressure:'28× Earth\'s gravity at surface',temp:'5,500°C surface → 15,000,000°C core',windSpeed:'Solar wind: 400–800 km/s',
     },
-    quiz:[
-      {q:'How many Earths could fit inside the Sun?', options:['About 100','About 10,000','About 1.3 million','About 1 billion'], a:2},
-      {q:'How long does light take to travel from the Sun to Earth?', options:['8 seconds','8 minutes','8 hours','8 days'], a:1},
-      {q:'What percentage of the solar system\'s mass is in the Sun?', options:['50%','75%','99.86%','65%'], a:2},
-      {q:'What is the Sun mostly made of?', options:['Rock and iron','Hydrogen and helium','Oxygen and nitrogen','Dark matter'], a:1},
-    ],
     texture:'sun'
   },
   {
@@ -875,12 +869,6 @@ function makeTextureTo2D(id, ctx, size) {
     hg.addColorStop(0,'rgba(228,224,205,.9)');hg.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=hg;ctx.beginPath();ctx.ellipse(w*.52,h*.5,w*.2,w*.15,-.3,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='rgba(220,235,240,0.7)'; ctx.fillRect(0,0,w,12); ctx.fillRect(0,h-10,w,10);
-  } else if(id==='sun'){
-    ctx.fillStyle='#000208';ctx.fillRect(0,0,w,h);
-    const cg=ctx.createRadialGradient(w*.5,h*.5,0,w*.5,h*.5,w*.5);
-    cg.addColorStop(0,'#fffde8');cg.addColorStop(0.35,'#ffe040');cg.addColorStop(0.68,'#ff8800');cg.addColorStop(0.88,'#ff4400');cg.addColorStop(1,'rgba(180,30,0,0)');
-    ctx.fillStyle=cg;ctx.beginPath();ctx.arc(w*.5,h*.5,w*.44,0,Math.PI*2);ctx.fill();
-    for(let i=0;i<28;i++){ctx.beginPath();ctx.arc(w*.38+Math.random()*w*.24,h*.38+Math.random()*h*.24,2+Math.random()*7,0,Math.PI*2);ctx.fillStyle='rgba(130,50,0,0.55)';ctx.fill();}
   }
 }
 
@@ -1373,12 +1361,15 @@ addApolloMarkers();
   scene.add(new THREE.Line(rg,new THREE.LineBasicMaterial({color:0x445566,transparent:true,opacity:0.18})));
 })();
 
-// ─── GRAVITY WELL GRID ───────────────────────────────────────────────────────
-const gwGeo = new THREE.PlaneGeometry(200, 200, 70, 70);
+// ─── GRAVITY WELL GRID (Spacetime Curvature) ────────────────────────────────
+const gwGeo = new THREE.PlaneGeometry(200, 200, 72, 72);
 gwGeo.rotateX(-Math.PI/2);
-const gwMat = new THREE.MeshBasicMaterial({color:0x003355,wireframe:true,transparent:true,opacity:0});
+const gwColors = new Float32Array(gwGeo.attributes.position.count * 3);
+gwGeo.setAttribute('color', new THREE.BufferAttribute(gwColors, 3));
+const gwMat = new THREE.MeshBasicMaterial({vertexColors:true, wireframe:true, transparent:true, opacity:0});
 const gwMesh = new THREE.Mesh(gwGeo, gwMat);
 gwMesh.position.y = -4;
+gwMesh.visible = false;
 scene.add(gwMesh);
 const gwBasePos = Float32Array.from(gwGeo.attributes.position.array);
 let gwVisible = false;
@@ -1386,20 +1377,50 @@ let gwVisible = false;
 function updateGravityWell() {
   if(!gwVisible) return;
   const pos = gwGeo.attributes.position;
+  const col = gwGeo.attributes.color;
   for(let i=0;i<pos.count;i++){
     const x=gwBasePos[i*3], z=gwBasePos[i*3+2];
     let dep=0;
-    // Sun
-    dep += 7/(Math.sqrt(x*x+z*z)+1.8);
-    // Planets
-    planetMeshes.forEach(pm=>{
+    // Sun gravitational funnel
+    dep += 8.5/(Math.sqrt(x*x+z*z)+1.8);
+    // Planet gravitational funnels
+    for(let p=0;p<planetMeshes.length;p++){
+      const pm=planetMeshes[p];
       const px=pm.group.position.x, pz=pm.group.position.z;
       const d=Math.sqrt((x-px)**2+(z-pz)**2);
-      dep += pm.pdata.size*pm.pdata.size*0.25/(d+0.6);
-    });
-    pos.setY(i, -dep - 4);
+      dep += pm.pdata.size*pm.pdata.size*0.32/(d+0.55);
+    }
+    pos.setY(i, -dep - 3.2);
+    // Color gradient by gravitational potential: deep indigo -> cyan -> warm solar gold
+    const norm = Math.min(1, dep / 3.6);
+    if(norm < 0.45) {
+      const t = norm / 0.45;
+      col.setXYZ(i, 0.04 + t*0.06, 0.22 + t*0.58, 0.48 + t*0.52);
+    } else {
+      const t = (norm - 0.45) / 0.55;
+      col.setXYZ(i, 0.10 + t*0.90, 0.80 - t*0.12, 1.0 - t*0.75);
+    }
   }
   pos.needsUpdate=true;
+  col.needsUpdate=true;
+}
+
+function toggleGravityWell(fromMenu=false) {
+  gwVisible = !gwVisible;
+  gwMesh.visible = gwVisible;
+  gwMat.opacity = gwVisible ? 0.52 : 0;
+  if(gwVisible) updateGravityWell();
+  const menuBtn = document.getElementById('gravity-toggle');
+  const hudBtn = document.getElementById('gravity-hud-btn');
+  if(menuBtn) menuBtn.classList.toggle('active', gwVisible);
+  if(hudBtn) hudBtn.classList.toggle('active', gwVisible);
+  if(fromMenu) closeSideMenu();
+  if(typeof playUIClick === 'function') playUIClick();
+  showToast(
+    gwVisible ? 'Spacetime Grid: ON' : 'Spacetime Grid: OFF',
+    gwVisible ? 'Massive bodies curve the fabric of spacetime — watch the Sun & Jupiter bend the grid!' : 'Spacetime gravity well hidden',
+    '🌐'
+  );
 }
 
 // ─── NAVIGATION STATE ────────────────────────────────────────────────────────
@@ -1424,12 +1445,6 @@ let _completedMissions = new Set();
 let _missionPartial = {};
 let _missionRing = null;
 let _missionRingParent = null;
-// Welcome-screen keydown handler, kept here at module scope so dismissWelcome()
-// can always detach it. It cannot live inside runCinematic(): that function
-// returns early (the legacy warp cinematic was retired), so any `let` in its
-// body never executes and the binding would sit in the temporal dead zone
-// forever, throwing on first access from the hoisted showWelcomeScreen().
-let _welcomeKeyHandler = null;
 
 // Set by the "Replay Intro" menu action so the warp sequence plays again even
 // though localStorage records that it has already been seen.
@@ -1565,12 +1580,22 @@ const SUN_DATA = {
 };
 
 function openSun(addHistory=true) {
+  const panel = document.getElementById('info-panel');
+  const _alreadyOpenForSun = panel && panel.classList.contains('open') && currentPlanet === 'sun';
   currentPlanet = 'sun';
   checkMissionComplete('planet_visited', {id:'sun'});
   if(addHistory) pushHistory({type:'sun'});
   if(typeof playPlanetOpen==='function') playPlanetOpen();
+  screenFlash();
+  playPlanetAmbience('sun');
   syncPnavIdx('sun');
+  if(!_alreadyOpenForSun) showTourTitleCard('The Sun', 'Our Star — 4.6 Billion Years of Light', ()=>{}, '#ffe060');
   animateCameraTo({x:0,y:8,z:18},{x:0,y:0,z:0});
+  if(panel) {
+    panel.style.setProperty('--pc', '#ffe060');
+    panel.style.setProperty('--pc-glow', 'rgba(255,224,96,0.38)');
+    panel.style.setProperty('--pc-dim', 'rgba(255,224,96,0.12)');
+  }
   document.getElementById('panel-name').textContent = 'The Sun';
   document.getElementById('panel-tagline').textContent = 'Our Star — 4.6 Billion Years of Light';
   _setSpeakBtnTarget('sun');
@@ -1578,7 +1603,7 @@ function openSun(addHistory=true) {
   updatePanelPreview('sun');
   const body = document.getElementById('panel-body-content');
   const s = SUN_DATA.stats;
-  const overviewHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Quick Stats</h3><div class="stat-grid"><div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${s.diameter}</div></div><div class="stat-box"><div class="stat-label">Type</div><div class="stat-value">${s.type}</div></div><div class="stat-box"><div class="stat-label">Surface Temp</div><div class="stat-value">${s.surfaceTemp}</div></div><div class="stat-box"><div class="stat-label">Core Temp</div><div class="stat-value">${s.coreTemp}</div></div><div class="stat-box"><div class="stat-label">Age</div><div class="stat-value">${s.age}</div></div><div class="stat-box"><div class="stat-label">Rotation</div><div class="stat-value">${s.rotation}</div></div></div></div><div class="panel-section"><h3>Fascinating Facts</h3>${SUN_DATA.facts.map(f=>`<div class="sun-fact-item">${f}</div>`).join('')}</div>`;
+  const overviewHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Quick Stats</h3><div class="stat-grid"><div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${s.diameter}</div></div><div class="stat-box"><div class="stat-label">Type</div><div class="stat-value">${s.type}</div></div><div class="stat-box"><div class="stat-label">Surface Temp</div><div class="stat-value">${s.surfaceTemp}</div></div><div class="stat-box"><div class="stat-label">Core Temp</div><div class="stat-value">${s.coreTemp}</div></div><div class="stat-box"><div class="stat-label">Age</div><div class="stat-value">${s.age}</div></div><div class="stat-box"><div class="stat-label">Rotation</div><div class="stat-value">${s.rotation}</div></div></div></div><div class="panel-section"><h3>Fascinating Facts</h3>${SUN_DATA.facts.map(f=>`<div class="sun-fact-item">${f}</div>`).join('')}</div><button class="take-quiz-btn" onclick="window.launchQuiz('sun')">&#9670; Take Sun Quiz</button>`;
   const missionsHTML = SUN_DATA.missions.map(m=>`<div class="mission-card"><div class="mission-header"><span class="mission-name">${m.name}</span><span class="mission-meta">${m.year} · ${m.agency}</span></div><div class="mission-type">${m.type}</div><div class="mission-note">${m.note}</div></div>`).join('');
   const surfaceHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Composition</h3><p style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:10px;font-family:'Segoe UI',system-ui,sans-serif">The Sun is a ball of plasma — hydrogen and helium in their ionized state — sustained by nuclear fusion. Every atom heavier than hydrogen in your body was forged in stars like this one.</p><div class="surface-bar">${SUN_DATA.surfaceComp.map(c=>`<div class="surface-seg" style="flex:${c.pct};background:${c.color}" title="${c.label}: ${c.pct}%"></div>`).join('')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:7px">${SUN_DATA.surfaceComp.map(c=>`<span style="font-size:9px;color:var(--dim)"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${c.color};margin-right:3px;vertical-align:middle"></span>${c.label} ${c.pct}%</span>`).join('')}</div></div><div class="panel-section"><h3>Structure (Surface → Core)</h3>${SUN_DATA.layers.map(([l,d])=>`<div class="poi-item"><div class="poi-name">${l}</div><div class="poi-desc">${d}</div></div>`).join('')}</div>`;
   body.innerHTML = `<div class="tab-bar"><button class="tab-btn active" data-tab="overview">Overview</button><button class="tab-btn" data-tab="missions">Probes</button><button class="tab-btn" data-tab="surface">Structure</button></div><div class="tab-pane active" id="tab-overview">${overviewHTML}</div><div class="tab-pane" id="tab-missions">${missionsHTML}</div><div class="tab-pane" id="tab-surface">${surfaceHTML}</div>`;
@@ -1597,6 +1622,7 @@ function screenFlash() {
 }
 
 function openPlanet(id, addHistory=true) {
+  if(id === 'sun') { openSun(addHistory); return; }
   const pdata = PLANETS.find(p=>p.id===id);
   if(!pdata) return;
   const _infoPanel = document.getElementById('info-panel');
@@ -1610,20 +1636,15 @@ function openPlanet(id, addHistory=true) {
   if(addHistory) pushHistory({type:'planet', id});
   if(!_alreadyOpenForPlanet) showTourTitleCard(pdata.name, pdata.tagline||'', ()=>{}, pdata.color);
 
-  if(id === 'sun') {
-    // Sun sits at origin — fly close enough to see the glow
-    animateCameraTo({x:8, y:5, z:14}, {x:0, y:0, z:0});
-  } else {
-    const entry = planetMeshes.find(p=>p.pdata.id===id);
-    if(entry) {
-      const wpos = new THREE.Vector3();
-      entry.group.getWorldPosition(wpos);
-      const offset = pdata.size * 5 + 4;
-      animateCameraTo(
-        {x: wpos.x+offset, y: wpos.y+pdata.size*2, z: wpos.z+offset},
-        {x: wpos.x, y: wpos.y, z: wpos.z}
-      );
-    }
+  const entry = planetMeshes.find(p=>p.pdata.id===id);
+  if(entry) {
+    const wpos = new THREE.Vector3();
+    entry.group.getWorldPosition(wpos);
+    const offset = pdata.size * 5 + 4;
+    animateCameraTo(
+      {x: wpos.x+offset, y: wpos.y+pdata.size*2, z: wpos.z+offset},
+      {x: wpos.x, y: wpos.y, z: wpos.z}
+    );
   }
 
   // ── Planet color theming ────────────────────────────────────────────────────
@@ -3410,11 +3431,11 @@ function awardPoints(pts) {
 
 function updatePlanetCounter() {
   const el = document.getElementById('planet-counter-value');
-  // PLANETS includes the Sun, but visitedPlanets is only written by
-  // onPlanetVisit (called from openPlanet, never openSun), so the denominator
-  // was unreachable and the counter capped at 9/10.
-  if(el) el.textContent = visitedPlanets.size+'/'+(PLANETS.length-1);
+  // Cap at 8/8 (the 8 classical planets; Sun is routed via openSun and excluded).
+  const count = Math.min(8, [...visitedPlanets].filter(id => id !== 'sun').length);
+  if(el) el.textContent = count + '/8';
 }
+updatePlanetCounter();
 
 // ─── EXPLORER LEVEL SYSTEM ───────────────────────────────────────────────────
 const EXPLORER_LEVELS = [
@@ -3518,6 +3539,10 @@ function checkAchievements() {
 }
 
 function onPlanetVisit(id) {
+  if(id === 'sun') {
+    checkMissionComplete('planet_visited', {id:'sun'});
+    return;
+  }
   if(!visitedPlanets.has(id)) {
     visitedPlanets.add(id);
     awardPoints(50);
@@ -3641,6 +3666,12 @@ const QUIZ = {
     {q:'Neptune\'s largest moon, which orbits backwards, is:',opts:['Proteus','Triton','Nereid','Despina'],ans:1},
     {q:'Wind speeds on Neptune can reach approximately:',opts:['200 km/h','600 km/h','2100 km/h','5800 km/h'],ans:2},
     {q:'Neptune was discovered in 1846 primarily through:',opts:['Direct telescope observation','Mathematical prediction from orbital data','A spacecraft flyby','Radio telescope signals'],ans:1},
+  ],
+  pluto:[
+    {q:'What famous shape did the New Horizons spacecraft discover on Pluto\'s surface?',opts:['A giant smiley face','A bright nitrogen-ice heart (Tombaugh Regio)','A volcanic ring','A deep blue ocean'],ans:1},
+    {q:'Which spacecraft made the first close-up flyby of Pluto in July 2015?',opts:['Voyager 1','Cassini','New Horizons','Juno'],ans:2},
+    {q:'Pluto\'s largest moon Charon is so big compared to Pluto that they:',opts:['Crash into each other every century','Share the same atmosphere','Orbit a point in space between them like a binary pair','Spin in opposite directions'],ans:2},
+    {q:'What are Pluto\'s towering 3,500-meter mountains made of?',opts:['Volcanic basalt','Rock-hard frozen water ice','Solid iron','Compressed dust'],ans:1},
   ],
 };
 
@@ -3931,6 +3962,9 @@ document.getElementById('scale-toggle').addEventListener('click',()=>{
   }
 });
 
+document.getElementById('gravity-toggle').addEventListener('click', () => toggleGravityWell(true));
+document.getElementById('gravity-hud-btn').addEventListener('click', () => toggleGravityWell(false));
+
 // ─── SIDE MENU ───────────────────────────────────────────────────────────────
 function openSideMenu() {
   document.getElementById('side-menu').classList.add('open');
@@ -3952,13 +3986,11 @@ document.addEventListener('keydown', e => {
   if(document.getElementById('tour-lightbox').classList.contains('show')) {
     document.getElementById('tour-lightbox').classList.remove('show'); return;
   }
+  if(document.getElementById('hint-overlay').classList.contains('show')) {
+    document.getElementById('hint-skip').click(); return;
+  }
   if(document.getElementById('quiz-modal').classList.contains('open')) {
     document.getElementById('quiz-modal').classList.remove('open');
-    // Tear down quiz state, matching the #quiz-close handler. Without this the
-    // 15s question timer kept running against a closed modal: it painted the
-    // full-screen red "WRONG" flash over the app, and on the last question it
-    // ran showQuizResult(), banking quiz completion and achievement XP for a
-    // quiz the user had abandoned.
     if(quizTimerId) { clearInterval(quizTimerId); quizTimerId = null; }
     activeQuiz = null;
     quizStreak = 0;
@@ -4040,7 +4072,6 @@ let pnavIdx = 0;
 function updatePnavLabel() {
   const id = PLANET_ORDER[pnavIdx];
   document.getElementById('pnav-label').textContent = PLANET_LABELS[id] || id;
-  // dim the ← button at first stop, → at last — actually we wrap, so never dim
   document.getElementById('pnav-prev').style.opacity = '1';
   document.getElementById('pnav-next').style.opacity = '1';
 }
@@ -4061,7 +4092,6 @@ function navigatePlanetNav() {
   if(id === 'sun') {
     openSun();
   } else {
-    // openPlanet handles camera fly + panel regardless of whether pm exists yet
     openPlanet(id);
   }
 }
@@ -4070,6 +4100,283 @@ function navigatePlanetNav() {
 function syncPnavIdx(id) {
   const idx = PLANET_ORDER.indexOf(id);
   if(idx >= 0) { pnavIdx = idx; updatePnavLabel(); triggerNavPing(); }
+}
+
+// ─── PROCEDURAL MISSION ART & SCHEMATIC GENERATOR ────────────────────────────
+const _missionArtCache = {};
+const MISSION_ART_SPECS = {
+  'photos/missions/iss/exterior.jpg': {
+    tag:'ISS // LEO 408 KM', title:'INTERNATIONAL SPACE STATION', accent:'#44ccff',
+    art:`<path d="M0 360 Q400 280 800 370 L800 450 L0 450 Z" fill="#062858" opacity="0.8"/>
+      <path d="M0 360 Q400 280 800 370" fill="none" stroke="#44ccff" stroke-width="4" opacity="0.7"/>
+      <line x1="120" y1="205" x2="680" y2="205" stroke="#99bbdd" stroke-width="8"/>
+      <rect x="330" y="188" width="140" height="34" rx="8" fill="#d8e8f8" stroke="#44ccff" stroke-width="2"/>
+      <rect x="380" y="155" width="40" height="100" rx="6" fill="#bfd6ec" stroke="#44ccff" stroke-width="2"/>
+      ${[145,185,240,280,520,560,615,655].map(x=>`<rect x="${x-14}" y="82" width="28" height="108" fill="#c88a28" stroke="#ffd27a" stroke-width="1.5"/><rect x="${x-14}" y="220" width="28" height="108" fill="#c88a28" stroke="#ffd27a" stroke-width="1.5"/>`).join('')}`
+  },
+  'photos/missions/iss/earth_view.jpg': {
+    tag:'ISS // ORBITAL HORIZON', title:'EARTH LIMB & AURORA', accent:'#00e890',
+    art:`<defs><radialGradient id="eg" cx="50%" cy="110%" r="85%"><stop offset="0%" stop-color="#1d78d8"/><stop offset="68%" stop-color="#08285c"/><stop offset="100%" stop-color="#000412"/></radialGradient></defs>
+      <circle cx="400" cy="540" r="360" fill="url(#eg)" stroke="#55ccff" stroke-width="4"/>
+      <path d="M90 250 Q260 175 430 220 T720 195" fill="none" stroke="#00ff99" stroke-width="18" opacity="0.38" stroke-linecap="round"/>
+      <path d="M120 235 Q280 160 450 205 T700 180" fill="none" stroke="#66ffcc" stroke-width="7" opacity="0.65" stroke-linecap="round"/>
+      <polygon points="0,40 190,115 175,145 0,75" fill="#1a2c44" stroke="#44ccff" stroke-width="2"/>`
+  },
+  'photos/missions/iss/cupola.jpg': {
+    tag:'ISS // NODE-3 CUPOLA', title:'CUPOLA OBSERVATION DOME', accent:'#66ddff',
+    art:`<circle cx="400" cy="225" r="165" fill="#0b4a8c" stroke="#304860" stroke-width="18"/>
+      <path d="M265 180 Q360 120 480 175 T550 265" fill="none" stroke="#ffffff" stroke-width="22" opacity="0.35" stroke-linecap="round"/>
+      <circle cx="400" cy="225" r="72" fill="none" stroke="#182638" stroke-width="14"/>
+      ${[0,60,120,180,240,300].map(a=>{const r=a*Math.PI/180;return `<line x1="${400+Math.cos(r)*72}" y1="${225+Math.sin(r)*72}" x2="${400+Math.cos(r)*165}" y2="${225+Math.sin(r)*165}" stroke="#182638" stroke-width="12"/>`;}).join('')}
+      <circle cx="400" cy="225" r="72" fill="none" stroke="#44ccff" stroke-width="2"/>`
+  },
+  'photos/missions/hubble/telescope.jpg': {
+    tag:'HST // 547 KM ORBIT', title:'HUBBLE SPACE TELESCOPE', accent:'#88ccff',
+    art:`<g transform="translate(400,215) rotate(-18)">
+      <rect x="-25" y="-140" width="50" height="95" fill="#cc8a28" stroke="#ffd480" stroke-width="2"/>
+      <rect x="-25" y="45" width="50" height="95" fill="#cc8a28" stroke="#ffd480" stroke-width="2"/>
+      <rect x="-95" y="-42" width="190" height="84" rx="10" fill="#cfdce8" stroke="#66bbff" stroke-width="2.5"/>
+      <rect x="-135" y="-32" width="45" height="64" rx="4" fill="#99b2c8" stroke="#66bbff" stroke-width="2"/>
+      <polygon points="95,-42 145,-72 135,-30" fill="#dce8f5" stroke="#66bbff" stroke-width="2"/>
+      <ellipse cx="95" cy="0" rx="10" ry="36" fill="#08182e" stroke="#44ccff" stroke-width="2"/>
+    </g>`
+  },
+  'photos/missions/hubble/deep_field.jpg': {
+    tag:'HST // ULTRA DEEP FIELD', title:'10,000 ANCIENT GALAXIES', accent:'#bb88ff',
+    art:`${[[160,130,36,16,25,'#ffcc66'],[580,145,44,18,-30,'#77ccff'],[390,215,52,24,15,'#ff88cc'],[230,295,32,15,-40,'#99eeff'],[610,290,38,16,35,'#ffd888'],[470,120,24,12,-15,'#bb99ff'],[290,175,26,26,0,'#ffaa55'],[510,260,28,14,50,'#88ffcc']].map(([x,y,rx,ry,rot,c])=>`<g transform="translate(${x},${y}) rotate(${rot})"><ellipse cx="0" cy="0" rx="${rx}" ry="${ry}" fill="${c}" opacity="0.35"/><ellipse cx="0" cy="0" rx="${rx*0.45}" ry="${ry*0.45}" fill="#fff" opacity="0.85"/></g>`).join('')}`
+  },
+  'photos/missions/hubble/nebula.jpg': {
+    tag:'HST // M16 EAGLE NEBULA', title:'PILLARS OF CREATION', accent:'#ffaa55',
+    art:`<path d="M180 390 L230 130 Q255 95 280 135 L310 390 Z" fill="#6e3a1e" opacity="0.82" stroke="#ffbb66" stroke-width="2"/>
+      <path d="M340 390 L385 165 Q410 135 430 170 L455 390 Z" fill="#582c18" opacity="0.82" stroke="#ff9955" stroke-width="2"/>
+      <path d="M485 390 L520 215 Q540 190 558 220 L580 390 Z" fill="#462214" opacity="0.8" stroke="#ff8844" stroke-width="1.5"/>
+      <circle cx="255" cy="115" r="8" fill="#fff"/><circle cx="408" cy="150" r="7" fill="#aeeeff"/><circle cx="538" cy="204" r="6" fill="#ffd888"/>`
+  },
+  'photos/missions/jwst/telescope.jpg': {
+    tag:'JWST // L2 LAGRANGE POINT', title:'18-SEGMENT GOLD MIRROR ARRAY', accent:'#ffd24d',
+    art:`<polygon points="150,295 400,355 650,295 570,225 230,225" fill="#8866aa" opacity="0.45" stroke="#ccaaff" stroke-width="2"/>
+      <polygon points="175,280 400,335 625,280 555,218 245,218" fill="#aa88cc" opacity="0.45" stroke="#eeddff" stroke-width="1.5"/>
+      ${[[0,-64],[-55,-32],[55,-32],[-55,32],[0,64],[55,32],[0,0]].map(([dx,dy])=>`<polygon points="${400+dx},${165+dy-30} ${400+dx+26},${165+dy-15} ${400+dx+26},${165+dy+15} ${400+dx},${165+dy+30} ${400+dx-26},${165+dy+15} ${400+dx-26},${165+dy-15}" fill="#e8b428" stroke="#fff2a8" stroke-width="2"/>`).join('')}`
+  },
+  'photos/missions/jwst/deep_field.jpg': {
+    tag:'JWST // SMACS 0723', title:'GRAVITATIONAL LENSING DEEP FIELD', accent:'#ffbb44',
+    art:`<circle cx="400" cy="215" r="45" fill="#fff4d0" opacity="0.28"/>
+      <path d="M290 155 A135 135 0 0 1 485 115" fill="none" stroke="#ff8844" stroke-width="5" stroke-linecap="round"/>
+      <path d="M515 265 A135 135 0 0 1 325 320" fill="none" stroke="#ffaa55" stroke-width="5" stroke-linecap="round"/>
+      <path d="M265 245 A145 145 0 0 1 285 165" fill="none" stroke="#66ccff" stroke-width="4" stroke-linecap="round"/>
+      <g transform="translate(400,215)"><line x1="-70" y1="0" x2="70" y2="0" stroke="#ffd878" stroke-width="2"/><line x1="-38" y1="-64" x2="38" y2="64" stroke="#ffd878" stroke-width="2"/><line x1="-38" y1="64" x2="38" y2="-64" stroke="#ffd878" stroke-width="2"/><circle cx="0" cy="0" r="10" fill="#fff"/></g>`
+  },
+  'photos/missions/jwst/carina.jpg': {
+    tag:'JWST // NGC 3324 NIRCAM', title:'COSMIC CLIFFS — CARINA NEBULA', accent:'#ff9944',
+    art:`<path d="M0 250 Q140 210 260 245 T510 195 T800 230 L800 450 L0 450 Z" fill="#7a2e14" opacity="0.85" stroke="#ffaa55" stroke-width="3"/>
+      <path d="M0 250 Q140 210 260 245 T510 195 T800 230" fill="none" stroke="#ffdd99" stroke-width="5" opacity="0.6"/>
+      <g transform="translate(260,125)"><line x1="-38" y1="0" x2="38" y2="0" stroke="#aeeeff" stroke-width="2"/><line x1="-20" y1="-34" x2="20" y2="34" stroke="#aeeeff" stroke-width="2"/><line x1="-20" y1="34" x2="20" y2="-34" stroke="#aeeeff" stroke-width="2"/><circle cx="0" cy="0" r="6" fill="#fff"/></g>`
+  },
+  'photos/missions/voyager/pale_blue_dot.jpg': {
+    tag:'VOYAGER 1 // 6.0 BILLION KM', title:'PALE BLUE DOT — FEB 14, 1990', accent:'#66d4ff',
+    art:`<polygon points="460,0 560,0 360,450 260,450" fill="#ffbb77" opacity="0.16"/>
+      <polygon points="520,0 570,0 370,450 320,450" fill="#88ddff" opacity="0.22"/>
+      <circle cx="435" cy="215" r="22" fill="none" stroke="#66d4ff" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <circle cx="435" cy="215" r="4" fill="#99eeff"/>
+      <text x="468" y="220" fill="#88eeff" font-family="Orbitron,sans-serif" font-size="13" letter-spacing="2">EARTH (0.12 PX)</text>`
+  },
+  'photos/missions/voyager/jupiter.jpg': {
+    tag:'VOYAGER 1 // JUPITER APPROACH', title:'GREAT RED SPOT — TURBULENT VORTEX', accent:'#ff9944',
+    art:`<rect x="60" y="75" width="680" height="280" rx="18" fill="#b87432"/>
+      <rect x="60" y="105" width="680" height="42" fill="#e6c48a"/>
+      <rect x="60" y="185" width="680" height="58" fill="#964618"/>
+      <rect x="60" y="275" width="680" height="38" fill="#dfb878"/>
+      <ellipse cx="450" cy="215" rx="95" ry="52" fill="#cc3314" stroke="#ffaa77" stroke-width="4"/>
+      <ellipse cx="450" cy="215" rx="58" ry="30" fill="none" stroke="#ffddaa" stroke-width="2" stroke-dasharray="10 6"/>`
+  },
+  'photos/missions/voyager/golden_record.jpg': {
+    tag:'VOYAGER 1 & 2 // INTERSTELLAR PLAQUE', title:'THE GOLDEN RECORD', accent:'#ffd24d',
+    art:`<circle cx="400" cy="215" r="145" fill="#c8961e" stroke="#ffea88" stroke-width="4"/>
+      <circle cx="400" cy="215" r="115" fill="none" stroke="#ffea88" stroke-width="1" opacity="0.5"/>
+      <circle cx="400" cy="215" r="42" fill="#8a620c" stroke="#ffea88" stroke-width="2"/>
+      ${[0,25,55,82,115,148,175,210,245,280,315,340].map(a=>{const r=a*Math.PI/180;return `<line x1="330" y1="250" x2="${330+Math.cos(r)*68}" y2="${250+Math.sin(r)*68}" stroke="#fff4b8" stroke-width="1.8"/>`;}).join('')}
+      <circle cx="465" cy="150" r="20" fill="none" stroke="#fff4b8" stroke-width="2"/><circle cx="515" cy="150" r="20" fill="none" stroke="#fff4b8" stroke-width="2"/><line x1="485" y1="150" x2="495" y2="150" stroke="#fff4b8" stroke-width="2"/>`
+  },
+  'photos/missions/perseverance/rover.jpg': {
+    tag:'MARS 2020 // JEZERO CRATER', title:'PERSEVERANCE ROVER & SUPERCAM', accent:'#ff7744',
+    art:`<path d="M0 300 Q240 265 520 295 T800 275 L800 450 L0 450 Z" fill="#7c2810"/>
+      <rect x="250" y="210" width="160" height="52" rx="8" fill="#d8e0e8" stroke="#ff8844" stroke-width="2.5"/>
+      <rect x="370" y="135" width="14" height="78" fill="#b8c4d0"/>
+      <rect x="352" y="118" width="52" height="28" rx="5" fill="#e8f0f8" stroke="#ff8844" stroke-width="2"/>
+      <line x1="404" y1="132" x2="620" y2="310" stroke="#ff2222" stroke-width="3" stroke-dasharray="8 4"/>
+      <circle cx="620" cy="310" r="14" fill="#ffaa33" opacity="0.8"/>
+      ${[265,330,395].map(x=>`<circle cx="${x}" cy="292" r="24" fill="#222a34" stroke="#99aabb" stroke-width="4"/>`).join('')}`
+  },
+  'photos/missions/perseverance/ingenuity.jpg': {
+    tag:'MARS HELICOPTER // 72 FLIGHTS', title:'INGENUITY ROTORCRAFT IN FLIGHT', accent:'#ff9966',
+    art:`<path d="M0 330 Q380 295 800 335 L800 450 L0 450 Z" fill="#6e220c"/>
+      <ellipse cx="400" cy="355" rx="55" ry="12" fill="#000" opacity="0.45"/>
+      <rect x="374" y="175" width="52" height="48" rx="6" fill="#d8c090" stroke="#ffbb66" stroke-width="2"/>
+      <line x1="400" y1="125" x2="400" y2="175" stroke="#ccd8e8" stroke-width="6"/>
+      <ellipse cx="400" cy="140" rx="145" ry="10" fill="#88ccff" opacity="0.45" stroke="#bfe8ff" stroke-width="2"/>
+      <ellipse cx="400" cy="156" rx="145" ry="10" fill="#88ccff" opacity="0.45" stroke="#bfe8ff" stroke-width="2"/>
+      <line x1="380" y1="223" x2="335" y2="285" stroke="#ccd8e8" stroke-width="3"/><line x1="420" y1="223" x2="465" y2="285" stroke="#ccd8e8" stroke-width="3"/>`
+  },
+  'photos/missions/perseverance/surface.jpg': {
+    tag:'MASTCAM-Z // JEZERO DELTA', title:'ANCIENT RIVER DELTA STRATA', accent:'#ff8855',
+    art:`<path d="M0 215 L180 155 L390 175 L590 140 L800 190 L800 450 L0 450 Z" fill="#8c3214"/>
+      <path d="M0 275 Q300 245 800 285 L800 450 L0 450 Z" fill="#64200a"/>
+      <path d="M240 450 L365 280 M520 450 L435 280" stroke="#c86438" stroke-width="6" stroke-dasharray="10 8"/>`
+  },
+  'photos/missions/juno/spacecraft.jpg': {
+    tag:'JUNO // POLAR ORBITER', title:'JUNO SOLAR ARRAY SPACECRAFT', accent:'#ffcc44',
+    art:`<circle cx="620" cy="340" r="210" fill="#c88238" opacity="0.85"/>
+      <g transform="translate(330,205)">
+        ${[0,120,240].map(a=>`<g transform="rotate(${a})"><rect x="28" y="-16" width="155" height="32" fill="#1c4d8c" stroke="#ffcc44" stroke-width="2"/></g>`).join('')}
+        <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="#e8d4a0" stroke="#ffcc44" stroke-width="2.5"/>
+      </g>`
+  },
+  'photos/missions/juno/jupiter_cloud.jpg': {
+    tag:'JUNOCAM // NORTH POLAR CYCLONES', title:'JUPITER CIRCUMPOLAR VORTICES', accent:'#55ccff',
+    art:`<circle cx="400" cy="215" r="155" fill="#1b4d7e" stroke="#66ccff" stroke-width="3"/>
+      <circle cx="400" cy="215" r="42" fill="#e89448" stroke="#fff0c0" stroke-width="3"/>
+      ${[0,45,90,135,180,225,270,315].map(a=>{const r=a*Math.PI/180;return `<circle cx="${400+Math.cos(r)*95}" cy="${215+Math.sin(r)*95}" r="26" fill="#d87834" stroke="#ffdd99" stroke-width="2"/>`;}).join('')}`
+  },
+  'photos/missions/juno/great_red_spot.jpg': {
+    tag:'JUNOCAM // PERIJOVE PASS', title:'GREAT RED SPOT ANTICYCLONE', accent:'#ff7744',
+    art:`<ellipse cx="400" cy="215" rx="220" ry="115" fill="#b83214" stroke="#ff9966" stroke-width="4"/>
+      <ellipse cx="400" cy="215" rx="155" ry="78" fill="#d84820" stroke="#ffbb88" stroke-width="2.5" stroke-dasharray="18 8"/>
+      <ellipse cx="400" cy="215" rx="85" ry="42" fill="#8f1e08" stroke="#ffd8b0" stroke-width="2"/>`
+  },
+  'photos/missions/new_horizons/pluto.jpg': {
+    tag:'NEW HORIZONS // JULY 14, 2015', title:'PLUTO FLYBY ENCOUNTER', accent:'#c4a882',
+    art:`<circle cx="400" cy="215" r="140" fill="#a68868" stroke="#e8d4b8" stroke-width="3"/>
+      <path d="M395 215 C395 185 350 180 355 218 C360 250 398 272 415 288 C432 272 468 250 472 218 C476 180 432 185 415 215 Z" fill="#efe8d8" opacity="0.9"/>`
+  },
+  'photos/missions/new_horizons/heart.jpg': {
+    tag:'LORRI + RALPH // TOMBAUGH REGIO', title:'SPUTNIK PLANITIA NITROGEN HEART', accent:'#f0e6d2',
+    art:`<rect x="80" y="70" width="640" height="290" rx="16" fill="#5e321e"/>
+      <path d="M390 190 C390 130 285 120 295 200 C305 268 395 310 420 335 C445 310 530 268 540 200 C550 120 445 130 420 190 Z" fill="#f2ece0" stroke="#ffffff" stroke-width="3"/>`
+  },
+  'photos/missions/new_horizons/charon.jpg': {
+    tag:'NEW HORIZONS // BINARY SYSTEM', title:'PLUTO & CHARON BARYCENTER', accent:'#99bbff',
+    art:`<circle cx="270" cy="215" r="88" fill="#b89878" stroke="#ead8c0" stroke-width="2.5"/>
+      <circle cx="555" cy="215" r="48" fill="#88909a" stroke="#ccd4e0" stroke-width="2"/>
+      <path d="M515 190 A48 48 0 0 1 595 190" fill="#8a3828"/>
+      <circle cx="385" cy="215" r="10" fill="none" stroke="#00d4ff" stroke-width="2"/><line x1="370" y1="215" x2="400" y2="215" stroke="#00d4ff" stroke-width="2"/><line x1="385" y1="200" x2="385" y2="230" stroke="#00d4ff" stroke-width="2"/>`
+  },
+  'photos/missions/cassini/rings.jpg': {
+    tag:'CASSINI ISS // BACKLIT RINGS', title:'SATURN RING PLANE & CASSINI DIVISION', accent:'#ebd288',
+    art:`<ellipse cx="400" cy="215" rx="310" ry="78" fill="none" stroke="#e8d088" stroke-width="26" opacity="0.82"/>
+      <ellipse cx="400" cy="215" rx="245" ry="60" fill="none" stroke="#040814" stroke-width="8"/>
+      <ellipse cx="400" cy="215" rx="195" ry="46" fill="none" stroke="#cbb068" stroke-width="16" opacity="0.7"/>
+      <circle cx="400" cy="215" r="88" fill="#18140c" stroke="#ffe499" stroke-width="3"/>`
+  },
+  'photos/missions/cassini/enceladus.jpg': {
+    tag:'CASSINI // SOUTH POLAR PLUMES', title:'ENCELADUS CRYO-VOLCANIC GEYSERS', accent:'#88eeff',
+    art:`<circle cx="400" cy="165" r="88" fill="#e6f4ff" stroke="#88ddff" stroke-width="3"/>
+      <path d="M365 248 L330 385 M388 252 L375 395 M412 252 L425 395 M435 248 L470 385" stroke="#99eeff" stroke-width="14" opacity="0.55" stroke-linecap="round"/>`
+  },
+  'photos/missions/cassini/saturn.jpg': {
+    tag:'CASSINI // GRAND FINALE 2017', title:'RING-GRAZING ORBITAL DIVE', accent:'#f0c868',
+    art:`<circle cx="220" cy="260" r="180" fill="#d8bc70" stroke="#ffe89e" stroke-width="3"/>
+      <path d="M360 60 Q450 220 520 390" fill="none" stroke="#e8d498" stroke-width="38" opacity="0.55"/>
+      <circle cx="475" cy="185" r="24" fill="#d8e4f0" stroke="#00d4ff" stroke-width="2.5"/>`
+  },
+  'photos/missions/sun/corona.jpg': {
+    tag:'SDO / AIA 171 Å // SOLAR CORONA', title:'MAGNETIC CORONAL LOOPS', accent:'#ffaa22',
+    art:`<circle cx="400" cy="215" r="115" fill="#ff9900" stroke="#ffee77" stroke-width="4"/>
+      <path d="M300 155 C210 90 210 290 305 265" fill="none" stroke="#ffdd55" stroke-width="6"/>
+      <path d="M495 155 C590 90 590 290 495 265" fill="none" stroke="#ffdd55" stroke-width="6"/>`
+  },
+  'photos/missions/sun/parker.jpg': {
+    tag:'PARKER SOLAR PROBE // 690,000 KM/H', title:'TOUCHING THE SOLAR CORONA', accent:'#ffcc44',
+    art:`<circle cx="160" cy="215" r="145" fill="#ff7700" stroke="#ffdd66" stroke-width="4"/>
+      <polygon points="480,165 545,215 480,265" fill="#e8f0f8" stroke="#ffcc44" stroke-width="3"/>
+      <line x1="480" y1="145" x2="480" y2="285" stroke="#00d4ff" stroke-width="6"/>`
+  },
+  'photos/missions/mercury/caloris.jpg': {
+    tag:'MESSENGER // CALORIS BASIN', title:'1,550 KM IMPACT BASIN', accent:'#cccccc',
+    art:`<circle cx="400" cy="215" r="135" fill="#8c8882" stroke="#d0ccc4" stroke-width="3"/>
+      <circle cx="370" cy="195" r="65" fill="none" stroke="#e0d8c8" stroke-width="4" stroke-dasharray="12 6"/>
+      <circle cx="370" cy="195" r="38" fill="none" stroke="#c8c0b0" stroke-width="2"/>`
+  },
+  'photos/missions/mercury/messenger.jpg': {
+    tag:'MESSENGER // POLAR RADAR', title:'SHADOWED POLAR CRATER ICE', accent:'#66ddff',
+    art:`<circle cx="400" cy="215" r="130" fill="#706c68" stroke="#b8b4ae" stroke-width="3"/>
+      <ellipse cx="400" cy="105" rx="58" ry="22" fill="#00d4ff" opacity="0.75" stroke="#ffffff" stroke-width="2"/>`
+  },
+  'photos/missions/venus/magellan.jpg': {
+    tag:'MAGELLAN // SAR RADAR', title:'MAAT MONS VOLCANIC SHIELD', accent:'#ffaa33',
+    art:`<path d="M80 335 L335 150 L400 175 L465 145 L720 335 Z" fill="#b86218" stroke="#ffcc55" stroke-width="3"/>
+      <path d="M375 162 Q400 245 520 335" fill="none" stroke="#ffdd66" stroke-width="8"/>`
+  },
+  'photos/missions/venus/venera.jpg': {
+    tag:'VENERA 13 // SURFACE LANDER', title:'BASALT SLABS AT 465°C / 92 ATM', accent:'#ffbb44',
+    art:`<rect x="60" y="75" width="680" height="165" fill="#d88a24" opacity="0.7"/>
+      <path d="M60 240 L740 240 L740 365 L60 365 Z" fill="#5c3412"/>
+      <polygon points="330,260 470,260 510,335 290,335" fill="#9a8878" stroke="#ffcc66" stroke-width="2"/>`
+  },
+  'photos/missions/earth/apollo.jpg': {
+    tag:'APOLLO 11 // MARE TRANQUILLITATIS', title:'EARTHRISE OVER LUNAR HORIZON', accent:'#44aaff',
+    art:`<path d="M0 310 Q400 265 800 315 L800 450 L0 450 Z" fill="#7a7a80" stroke="#bcbcc4" stroke-width="2"/>
+      <circle cx="400" cy="170" r="68" fill="#1e78d8" stroke="#88ddff" stroke-width="3"/>
+      <path d="M360 150 Q405 130 435 165 T390 210" fill="#44aa55" opacity="0.85"/>`
+  },
+  'photos/missions/uranus/voyager2.jpg': {
+    tag:'VOYAGER 2 // JAN 24, 1986', title:'CRESCENT URANUS & VERTICAL RINGS', accent:'#7de8e8',
+    art:`<ellipse cx="400" cy="215" rx="52" ry="165" fill="none" stroke="#7de8e8" stroke-width="4" opacity="0.65"/>
+      <circle cx="400" cy="215" r="88" fill="#58c8d0" stroke="#aef8f8" stroke-width="3"/>`
+  },
+  'photos/missions/uranus/miranda.jpg': {
+    tag:'MIRANDA // VERONA RUPES', title:'20 KM ICE CLIFFS OF MIRANDA', accent:'#88eeff',
+    art:`<path d="M80 345 L280 135 L460 145 L515 320 L720 335 Z" fill="#5e7c8c" stroke="#99eeff" stroke-width="3"/>
+      <line x1="460" y1="145" x2="515" y2="320" stroke="#ffffff" stroke-width="5"/>`
+  },
+  'photos/missions/neptune/triton.jpg': {
+    tag:'VOYAGER 2 // TRITON FLYBY', title:'TRITON NITROGEN ICE GEYSERS', accent:'#6699ff',
+    art:`<path d="M0 305 Q400 270 800 310 L800 450 L0 450 Z" fill="#8aa4c8" stroke="#cce0ff" stroke-width="2"/>
+      <path d="M340 290 L340 140 L540 125" fill="none" stroke="#334466" stroke-width="14" stroke-linecap="round"/>
+      <circle cx="610" cy="145" r="55" fill="#3264d8" stroke="#77aaff" stroke-width="2"/>`
+  },
+  'photos/missions/neptune/dark_spot.jpg': {
+    tag:'VOYAGER 2 // 2,100 KM/H WINDS', title:'GREAT DARK SPOT & SCOOTER CLOUDS', accent:'#4b70dd',
+    art:`<rect x="70" y="75" width="660" height="280" rx="18" fill="#1e44b8"/>
+      <ellipse cx="400" cy="210" rx="125" ry="62" fill="#0b1b58" stroke="#6699ff" stroke-width="3"/>
+      <path d="M295 165 Q410 145 505 170" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>`
+  }
+};
+
+function resolveMissionPhoto(src, fallbackCaption='') {
+  if(!src || src.startsWith('data:')) return src;
+  if(_missionArtCache[src]) return _missionArtCache[src];
+  const spec = MISSION_ART_SPECS[src] || {
+    tag: 'DEEP SPACE TELEMETRY',
+    title: (fallbackCaption || src.split('/').pop().replace('.jpg','')).toUpperCase(),
+    accent: '#00d4ff',
+    art: `<circle cx="400" cy="215" r="95" fill="none" stroke="#00d4ff" stroke-width="3" stroke-dasharray="10 6"/><circle cx="400" cy="215" r="42" fill="#00d4ff" opacity="0.35"/>`
+  };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#020716"/>
+        <stop offset="55%" stop-color="#061430"/>
+        <stop offset="100%" stop-color="#020610"/>
+      </linearGradient>
+    </defs>
+    <rect width="800" height="450" fill="url(#bg)"/>
+    <g stroke="rgba(0,212,255,0.08)" stroke-width="1">
+      <line x1="0" y1="90" x2="800" y2="90"/><line x1="0" y1="180" x2="800" y2="180"/><line x1="0" y1="270" x2="800" y2="270"/><line x1="0" y1="360" x2="800" y2="360"/>
+      <line x1="160" y1="0" x2="160" y2="450"/><line x1="320" y1="0" x2="320" y2="450"/><line x1="480" y1="0" x2="480" y2="450"/><line x1="640" y1="0" x2="640" y2="450"/>
+    </g>
+    <g fill="#ffffff" opacity="0.65">
+      <circle cx="75" cy="55" r="1.5"/><circle cx="145" cy="120" r="1.2"/><circle cx="235" cy="48" r="1.8"/><circle cx="675" cy="64" r="1.6"/><circle cx="725" cy="140" r="1.3"/><circle cx="620" cy="110" r="1.5"/><circle cx="110" cy="295" r="1.4"/><circle cx="695" cy="285" r="1.7"/>
+    </g>
+    ${spec.art}
+    <path d="M22,52 L22,20 L54,20 M778,52 L778,20 L746,20 M22,398 L22,430 L54,430 M778,398 L778,430 L746,430" fill="none" stroke="${spec.accent}" stroke-width="2.5" opacity="0.8"/>
+    <rect x="0" y="388" width="800" height="62" fill="rgba(2,6,18,0.86)"/>
+    <line x1="0" y1="388" x2="800" y2="388" stroke="${spec.accent}" stroke-width="1.5" opacity="0.55"/>
+    <text x="32" y="411" fill="${spec.accent}" font-family="Orbitron,Segoe UI,sans-serif" font-size="11" font-weight="700" letter-spacing="2.5">${spec.tag}</text>
+    <text x="32" y="433" fill="#e8f4ff" font-family="Orbitron,Segoe UI,sans-serif" font-size="15" font-weight="800" letter-spacing="1.5">${spec.title}</text>
+  </svg>`;
+  const uri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  _missionArtCache[src] = uri;
+  return uri;
 }
 
 // ─── MISSIONS SYSTEM ─────────────────────────────────────────────────────────
@@ -4100,9 +4407,9 @@ function openMission(id) {
 
   const photosHTML = m.photos.map((p, i) => {
     const cls = 'mission-photo' + (i===0 ? ' mission-photo-wide' : '');
-    return `<img class="${cls}" src="${p.src}" alt="${p.caption}" title="${p.caption}"
-      onclick="openTourLightbox('${p.src}')"
-      onerror="this.parentNode.replaceChild(Object.assign(document.createElement('div'),{className:'mission-photo-placeholder'+(${i===0}?' mission-photo-wide':''),textContent:'Photo loading...'}),this)">`;
+    const dataUri = resolveMissionPhoto(p.src, p.caption);
+    return `<img class="${cls}" src="${dataUri}" alt="${p.caption}" title="${p.caption}"
+      onclick="window.openTourLightbox('${p.src}')">`;
   }).join('');
 
   const factsHTML = m.facts.map(f => `<li>${f}</li>`).join('');
@@ -4281,250 +4588,8 @@ function runCinematic() {
     div.style.opacity = '0';
     setTimeout(() => { div.style.display = 'none'; }, 2200);
     stopCinematicScore();
-    // Land straight in the solar system. This used to hand off to a welcome
-    // screen whose only job was a second "Begin your journey" button.
+    // Land straight in the solar system after the Carl Sagan warp intro.
     setTimeout(_enterAfterIntro, 1800);
-  }
-
-  function showWelcomeScreen() {
-    const ws = document.getElementById('welcome-screen');
-    ws.style.display = 'flex';
-    requestAnimationFrame(() => requestAnimationFrame(() => ws.classList.add('show')));
-
-    // ── Animated 2D Solar System Canvas ──────────────────────────────────────
-    const cvs = document.getElementById('wc-solar-canvas');
-    if(cvs) {
-      const ctx2 = cvs.getContext('2d');
-      function resizeWC() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
-      resizeWC();
-      window.addEventListener('resize', resizeWC);
-
-      // Stars background
-      const BG_STARS = Array.from({length:320}, () => ({
-        x: Math.random(), y: Math.random(),
-        r: Math.random()*1.3+0.15,
-        tw: Math.random()*4+2, tp: Math.random()*Math.PI*2,
-        col: ['#aad4ff','#ffeedd','#ddeeff','#ffffff'][Math.floor(Math.random()*4)]
-      }));
-      // Nebula clouds
-      const NEBULAE = Array.from({length:5}, () => ({
-        x: Math.random(), y: Math.random(),
-        rx: Math.random()*200+120, ry: Math.random()*120+60,
-        rot: Math.random()*Math.PI,
-        col: ['rgba(60,20,120,','rgba(0,40,100,','rgba(80,10,60,'][Math.floor(Math.random()*3)]
-      }));
-      // Planets: name, color, orbitR (fraction of min(W,H)*0.5), speed(rad/s), size, tilt
-      const WC_PLANETS = [
-        {n:'Mercury', c:'#b5b5b5', or:.13, sp:4.14,  sz:3,  ang:Math.random()*Math.PI*2},
-        {n:'Venus',   c:'#e8c46a', or:.19, sp:1.62,  sz:5,  ang:Math.random()*Math.PI*2},
-        {n:'Earth',   c:'#4fa3e0', or:.26, sp:1.0,   sz:5.5,ang:Math.random()*Math.PI*2, moon:true},
-        {n:'Mars',    c:'#c1440e', or:.33, sp:0.53,  sz:4,  ang:Math.random()*Math.PI*2},
-        {n:'Jupiter', c:'#c88b3a', or:.44, sp:0.084, sz:12, ang:Math.random()*Math.PI*2},
-        {n:'Saturn',  c:'#e4d191', or:.54, sp:0.034, sz:10, ang:Math.random()*Math.PI*2, ring:true},
-        {n:'Uranus',  c:'#7de8e8', or:.63, sp:0.012, sz:7,  ang:Math.random()*Math.PI*2},
-        {n:'Neptune', c:'#4b70dd', or:.71, sp:0.006, sz:7,  ang:Math.random()*Math.PI*2},
-      ];
-      // Comets
-      const COMETS = Array.from({length:3}, () => ({
-        active:false, x:0, y:0, vx:0, vy:0, trail:[], ttl:0, nextAt:Math.random()*5000+2000
-      }));
-      let wcAnimId, wcT0 = null;
-
-      function spawnComet(c, W, H) {
-        const side = Math.floor(Math.random()*4);
-        if(side===0){c.x=-20;c.y=Math.random()*H;}
-        else if(side===1){c.x=W+20;c.y=Math.random()*H;}
-        else if(side===2){c.x=Math.random()*W;c.y=-20;}
-        else {c.x=Math.random()*W;c.y=H+20;}
-        const tx=W*.2+Math.random()*W*.6, ty=H*.2+Math.random()*H*.6;
-        const spd=3.5+Math.random()*3;
-        const dx=tx-c.x, dy=ty-c.y, d=Math.sqrt(dx*dx+dy*dy);
-        c.vx=dx/d*spd; c.vy=dy/d*spd;
-        c.active=true; c.trail=[]; c.ttl=Math.sqrt(W*W+H*H)/spd*1.4;
-      }
-
-      function wcDraw(now) {
-        if(ws.style.display === 'none') { cancelAnimationFrame(wcAnimId); window.removeEventListener('resize', resizeWC); return; }
-        if(wcT0===null) wcT0=now;
-        const dt = Math.min((now - wcT0)/1000, 0.1);
-        wcT0 = now;
-        const W=cvs.width, H=cvs.height;
-        const cx=W*.5, cy=H*.5;
-        const minR=Math.min(W,H)*.44;
-
-        // Background fill
-        ctx2.fillStyle='#010208';
-        ctx2.fillRect(0,0,W,H);
-
-        // Nebula clouds
-        NEBULAE.forEach(nb => {
-          ctx2.save();
-          ctx2.translate(nb.x*W, nb.y*H);
-          ctx2.rotate(nb.rot);
-          const ng = ctx2.createRadialGradient(0,0,0,0,0,nb.rx);
-          ng.addColorStop(0, nb.col+'0.045)');
-          ng.addColorStop(1, nb.col+'0)');
-          ctx2.scale(1, nb.ry/nb.rx);
-          ctx2.fillStyle = ng;
-          ctx2.beginPath(); ctx2.arc(0,0,nb.rx,0,Math.PI*2); ctx2.fill();
-          ctx2.restore();
-        });
-
-        // Background stars
-        BG_STARS.forEach(st => {
-          const alpha = 0.35 + 0.45*Math.sin(now/1000*Math.PI*2/st.tw + st.tp);
-          ctx2.globalAlpha = alpha;
-          ctx2.fillStyle = st.col;
-          ctx2.beginPath(); ctx2.arc(st.x*W, st.y*H, st.r, 0, Math.PI*2); ctx2.fill();
-        });
-        ctx2.globalAlpha = 1;
-
-        // Orbit rings
-        WC_PLANETS.forEach(p => {
-          const or = p.or * minR;
-          ctx2.strokeStyle = 'rgba(0,212,255,0.07)';
-          ctx2.lineWidth = 0.5;
-          ctx2.beginPath(); ctx2.arc(cx, cy, or, 0, Math.PI*2); ctx2.stroke();
-        });
-
-        // Sun glow layers
-        const sunR = Math.min(W,H)*.05;
-        for(let g=4; g>=0; g--) {
-          const gr = ctx2.createRadialGradient(cx,cy,0,cx,cy,sunR*(1.4+g*0.9));
-          gr.addColorStop(0, g===0?'rgba(255,252,220,.96)':'rgba(255,160,20,'+(0.07-g*0.012)+')');
-          gr.addColorStop(1, 'rgba(255,80,0,0)');
-          ctx2.fillStyle = gr;
-          ctx2.beginPath(); ctx2.arc(cx,cy,sunR*(1.4+g*0.9),0,Math.PI*2); ctx2.fill();
-        }
-        // Sun surface
-        const sg = ctx2.createRadialGradient(cx-sunR*.15,cy-sunR*.15,0,cx,cy,sunR);
-        sg.addColorStop(0,'#fffce0'); sg.addColorStop(.35,'#ffe060'); sg.addColorStop(.7,'#ff8020'); sg.addColorStop(1,'#ff4000');
-        ctx2.fillStyle=sg;
-        ctx2.beginPath(); ctx2.arc(cx,cy,sunR,0,Math.PI*2); ctx2.fill();
-
-        // Animate + draw planets
-        WC_PLANETS.forEach(p => {
-          p.ang += p.sp * dt;
-          const or = p.or * minR;
-          const px = cx + Math.cos(p.ang)*or;
-          const py = cy + Math.sin(p.ang)*or;
-
-          // Planet glow
-          const pg = ctx2.createRadialGradient(px,py,0,px,py,p.sz*2.4);
-          pg.addColorStop(0, p.c+'cc');
-          pg.addColorStop(1, 'rgba(0,0,0,0)');
-          ctx2.fillStyle = pg;
-          ctx2.beginPath(); ctx2.arc(px,py,p.sz*2.4,0,Math.PI*2); ctx2.fill();
-
-          // Saturn ring
-          if(p.ring) {
-            ctx2.save();
-            ctx2.translate(px,py);
-            ctx2.scale(1, 0.28);
-            ctx2.strokeStyle = 'rgba(200,180,100,0.45)';
-            ctx2.lineWidth = p.sz*.8;
-            ctx2.beginPath(); ctx2.arc(0,0,p.sz*2.2,0,Math.PI*2); ctx2.stroke();
-            ctx2.strokeStyle = 'rgba(220,200,120,0.25)';
-            ctx2.lineWidth = p.sz*.4;
-            ctx2.beginPath(); ctx2.arc(0,0,p.sz*2.8,0,Math.PI*2); ctx2.stroke();
-            ctx2.restore();
-          }
-
-          // Planet body
-          const pb = ctx2.createRadialGradient(px-p.sz*.3,py-p.sz*.3,0,px,py,p.sz);
-          pb.addColorStop(0,'#fff'); pb.addColorStop(.25,p.c); pb.addColorStop(1,'rgba(0,0,0,.4)');
-          ctx2.fillStyle = pb;
-          ctx2.beginPath(); ctx2.arc(px,py,p.sz,0,Math.PI*2); ctx2.fill();
-
-          // Moon for Earth
-          if(p.moon) {
-            const mAng = p.ang * 12.37;
-            const mx = px + Math.cos(mAng)*(p.sz+7);
-            const my = py + Math.sin(mAng)*(p.sz+7);
-            ctx2.fillStyle = 'rgba(200,210,220,0.6)';
-            ctx2.beginPath(); ctx2.arc(mx,my,1.8,0,Math.PI*2); ctx2.fill();
-          }
-        });
-
-        // Comets
-        COMETS.forEach(c => {
-          if(!c.active) {
-            c.nextAt -= dt*1000;
-            if(c.nextAt <= 0) { spawnComet(c, W, H); }
-          } else {
-            c.x += c.vx; c.y += c.vy;
-            c.trail.push({x:c.x, y:c.y});
-            if(c.trail.length > 28) c.trail.shift();
-            c.ttl--;
-            if(c.ttl <= 0 || c.x<-60||c.x>W+60||c.y<-60||c.y>H+60) {
-              c.active=false; c.nextAt=Math.random()*8000+4000;
-            }
-            // Draw trail
-            if(c.trail.length>1) {
-              for(let i=1;i<c.trail.length;i++){
-                const a=(i/c.trail.length)*0.7;
-                ctx2.strokeStyle=`rgba(180,220,255,${a})`;
-                ctx2.lineWidth=a*2.2;
-                ctx2.beginPath();
-                ctx2.moveTo(c.trail[i-1].x,c.trail[i-1].y);
-                ctx2.lineTo(c.trail[i].x,c.trail[i].y);
-                ctx2.stroke();
-              }
-            }
-            ctx2.fillStyle='rgba(220,240,255,0.95)';
-            ctx2.beginPath(); ctx2.arc(c.x,c.y,2.2,0,Math.PI*2); ctx2.fill();
-          }
-        });
-
-        wcAnimId = requestAnimationFrame(wcDraw);
-      }
-      wcAnimId = requestAnimationFrame(wcDraw);
-    }
-
-    // ── Button & key handlers ─────────────────────────────────────────────────
-    document.getElementById('wc-start-btn').addEventListener('click', () => {
-      dismissWelcome(false);
-    }, {once: true});
-
-    document.getElementById('wc-tour-btn').addEventListener('click', () => {
-      dismissWelcome(true);
-    }, {once: true});
-
-    _welcomeKeyHandler = function onKey(e) {
-      if(e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
-        dismissWelcome(false);
-      }
-    };
-    document.addEventListener('keydown', _welcomeKeyHandler);
-  }
-
-  function dismissWelcome(launchTour) {
-    // Detach the welcome key handler on EVERY dismissal path. It used to remove
-    // itself only when dismissal came via a key, so clicking either button left
-    // it attached for the whole session — and since Escape is the app's normal
-    // "close panel" key, the next Escape re-ran this function and relaunched the
-    // full cinematic premiere on top of whatever was already running.
-    if(_welcomeKeyHandler) {
-      document.removeEventListener('keydown', _welcomeKeyHandler);
-      _welcomeKeyHandler = null;
-    }
-    const ws = document.getElementById('welcome-screen');
-    ws.classList.add('fade-out');
-    setTimeout(() => { ws.style.display = 'none'; ws.classList.remove('show','fade-out'); }, 900);
-    if(launchTour) {
-      setTimeout(startTour, 950);
-    } else {
-      // Launch cinematic premiere → mission campaign
-      setTimeout(startCinematicPremiere, 600);
-    }
-    // Start procedural background music (init audio context on first user gesture)
-    if(!audioCtx) initAudio();
-    if(audioCtx) {
-      audioCtx.resume().then(() => startPlanetariumBGM()).catch(() => startPlanetariumBGM());
-      audioEnabled = true;
-      const btn = document.getElementById('audio-btn');
-      if(btn) { btn.innerHTML = '&#128266;'; btn.classList.add('active'); }
-    }
   }
 
   document.getElementById('cine-skip').addEventListener('click', endCinematic, {once:true});
@@ -4921,7 +4986,7 @@ const TOUR_STOPS = [
       {icon:'⚡', headline:'YOU\'RE LOOKING 8 MINUTES INTO THE PAST', body:'Right now, the sunlight hitting your face left the Sun 8 minutes ago. You\'re not seeing the Sun as it is — you\'re seeing it as it WAS. Every time you look at the sky, you\'re time-traveling.'},
       {icon:'🔥', headline:'IT WILL OUTLIVE EVERY HUMAN CIVILIZATION', body:'The Sun is 4.6 billion years old and has enough fuel for another 5 billion years. Every civilization that has ever existed — every empire, every language, every song — has lived and died in just a blink of its life.'},
     ],
-    photos: [], mood: 'warm'
+    photos: ['photos/missions/sun/corona.jpg', 'photos/missions/sun/parker.jpg'], mood: 'warm'
   },
   {
     planetId: 'mercury', title: 'MERCURY', subtitle: 'The World of Extremes',
@@ -4931,7 +4996,7 @@ const TOUR_STOPS = [
       {icon:'❄️', headline:'ICE ON THE CLOSEST PLANET TO THE SUN', body:'Hidden in deep craters near Mercury\'s poles, where sunlight never reaches, are thick deposits of water ice. A world baking in sunlight has frozen water tucked in its shadows. Space is wild.'},
       {icon:'⏱️', headline:'A YEAR SHORTER THAN YOUR SCHOOL TERM', body:'Mercury orbits the Sun in just 88 Earth days. If you lived there, you\'d have your birthday more than 4 times a year. The universe would owe you a lot of cake.'},
     ],
-    photos: [], mood: 'intense'
+    photos: ['photos/missions/mercury/caloris.jpg', 'photos/missions/mercury/messenger.jpg'], mood: 'intense'
   },
   {
     planetId: 'venus', title: 'VENUS', subtitle: 'Earth\'s Evil Twin',
@@ -4941,7 +5006,7 @@ const TOUR_STOPS = [
       {icon:'🔄', headline:'THE SUN RISES IN THE WEST HERE', body:'Venus rotates backwards compared to every other planet. If you stood on Venus (briefly, before being crushed and melted), the Sun would rise in the west and set in the east. And a day there lasts longer than its year.'},
       {icon:'⚠️', headline:'A CAUTIONARY TALE FOR EARTH', body:'Venus and Earth are almost the same size and made of the same stuff. But a runaway greenhouse effect turned Venus into a 465°C furnace. Some scientists say Venus shows us what Earth could become if we\'re not careful with our atmosphere.'},
     ],
-    photos: [], mood: 'dark'
+    photos: ['photos/missions/venus/magellan.jpg', 'photos/missions/venus/venera.jpg'], mood: 'dark'
   },
   {
     planetId: 'earth', title: 'EARTH', subtitle: 'The Pale Blue Dot',
@@ -4951,7 +5016,7 @@ const TOUR_STOPS = [
       {icon:'🌊', headline:'71% WATER — AND WE BARELY KNOW IT', body:'Earth is the only planet with liquid water oceans, and those oceans cover 71% of the surface. Yet we\'ve explored less than 20% of them. There are mountains under the sea taller than Everest, and creatures down there that look like aliens. You live on a mostly unexplored world.'},
       {icon:'🧲', headline:'AN INVISIBLE SHIELD PROTECTS ALL LIFE', body:'Earth has a magnetic field generated deep in its iron core. It deflects the solar wind — a constant stream of deadly charged particles from the Sun. Without this invisible shield, the solar wind would slowly strip away our atmosphere, just as it did on Mars billions of years ago.'},
     ],
-    photos: [], mood: 'hopeful'
+    photos: ['photos/missions/earth/apollo.jpg', 'photos/missions/iss/earth_view.jpg'], mood: 'hopeful'
   },
   {
     planetId: 'mars', title: 'MARS', subtitle: 'The Next Giant Leap',
@@ -4994,7 +5059,7 @@ const TOUR_STOPS = [
       {icon:'🥶', headline:'COLDER THAN NEPTUNE — EVEN THOUGH IT\'S CLOSER', body:'Despite being closer to the Sun, Uranus is somehow colder than Neptune (-224°C vs -214°C). Nobody fully understands why. There are currently no spacecraft studying Uranus. It\'s the most mysterious planet we\'ve ever seen up close — which means there are questions only you might one day help answer.'},
       {icon:'💎', headline:'IT MIGHT RAIN DIAMONDS', body:'Deep inside Uranus, the extreme pressure may be turning carbon atoms into actual diamonds that rain down through the atmosphere. Diamond rain. Scientists have recreated this in labs and confirmed it\'s possible. Somewhere out there, it is quite literally raining diamonds.'},
     ],
-    photos: [],
+    photos: ['photos/missions/uranus/voyager2.jpg', 'photos/missions/uranus/miranda.jpg'],
     mood: 'mysterious'
   },
   {
@@ -5005,7 +5070,7 @@ const TOUR_STOPS = [
       {icon:'🔭', headline:'DISCOVERED BY MATH BEFORE ANYONE SAW IT', body:'In 1846, a French mathematician named Urbain Le Verrier calculated exactly where Neptune had to be, based on Uranus\'s wobbly orbit. He told an observatory to look at a specific spot in the sky. Neptune was found within 1 degree of where math said it would be. Mathematics can reveal things invisible to the eye.'},
       {icon:'🌀', headline:'TRITON: A MOON THAT ORBITS BACKWARDS', body:'Neptune\'s largest moon, Triton, orbits in the OPPOSITE direction to everything else. That means it was captured — a wandering Kuiper Belt object that got pulled in by Neptune\'s gravity. One day (in about 3.6 billion years) it will be pulled apart and form a ring system that will outshine Saturn\'s.'},
     ],
-    photos: [],
+    photos: ['photos/missions/neptune/triton.jpg', 'photos/missions/neptune/dark_spot.jpg'],
     mood: 'cold'
   },
   {
@@ -5207,9 +5272,10 @@ function showTourStop(idx) {
     // ── Photos ────────────────────────────────────────────────────────────────
     const photosEl = document.getElementById('tour-photos');
     if(stop.photos && stop.photos.length > 0) {
-      photosEl.innerHTML = stop.photos.map((p, i) =>
-        `<img class="tour-photo" src="${p}" alt="" style="transition-delay:${i*0.15}s" onclick="window.openTourLightbox('${p}')">`
-      ).join('');
+      photosEl.innerHTML = stop.photos.map((p, i) => {
+        const resolved = resolveMissionPhoto(p, stop.title);
+        return `<img class="tour-photo" src="${resolved}" alt="${stop.title}" style="transition-delay:${i*0.15}s" onclick="window.openTourLightbox('${p}')">`;
+      }).join('');
       setTimeout(() => photosEl.querySelectorAll('.tour-photo').forEach(img => img.classList.add('show')), 400);
     } else {
       photosEl.innerHTML = '';
@@ -5462,7 +5528,7 @@ function stopTourAudio() {
 
 window.openTourLightbox = function(src) {
   const lb = document.getElementById('tour-lightbox');
-  document.getElementById('tour-lightbox-img').src = src;
+  document.getElementById('tour-lightbox-img').src = resolveMissionPhoto(src);
   lb.classList.add('show');
 };
 
@@ -5621,22 +5687,19 @@ setTimeout(createComet, 15000);
 (function() {
   const PLANET_KEYS = {
     '1':'mercury','2':'venus','3':'earth','4':'mars',
-    '5':'jupiter','6':'saturn','7':'uranus','8':'neptune','0':'sun'
+    '5':'jupiter','6':'saturn','7':'uranus','8':'neptune','9':'pluto','0':'sun'
   };
   document.addEventListener('keydown', e => {
     // Don't fire when typing in an input/textarea
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     // Skip if quiz modal is open
     if(document.getElementById('quiz-modal').classList.contains('open')) return;
-    // Skip while the warp intro is playing. These shortcuts used to stay live
-    // underneath it, so a stray keypress opened planet panels and flew the
-    // camera around behind the cinematic. The intro's own handler still
-    // receives Escape/Space/Enter to skip.
-    if(_introActive) return;
+    // Skip while the warp intro or cinematic premiere is playing.
+    if(_introActive || _cinActive) return;
 
     const key = e.key;
 
-    // Planet jump: 0–8
+    // Planet jump: 0–9
     if(PLANET_KEYS[key]) { openPlanet(PLANET_KEYS[key]); return; }
 
     switch(key) {
@@ -5659,6 +5722,12 @@ setTimeout(createComet, 15000);
         document.getElementById('comparison-toggle').click(); break;
       case 's': case 'S':
         document.getElementById('scale-toggle').click(); break;
+      case 'g': case 'G':
+        toggleGravityWell(false); break;
+      case 'p': case 'P':
+        document.getElementById('tc-play').click();
+        showToast(paused ? 'ORBITS PAUSED' : 'ORBITS RESUMED', paused ? 'Press P to resume orbital motion' : 'Simulating planetary orbits', paused ? '⏸' : '▶');
+        break;
       case 'a': case 'A':
         document.getElementById('audio-btn').click(); break;
       case 'x': case 'X':
@@ -5722,11 +5791,13 @@ animate();
   const TOTAL_STEPS = 4;
   let hintStep = 0;
 
-  // Build progress dots
+  // Build progress dots (clickable so users can jump between steps)
   const dotsEl = document.getElementById('hint-dots');
   for(let i = 0; i < TOTAL_STEPS; i++) {
     const d = document.createElement('div');
     d.className = 'hint-dot' + (i === 0 ? ' active' : '');
+    d.style.cursor = 'pointer';
+    d.addEventListener('click', () => goToStep(i));
     dotsEl.appendChild(d);
   }
 
@@ -5764,17 +5835,24 @@ animate();
     try { seen = localStorage.getItem('ue_hints_seen') === '1'; } catch(e){}
     if(seen) return;
     goToStep(0);
-    document.getElementById('hint-overlay').classList.add('show');
+    const el = document.getElementById('hint-overlay');
+    el.style.opacity = '';
+    el.classList.add('show');
   };
 
   // Also allow re-triggering from keyboard (H key)
   document.addEventListener('keydown', e => {
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if(document.getElementById('quiz-modal').classList.contains('open')) return;
+    if(_introActive || _cinActive) return;
     if(e.key === 'h' || e.key === 'H') {
-      if(document.getElementById('hint-overlay').classList.contains('show')) {
-        document.getElementById('hint-overlay').querySelector('#hint-skip').click();
+      const el = document.getElementById('hint-overlay');
+      if(el.classList.contains('show')) {
+        closeHints();
       } else {
         goToStep(0);
-        document.getElementById('hint-overlay').classList.add('show');
+        el.style.opacity = '';
+        el.classList.add('show');
       }
     }
   });
@@ -6511,9 +6589,17 @@ function _playMissionSFX(type) {
 
 // Resume campaign from menu
 window.resumeMissionCampaign = function() {
-  if (_missionFreeMode && _completedMissions.size < MISSION_CHAIN.length) {
-    _missionFreeMode = false;
-    const nextIdx = _completedMissions.size;
-    showMissionBriefing(nextIdx);
+  closeSideMenu();
+  if (_completedMissions.size >= MISSION_CHAIN.length) {
+    _completedMissions.clear();
+    Object.keys(_missionPartial).forEach(k => delete _missionPartial[k]);
   }
+  _missionFreeMode = false;
+  const nextIdx = _completedMissions.size;
+  showMissionBriefing(nextIdx);
 };
+const _resumeCampaignBtn = document.getElementById('resume-campaign-btn');
+if (_resumeCampaignBtn) {
+  _resumeCampaignBtn.addEventListener('click', () => window.resumeMissionCampaign());
+}
+

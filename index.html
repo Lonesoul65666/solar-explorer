@@ -7,7 +7,7 @@
 <!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
      so the app renders correctly offline and on networks that block it. -->
 <link rel="stylesheet" href="vendor/fonts/orbitron.css">
-<link rel="stylesheet" href="universe.css?v=4">
+<link rel="stylesheet" href="universe.css?v=5">
 <script>
 // Catch any JS errors and show them on-screen so we can diagnose
 window.addEventListener('error', function(e) {
@@ -171,9 +171,10 @@ window.addEventListener('unhandledrejection', function(e) {
     <button class="nav-btn" id="btn-fwd" title="Forward" disabled>&#8594;</button>
   </div>
   <div id="breadcrumb">Solar System &rsaquo; <span id="location-label">Overview</span></div>
-  <div id="planet-counter" title="Planets explored"><div id="planet-counter-icon">&#9793;</div><div id="planet-counter-value">0/0</div></div>
+  <div id="planet-counter" title="Planets explored"><div id="planet-counter-icon">&#9793;</div><div id="planet-counter-value">0/8</div></div>
   <div id="rank-display" title="Explorer Rank"><div id="rank-icon">★</div><div id="rank-name">CADET</div></div>
   <div id="score-display"><div id="score-label">Score</div><div id="score-value">0</div></div>
+  <button id="gravity-hud-btn" title="Toggle Spacetime Grid / Gravity Well (G)" aria-label="Toggle Spacetime Grid / Gravity Well">&#127760;</button>
   <button id="audio-btn" title="Toggle Audio">&#128263;</button>
   <button id="menu-btn" title="Open Mission Control Menu" aria-label="Open menu"><span style="font-size:16px">&#9776;</span>&nbsp;MENU</button>
 </div>
@@ -186,6 +187,7 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
   <div id="side-menu-body">
     <div class="smenu-section-label">EXPLORE</div>
+    <button class="smenu-btn" id="resume-campaign-btn">&#127919; Resume Campaign<span class="smenu-hint" id="resume-campaign-hint">Continue guided solar system missions</span></button>
     <button class="smenu-btn" id="replay-intro-btn">&#127756; Replay Warp Intro<span class="smenu-hint">Fly the tunnel into the solar system again</span></button>
     <button class="smenu-btn" id="replay-premiere-btn">&#127916; Replay Premiere<span class="smenu-hint">The cinematic camera fly-through</span></button>
     <button class="smenu-btn" id="tour-btn">&#127758; Guided Tour<span class="smenu-hint">Cinematic journey Sun → Pluto</span></button>
@@ -194,6 +196,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <button class="smenu-btn" id="achievements-btn">&#9733; My Achievements<span class="smenu-hint">View your progress and explorer score</span></button>
     <button class="smenu-btn" id="surprise-btn">&#10024; Surprise Me<span class="smenu-hint">Teleport to a random planet</span></button>
     <div class="smenu-section-label">VIEW</div>
+    <button class="smenu-btn" id="gravity-toggle">&#127760; Spacetime Grid / Gravity Well<span class="smenu-hint">Visualize Einstein's spacetime curvature (G)</span></button>
     <button class="smenu-btn" id="comparison-toggle">&#9632; Compare Planets<span class="smenu-hint">True relative sizes</span></button>
     <button class="smenu-btn" id="scale-toggle">&#9654; True Scale Mode<span class="smenu-hint">Real AU orbital distances</span></button>
     <div class="smenu-section-label">SIMULATION</div>
@@ -356,17 +359,21 @@ window.addEventListener('unhandledrejection', function(e) {
     <div id="kb-title">&#9670;&nbsp; KEYBOARD SHORTCUTS &nbsp;&#9670;</div>
     <div class="kb-section">Navigation</div>
     <div class="kb-row"><span class="kb-key">1 – 8</span><span class="kb-desc">Jump to planet (Mercury–Neptune)</span></div>
+    <div class="kb-row"><span class="kb-key">9</span><span class="kb-desc">Jump to Pluto (Dwarf Planet)</span></div>
     <div class="kb-row"><span class="kb-key">0</span><span class="kb-desc">Select the Sun</span></div>
     <div class="kb-row"><span class="kb-key">Esc</span><span class="kb-desc">Close panel / dismiss screen</span></div>
     <div class="kb-section">Features</div>
     <div class="kb-row"><span class="kb-key">T</span><span class="kb-desc">Start Guided Tour</span></div>
     <div class="kb-row"><span class="kb-key">R</span><span class="kb-desc">Toggle Rocket Mode</span></div>
+    <div class="kb-row"><span class="kb-key">G</span><span class="kb-desc">Toggle Spacetime Gravity Well</span></div>
+    <div class="kb-row"><span class="kb-key">P</span><span class="kb-desc">Pause / resume orbital motion</span></div>
     <div class="kb-row"><span class="kb-key">M</span><span class="kb-desc">Toggle Side Menu</span></div>
     <div class="kb-row"><span class="kb-key">C</span><span class="kb-desc">Toggle Planet Comparison</span></div>
     <div class="kb-row"><span class="kb-key">S</span><span class="kb-desc">Toggle True Scale Mode</span></div>
     <div class="kb-row"><span class="kb-key">X</span><span class="kb-desc">Surprise Me — random planet</span></div>
     <div class="kb-section">Interface</div>
     <div class="kb-row"><span class="kb-key">A</span><span class="kb-desc">Toggle Audio</span></div>
+    <div class="kb-row"><span class="kb-key">H</span><span class="kb-desc">Show / hide tutorial hints</span></div>
     <div class="kb-row"><span class="kb-key">?</span><span class="kb-desc">Show / hide this help screen</span></div>
     <button id="kb-close-btn">GOT IT</button>
   </div>
@@ -408,27 +415,6 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="tagline" id="moon-tagline"></div>
     <p id="moon-desc"></p>
     <div class="stat-grid" id="moon-stats"></div>
-  </div>
-</div>
-
-<!-- Welcome / Guide Screen -->
-<div id="welcome-screen">
-  <canvas id="wc-solar-canvas"></canvas>
-  <div id="wc-vignette"></div>
-
-  <div id="welcome-card">
-    <div id="wc-badge">An Interactive Journey Through Space</div>
-
-    <div id="wc-title">
-      <span id="wc-title-main">UNIVERSE</span>
-      <span id="wc-title-sub">EXPLORER</span>
-    </div>
-
-    <div id="wc-tagline">"The cosmos is within us. We are made of star-stuff." &mdash; Carl Sagan</div>
-
-    <button id="wc-start-btn">BEGIN YOUR JOURNEY</button>
-    <button id="wc-tour-btn">&#127758; TAKE A GUIDED TOUR</button>
-    <div id="wc-hint">Click any planet &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Drag to orbit &nbsp;&middot;&nbsp; Press&nbsp;?&nbsp;for shortcuts</div>
   </div>
 </div>
 
@@ -557,6 +543,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 
-<script type="module" src="universe.js?v=4"></script>
+<script type="module" src="universe.js?v=5"></script>
 </body>
 </html>

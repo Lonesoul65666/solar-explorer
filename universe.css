@@ -232,10 +232,10 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #score-display{display:flex;flex-direction:column;align-items:center;background:rgba(0,212,255,.06);border:1px solid var(--border);border-radius:7px;padding:4px 10px;min-width:58px}
 #score-label{font-size:8px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
 #score-value{font-size:15px;font-weight:900;color:var(--cyan);line-height:1.2;transition:color .3s}
-/* Audio Button */
-#audio-btn{background:rgba(0,212,255,.06);border:1px solid var(--border);color:var(--dim);width:32px;height:32px;border-radius:5px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#audio-btn:hover{background:rgba(0,212,255,.15);color:var(--cyan)}
-#audio-btn.active{background:rgba(0,212,255,.14);color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,212,255,.18)}
+/* Audio & Gravity HUD Buttons */
+#audio-btn,#gravity-hud-btn{background:rgba(0,212,255,.06);border:1px solid var(--border);color:var(--dim);width:32px;height:32px;border-radius:5px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#audio-btn:hover,#gravity-hud-btn:hover{background:rgba(0,212,255,.15);color:var(--cyan)}
+#audio-btn.active,#gravity-hud-btn.active{background:rgba(0,212,255,.16);color:var(--cyan);border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.24)}
 /* Achievement Toast */
 #achievement-toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(40px);z-index:600;background:linear-gradient(135deg,rgba(4,12,32,.99),rgba(2,8,24,.98));border:1px solid rgba(255,210,50,.7);border-radius:14px;padding:16px 24px;display:flex;align-items:center;gap:16px;min-width:280px;max-width:400px;opacity:0;pointer-events:none;transition:opacity .5s,transform .5s;box-shadow:0 0 40px rgba(255,200,50,.22),0 0 80px rgba(255,180,0,.08)}
 #achievement-toast.show{opacity:1;transform:translateX(-50%) translateY(0);animation:toastPulse .6s ease}
@@ -318,47 +318,19 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .cmp-item:hover{transform:translateY(-3px)}
 .cmp-sphere{border-radius:50%;flex-shrink:0;box-shadow:0 0 8px rgba(255,255,255,.2)}
 .cmp-label{font-size:8px;color:var(--dim);letter-spacing:.06em;text-align:center;max-width:40px;white-space:nowrap}
-#comparison-toggle{background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);padding:7px 12px;border-radius:16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.06em;transition:all .2s;white-space:nowrap}
-#comparison-toggle:hover{background:rgba(0,212,255,.18)}
-#comparison-toggle.active{background:rgba(0,212,255,.22);border-color:var(--cyan)}
+#comparison-toggle,#gravity-toggle{background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);padding:7px 12px;border-radius:16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.06em;transition:all .2s;white-space:nowrap}
+#comparison-toggle:hover,#gravity-toggle:hover{background:rgba(0,212,255,.18)}
+#comparison-toggle.active,#gravity-toggle.active{background:rgba(0,212,255,.25);border-color:var(--cyan);color:#fff;box-shadow:0 0 14px rgba(0,212,255,.25)}
 /* ── Scale Toggle ── */
 #scale-toggle{background:rgba(120,80,255,.1);border:1px solid rgba(120,80,255,.3);color:#aa88ff;padding:7px 12px;border-radius:16px;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.04em;transition:all .2s;white-space:nowrap}
 #scale-toggle:hover{background:rgba(120,80,255,.2)}
 #scale-toggle.active{background:rgba(120,80,255,.35);border-color:#aa88ff;color:#fff;box-shadow:0 0 14px rgba(120,80,255,.35)}
-/* ══ WELCOME SCREEN — Living Solar System ══════════════════════════════════ */
-@keyframes wc-float-up{0%{opacity:0;transform:translateY(28px)}100%{opacity:1;transform:translateY(0)}}
-@keyframes wc-char-in{0%{opacity:0;transform:translateY(20px) scale(.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
-@keyframes wc-title-glow{0%,100%{filter:drop-shadow(0 0 18px rgba(0,212,255,.55))}50%{filter:drop-shadow(0 0 55px rgba(0,212,255,.95)) drop-shadow(0 0 100px rgba(0,80,220,.5))}}
-@keyframes wc-badge-in{0%{opacity:0;letter-spacing:.8em}100%{opacity:1;letter-spacing:.28em}}
+/* ── Discovery & Button Pulse Keyframes ── */
 @keyframes wc-btn-pulse{0%,100%{box-shadow:0 0 40px rgba(0,140,255,.4),0 4px 24px rgba(0,0,0,.5)}50%{box-shadow:0 0 80px rgba(0,180,255,.7),0 4px 30px rgba(0,0,0,.5)}}
-@keyframes wc-orbit-dot{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
 @keyframes disc-pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}60%{transform:translate(-50%,-50%) scale(1.08)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 @keyframes disc-out{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.2)}}
 @keyframes disc-ring{0%{transform:translate(-50%,-50%) scale(1);opacity:.8}100%{transform:translate(-50%,-50%) scale(2.2);opacity:0}}
 @keyframes disc-stars{0%{opacity:0;transform:translateY(0)}50%{opacity:1}100%{opacity:0;transform:translateY(-60px)}}
-#welcome-screen{position:fixed;inset:0;z-index:470;display:none;opacity:0;transition:opacity 1s ease;overflow:hidden;background:#010208}
-#welcome-screen.show{display:flex;opacity:1}
-#welcome-screen.fade-out{opacity:0;transition:opacity .55s ease}
-#wc-solar-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-/* Vignette overlay so content is readable */
-#wc-vignette{position:absolute;inset:0;background:radial-gradient(ellipse 90% 80% at 50% 55%,transparent 25%,rgba(1,2,10,.55) 55%,rgba(1,2,10,.88) 80%,rgba(1,2,10,.98) 100%);pointer-events:none}
-/* Content layer */
-#welcome-card{position:relative;z-index:3;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px 36px;pointer-events:none}
-#welcome-card>*{pointer-events:auto}
-/* Eyebrow label */
-#wc-badge{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.32em;color:rgba(0,212,255,.5);text-transform:uppercase;margin-bottom:28px;animation:wc-badge-in 1.8s ease both,wc-float-up .9s ease both}
-/* Main title */
-#wc-title{font-family:'Orbitron',sans-serif;font-weight:900;color:#fff;line-height:.9;text-align:center;margin-bottom:22px;animation:wc-title-glow 4s ease-in-out infinite}
-#wc-title-main{display:block;font-size:clamp(56px,10vw,120px);letter-spacing:.04em}
-#wc-title-sub{display:block;font-size:clamp(20px,3.8vw,46px);color:var(--cyan);letter-spacing:.26em;margin-top:6px}
-/* Sagan quote */
-#wc-tagline{font-family:'Georgia',serif;font-size:clamp(13px,1.5vw,17px);color:rgba(195,225,255,.78);letter-spacing:.03em;font-style:italic;margin-bottom:44px;text-align:center;max-width:520px;line-height:1.6;animation:wc-float-up .9s .25s ease both}
-/* Launch button */
-#wc-start-btn{animation:wc-float-up .9s .45s ease both,wc-btn-pulse 3s 1.8s ease-in-out infinite;background:transparent;border:1px solid rgba(0,180,255,.5);color:#fff;padding:18px 64px;border-radius:50px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;letter-spacing:.28em;transition:all .3s;white-space:nowrap;text-transform:uppercase;margin-bottom:18px;backdrop-filter:blur(8px)}
-#wc-start-btn:hover{background:rgba(0,140,255,.18);border-color:rgba(0,200,255,.9);transform:translateY(-3px) scale(1.04);animation:none;box-shadow:0 0 80px rgba(0,160,255,.45),0 0 0 1px rgba(0,200,255,.4),0 6px 30px rgba(0,0,0,.6)}
-#wc-tour-btn{animation:wc-float-up .9s .6s ease both;background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.32);color:rgba(0,212,255,.9);padding:13px 44px;border-radius:50px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:.22em;transition:all .3s;text-transform:uppercase;margin-bottom:22px;backdrop-filter:blur(8px)}
-#wc-tour-btn:hover{background:rgba(0,212,255,.16);border-color:rgba(0,212,255,.75);color:#fff;transform:translateY(-2px);box-shadow:0 0 50px rgba(0,180,255,.3),0 4px 20px rgba(0,0,0,.5)}
-#wc-hint{font-size:9px;color:rgba(160,200,240,.55);letter-spacing:.12em;text-align:center;animation:wc-float-up .9s .75s ease both}
 /* ── Planet info panel — color theming ── */
 #info-panel{--pc:#00d4ff;--pc-glow:rgba(0,212,255,.35);--pc-dim:rgba(0,212,255,.12)}
 #panel-canvas{box-shadow:0 0 50px var(--pc-glow),0 0 0 1px var(--pc-dim);transition:transform .2s,box-shadow .6s}
