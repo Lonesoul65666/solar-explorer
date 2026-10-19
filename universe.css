@@ -44,19 +44,20 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .pnav-btn{background:rgba(0,212,255,.06);border:1px solid var(--border);color:var(--cyan);width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
 .pnav-btn:hover{background:rgba(0,212,255,.18);box-shadow:0 0 10px rgba(0,212,255,.2)}
 #pnav-label{font-family:'Orbitron',sans-serif;font-size:10px;color:#e0eeff;font-weight:700;letter-spacing:.08em;min-width:140px;text-align:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* Info Panel */
-#info-panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:96vw;z-index:200;transform:translateX(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);background:var(--panel);border-left:1px solid var(--border);backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow:hidden}
+/* Info Panel — locked safely inside viewport below topbar (top: 60px, max-height: 82vh) */
+#info-panel{position:fixed;right:14px;top:60px;bottom:auto;max-height:82vh;width:460px;max-width:94vw;z-index:210;transform:translateX(110%);transition:transform .38s cubic-bezier(.22,1,.36,1);background:var(--panel);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.78),0 0 32px rgba(0,212,255,.12);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.25) transparent}
 #info-panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.007) 2px,rgba(0,212,255,.007) 4px);pointer-events:none;z-index:0}
 #info-panel.open{transform:translateX(0)}
-#panel-close{position:absolute;top:12px;right:12px;background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);width:30px;height:30px;border-radius:4px;cursor:pointer;font-size:14px;z-index:10;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#panel-close:hover{background:rgba(0,212,255,.2);box-shadow:0 0 10px rgba(0,212,255,.25)}
-#panel-scroll{overflow-y:auto;flex:1;padding:22px 22px 32px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent;position:relative;z-index:1}
-#panel-scroll::-webkit-scrollbar{width:3px}
-#panel-scroll::-webkit-scrollbar-thumb{background:rgba(0,212,255,.2);border-radius:2px}
-#panel-canvas{width:170px;height:170px;border-radius:50%;display:block;margin:0 auto 16px;box-shadow:0 0 50px rgba(0,212,255,.35),0 0 0 1px rgba(0,212,255,.2);cursor:zoom-in;transition:transform .2s}
+.panel-sticky-header,.modal-sticky-header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:rgba(2,8,24,.96);border-bottom:1px solid rgba(0,212,255,.24);backdrop-filter:blur(16px);flex-shrink:0}
+.modal-sticky-header{margin:-24px -24px 16px -24px;padding:14px 20px;border-radius:14px 14px 0 0}
+.panel-sticky-title{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase}
+.modal-close-pill,#panel-close,#mission-panel-close,#moon-close,#quiz-close,#ach-close,#rl-close,#side-menu-close{background:rgba(0,212,255,.16);border:1px solid rgba(0,212,255,.55);color:#ffffff;padding:6px 13px;min-height:30px;width:auto;height:auto;border-radius:18px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;letter-spacing:.1em;z-index:25;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .2s;white-space:nowrap;box-shadow:0 0 14px rgba(0,212,255,.18);position:static}
+.modal-close-pill:hover,#panel-close:hover,#mission-panel-close:hover,#moon-close:hover,#quiz-close:hover,#ach-close:hover,#rl-close:hover,#side-menu-close:hover{background:var(--cyan);color:#020818;border-color:#fff;box-shadow:0 0 20px rgba(0,212,255,.55)}
+#panel-scroll{overflow-y:visible;flex:1;padding:18px 20px 26px;position:relative;z-index:1}
+#panel-canvas{width:140px;height:140px;border-radius:50%;display:block;margin:0 auto 12px;box-shadow:0 0 50px rgba(0,212,255,.35),0 0 0 1px rgba(0,212,255,.2);cursor:zoom-in;transition:transform .2s}
 #panel-canvas:hover{transform:scale(1.06)}
-#panel-name{font-size:26px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#fff;text-align:center}
-#panel-tagline{font-size:12px;color:var(--dim);margin-bottom:16px;text-align:center;letter-spacing:.14em;text-transform:uppercase}
+#panel-name{font-size:24px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#fff;text-align:center}
+#panel-tagline{font-size:11px;color:var(--dim);margin-bottom:14px;text-align:center;letter-spacing:.14em;text-transform:uppercase}
 /* Tabs */
 .tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tab-btn{flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:'Orbitron',inherit;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:-1px}
@@ -150,9 +151,9 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .cine-line em{color:#ffe082;font-style:italic;text-shadow:0 0 24px rgba(255,200,80,.5)}
 /* ── Guided Tour Mode — Sagan-style side-panel ── */
 @keyframes tour-wow-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-#tour-panel{position:fixed;left:0;top:0;bottom:0;width:420px;max-width:92vw;z-index:300;background:rgba(2,5,18,.96);border-right:1px solid rgba(0,212,255,.15);backdrop-filter:blur(20px);transform:translateX(-100%);transition:transform .5s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;overflow:hidden;box-shadow:4px 0 60px rgba(0,0,0,.6)}
+#tour-panel{position:fixed;left:0;top:60px;max-height:82vh;overflow-y:auto;width:420px;max-width:92vw;z-index:300;background:rgba(2,5,18,.96);border-right:1px solid rgba(0,212,255,.15);border-bottom:1px solid rgba(0,212,255,.15);border-radius:0 0 14px 0;backdrop-filter:blur(20px);transform:translateX(-100%);transition:transform .5s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;box-shadow:4px 0 60px rgba(0,0,0,.6)}
 #tour-panel.open{transform:translateX(0)}
-#tour-panel-header{padding:14px 20px 10px;border-bottom:1px solid rgba(0,212,255,.1);flex-shrink:0}
+#tour-panel-header{position:sticky;top:0;z-index:20;background:rgba(2,5,18,.98);padding:14px 20px 10px;border-bottom:1px solid rgba(0,212,255,.1);flex-shrink:0}
 #tour-journey-label{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.22em;color:rgba(0,212,255,.65);text-transform:uppercase;margin-bottom:8px}
 #tour-progress{display:flex;gap:5px;flex-wrap:wrap}
 .tour-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.12);transition:all .4s;cursor:pointer}
@@ -228,9 +229,8 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 /* Moon detail */
 #moon-detail{position:fixed;inset:0;z-index:400;background:rgba(0,2,14,.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
 #moon-detail.open{opacity:1;pointer-events:auto}
-#moon-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:480px;max-height:88vh;overflow-y:auto;width:92%;position:relative;box-shadow:0 0 40px rgba(0,212,255,.12);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
-#moon-close{position:absolute;top:12px;right:12px;background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#moon-close:hover{background:rgba(0,212,255,.2)}
+#moon-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:0 24px 24px;max-width:480px;max-height:82vh;overflow-y:auto;width:92%;position:relative;box-shadow:0 0 40px rgba(0,212,255,.12);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
+#moon-close{position:static}
 #moon-card h2{font-size:20px;font-weight:900;margin-bottom:4px;letter-spacing:.04em}
 #moon-card .tagline{font-size:10px;color:var(--dim);margin-bottom:14px;text-transform:uppercase;letter-spacing:.1em}
 #moon-card p{font-size:14px;color:var(--text);line-height:1.65;font-family:'Segoe UI',system-ui,sans-serif}
@@ -259,9 +259,8 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 /* Quiz Modal */
 #quiz-modal{position:fixed;inset:0;z-index:450;background:rgba(0,2,14,.9);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
 #quiz-modal.open{opacity:1;pointer-events:auto}
-#quiz-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:26px 24px;max-width:420px;width:92%;position:relative;box-shadow:0 0 50px rgba(0,212,255,.1)}
-#quiz-close{position:absolute;top:12px;right:12px;background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#quiz-close:hover{background:rgba(0,212,255,.2)}
+#quiz-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:0 24px 26px;max-width:420px;max-height:82vh;overflow-y:auto;width:92%;position:relative;box-shadow:0 0 50px rgba(0,212,255,.1);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
+#quiz-close{position:static}
 #quiz-planet-name{font-size:12px;font-weight:900;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
 #quiz-progress{font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}
 #quiz-question{font-size:15px;font-weight:700;color:#e8f4ff;line-height:1.5;margin-bottom:16px;min-height:44px}
@@ -298,12 +297,11 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .mission-drop-status.active{background:rgba(0,200,80,.12);border:1px solid rgba(0,200,80,.25);color:#00e870}
 .mission-drop-status.complete{background:rgba(150,80,255,.12);border:1px solid rgba(150,80,255,.25);color:#bb88ff}
 /* ── Mission Detail Panel ── */
-#mission-panel{position:fixed;left:0;top:0;bottom:0;width:500px;max-width:96vw;z-index:205;transform:translateX(-100%);transition:transform .4s cubic-bezier(.22,1,.36,1);background:var(--panel);border-right:1px solid var(--border);backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow:hidden}
+#mission-panel{position:fixed;left:0;top:60px;max-height:82vh;overflow-y:auto;width:500px;max-width:96vw;z-index:205;transform:translateX(-100%);transition:transform .4s cubic-bezier(.22,1,.36,1);background:var(--panel);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:0 0 14px 0;backdrop-filter:blur(24px);display:flex;flex-direction:column}
 #mission-panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.006) 2px,rgba(0,212,255,.006) 4px);pointer-events:none;z-index:0}
 #mission-panel.open{transform:translateX(0)}
-#mission-panel-close{position:absolute;top:12px;right:12px;background:rgba(0,212,255,.08);border:1px solid var(--border);color:var(--cyan);width:30px;height:30px;border-radius:4px;cursor:pointer;font-size:14px;z-index:10;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#mission-panel-close:hover{background:rgba(0,212,255,.2);box-shadow:0 0 10px rgba(0,212,255,.25)}
-#mission-scroll{overflow-y:auto;flex:1;padding:24px 24px 36px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent;position:relative;z-index:1}
+#mission-panel-close{position:static}
+#mission-scroll{overflow-y:auto;flex:1;padding:18px 24px 36px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent;position:relative;z-index:1}
 #mission-scroll::-webkit-scrollbar{width:3px}
 #mission-scroll::-webkit-scrollbar-thumb{background:rgba(0,212,255,.2);border-radius:2px}
 .mission-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,212,255,.08);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);margin-bottom:14px}
@@ -386,8 +384,8 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 /* ── Keyboard shortcut modal ── */
 #kb-modal{position:fixed;inset:0;z-index:550;background:rgba(0,0,0,.8);backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center}
 #kb-modal.show{display:flex}
-#kb-card{background:rgba(2,8,28,.98);border:1px solid rgba(0,212,255,.2);border-radius:20px;padding:32px 36px;max-width:460px;width:90%;max-height:80vh;overflow-y:auto}
-#kb-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:.2em;color:var(--cyan);margin-bottom:22px;text-align:center}
+#kb-card{background:rgba(2,8,28,.98);border:1px solid rgba(0,212,255,.2);border-radius:20px;padding:0 30px 28px;max-width:460px;width:90%;max-height:82vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
+#kb-title{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:.2em;color:var(--cyan);margin-bottom:0}
 .kb-section{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.18em;color:rgba(0,212,255,.4);text-transform:uppercase;margin:14px 0 8px}
 .kb-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .kb-key{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);color:var(--cyan);padding:3px 10px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:.06em;min-width:32px;text-align:center}
@@ -412,13 +410,12 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .apollo-popup-desc{font-size:12px;color:var(--text);line-height:1.55;font-family:'Segoe UI',system-ui,sans-serif}
 
 /* ── Rocket Launchpad Panel ── */
-#rocket-launchpad{position:fixed;left:0;top:0;bottom:0;width:420px;max-width:95vw;z-index:300;background:rgba(8,4,20,.97);border-right:1px solid rgba(255,120,30,.25);backdrop-filter:blur(24px);transform:translateX(-100%);transition:transform .45s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;overflow:hidden;box-shadow:4px 0 50px rgba(255,80,0,.12)}
+#rocket-launchpad{position:fixed;left:0;top:60px;max-height:82vh;overflow-y:auto;width:420px;max-width:95vw;z-index:300;background:rgba(8,4,20,.97);border-right:1px solid rgba(255,120,30,.25);border-bottom:1px solid rgba(255,120,30,.25);border-radius:0 0 14px 0;backdrop-filter:blur(24px);transform:translateX(-100%);transition:transform .45s cubic-bezier(.22,1,.36,1);display:flex;flex-direction:column;box-shadow:4px 0 50px rgba(255,80,0,.12)}
 #rocket-launchpad.open{transform:translateX(0)}
-#rl-header{padding:22px 22px 16px;border-bottom:1px solid rgba(255,120,30,.18);flex-shrink:0}
+#rl-header{position:sticky;top:0;z-index:20;background:rgba(8,4,20,.98);padding:16px 22px 14px;border-bottom:1px solid rgba(255,120,30,.18);flex-shrink:0}
 #rl-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 #rl-title{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:900;color:#ff8840;letter-spacing:.14em}
-#rl-close{background:rgba(255,120,30,.1);border:1px solid rgba(255,120,30,.3);color:#ff8840;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#rl-close:hover{background:rgba(255,120,30,.25)}
+#rl-close{position:static}
 #rl-subtitle{font-size:13px;color:rgba(255,200,150,.6);letter-spacing:.04em;font-family:'Segoe UI',system-ui,sans-serif}
 #rl-scroll{flex:1;overflow-y:auto;padding:18px 18px 100px;scrollbar-width:thin;scrollbar-color:rgba(255,120,30,.15) transparent}
 #rl-scroll::-webkit-scrollbar{width:3px}
@@ -436,7 +433,7 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .rl-dest-travel{font-size:9px;color:rgba(255,120,30,.5);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;font-family:'Orbitron',sans-serif}
 .rl-dest-arrow{color:rgba(255,120,30,.3);font-size:16px;flex-shrink:0;transition:all .2s}
 .rl-dest-card:hover .rl-dest-arrow,.rl-dest-card.selected .rl-dest-arrow{color:#ff8840;transform:translateX(4px)}
-#rl-launch-footer{position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(180deg,transparent,rgba(8,4,20,.99) 30%);border-top:1px solid rgba(255,120,30,.15)}
+#rl-launch-footer{position:sticky;bottom:0;left:0;right:0;z-index:15;padding:14px 18px;background:rgba(8,4,20,.98);border-top:1px solid rgba(255,120,30,.15)}
 #rl-launch-btn{width:100%;padding:15px 0;background:linear-gradient(135deg,rgba(255,100,20,.3),rgba(255,60,0,.2));border:1px solid rgba(255,100,20,.5);border-radius:12px;color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;letter-spacing:.18em;cursor:pointer;transition:all .3s;text-transform:uppercase;display:none}
 #rl-launch-btn.ready{display:block}
 #rl-launch-btn:hover{background:linear-gradient(135deg,rgba(255,100,20,.5),rgba(255,60,0,.38));box-shadow:0 0 30px rgba(255,80,0,.3);transform:translateY(-1px)}
@@ -479,10 +476,9 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 /* ── Achievement Panel ── */
 #achievement-panel{position:fixed;inset:0;z-index:450;background:rgba(0,2,14,.9);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
 #achievement-panel.open{opacity:1;pointer-events:auto}
-#ach-card{background:var(--panel);border:1px solid rgba(255,200,50,.22);border-radius:16px;padding:28px 26px;max-width:480px;width:92%;max-height:82vh;overflow-y:auto;position:relative;box-shadow:0 0 60px rgba(255,200,50,.08);scrollbar-width:thin;scrollbar-color:rgba(255,200,50,.2) transparent}
-#ach-close{position:absolute;top:14px;right:14px;background:rgba(255,200,50,.08);border:1px solid rgba(255,200,50,.2);color:#ffd030;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .2s}
-#ach-close:hover{background:rgba(255,200,50,.2)}
-#ach-title{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:#ffd030;letter-spacing:.1em;margin-bottom:4px}
+#ach-card{background:var(--panel);border:1px solid rgba(255,200,50,.22);border-radius:16px;padding:0 26px 26px;max-width:480px;width:92%;max-height:82vh;overflow-y:auto;position:relative;box-shadow:0 0 60px rgba(255,200,50,.08);scrollbar-width:thin;scrollbar-color:rgba(255,200,50,.2) transparent}
+#ach-close{position:static}
+#ach-title{font-family:'Orbitron',sans-serif;font-size:14px;font-weight:900;color:#ffd030;letter-spacing:.1em;margin-bottom:0}
 #ach-subtitle{font-size:11px;color:var(--dim);letter-spacing:.06em;margin-bottom:22px}
 #ach-score-row{display:flex;align-items:center;gap:14px;background:rgba(255,200,50,.06);border:1px solid rgba(255,200,50,.14);border-radius:10px;padding:12px 16px;margin-bottom:18px}
 #ach-score-val{font-size:32px;font-weight:900;color:#ffd030;line-height:1}
@@ -526,7 +522,7 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 /* ── First-Run Tutorial Overlay ─────────────────────────────────────────────*/
 #hint-overlay{position:fixed;inset:0;z-index:580;display:flex;align-items:center;justify-content:center;background:rgba(0,2,12,.78);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .4s}
 #hint-overlay.show{opacity:1;pointer-events:all}
-#hint-card{background:rgba(4,12,30,.96);border:1px solid rgba(0,212,255,.28);border-radius:18px;padding:32px 30px 24px;width:min(480px,92vw);position:relative;box-shadow:0 0 80px rgba(0,100,220,.15),0 24px 60px rgba(0,0,0,.6)}
+#hint-card{background:rgba(4,12,30,.96);border:1px solid rgba(0,212,255,.28);border-radius:18px;padding:28px 28px 22px;width:min(480px,92vw);max-height:82vh;overflow-y:auto;position:relative;box-shadow:0 0 80px rgba(0,100,220,.15),0 24px 60px rgba(0,0,0,.6);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
 .hint-step{display:none;flex-direction:column;gap:14px}
 .hint-step.active{display:flex}
 .hint-step-icon{font-size:32px;text-align:center}
@@ -703,9 +699,9 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
    ═══════════════════════════════════════════════════════════════════════════ */
 #mission-briefing{position:fixed;inset:0;z-index:750;display:flex;align-items:center;justify-content:center;background:rgba(0,0,12,.88);backdrop-filter:blur(10px);opacity:0;pointer-events:none;transition:opacity .4s ease}
 #mission-briefing.open{opacity:1;pointer-events:auto}
-#mbriefing-card{background:rgba(2,6,20,.98);border:1px solid rgba(0,212,255,.3);border-radius:16px;padding:32px;max-width:480px;width:92%;box-shadow:0 0 60px rgba(0,212,255,.12);position:relative;overflow:hidden}
+#mbriefing-card{background:rgba(2,6,20,.98);border:1px solid rgba(0,212,255,.3);border-radius:16px;padding:0 28px 28px;max-width:480px;max-height:82vh;overflow-y:auto;width:92%;box-shadow:0 0 60px rgba(0,212,255,.12);position:relative;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
 #mbriefing-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.65),transparent)}
-#mbrief-chapter{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.3em;color:rgba(0,212,255,.55);text-transform:uppercase;margin-bottom:5px}
+#mbrief-chapter{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.3em;color:rgba(0,212,255,.55);text-transform:uppercase;margin-bottom:0}
 #mbrief-icon{font-size:48px;display:block;margin-bottom:12px;line-height:1}
 #mbrief-title{font-family:'Orbitron',sans-serif;font-size:clamp(19px,4vw,27px);font-weight:900;color:#fff;letter-spacing:.08em;margin-bottom:7px}
 #mbrief-target{font-size:10px;color:rgba(0,212,255,.65);letter-spacing:.22em;text-transform:uppercase;margin-bottom:14px;font-family:'Orbitron',sans-serif}
@@ -722,7 +718,7 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
    ═══════════════════════════════════════════════════════════════════════════ */
 #mission-complete{position:fixed;inset:0;z-index:780;display:flex;align-items:center;justify-content:center;background:rgba(0,0,12,.9);backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:opacity .5s ease}
 #mission-complete.show{opacity:1;pointer-events:auto}
-#mcomplete-card{text-align:center;padding:40px 32px;max-width:400px;width:90%;background:rgba(2,6,20,.98);border:1px solid rgba(0,212,255,.3);border-radius:16px;box-shadow:0 0 80px rgba(0,212,255,.14);position:relative}
+#mcomplete-card{text-align:center;padding:34px 30px;max-width:400px;max-height:82vh;overflow-y:auto;width:90%;background:rgba(2,6,20,.98);border:1px solid rgba(0,212,255,.3);border-radius:16px;box-shadow:0 0 80px rgba(0,212,255,.14);position:relative;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.2) transparent}
 #mc-chapter-label{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.3em;color:rgba(0,212,255,.45);text-transform:uppercase;margin-bottom:14px}
 #mc-medal{font-size:72px;display:block;margin-bottom:8px;animation:medalDrop .65s cubic-bezier(.34,1.56,.64,1) forwards}
 @keyframes medalDrop{0%{transform:scale(0) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
@@ -743,23 +739,33 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #intro:not(.hide) ~ #ambient-indicator,
 #intro:not(.hide) ~ #explore-launcher { visibility: hidden; }
 
-/* ── Cockpit Onboarding Explorer Tier Selector ─────────────────────────────── */
+/* ── Cockpit Onboarding Interest Track + Science Depth Selector ───────────── */
 .intro-tier-section{width:100%;max-width:780px;margin:2px 0 4px}
 .intro-tier-prompt{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;letter-spacing:.26em;color:var(--cyan);text-transform:uppercase;margin-bottom:10px;text-shadow:0 0 12px rgba(0,212,255,.35)}
 .intro-tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 @media(max-width:680px){.intro-tier-grid{grid-template-columns:1fr;gap:8px}}
-.intro-tier-card{position:relative;background:rgba(3,10,28,.78);border:1px solid rgba(0,212,255,.24);border-radius:14px;padding:14px 14px 13px;text-align:left;cursor:pointer;transition:all .25s cubic-bezier(.22,1,.36,1);backdrop-filter:blur(12px);color:var(--text);display:flex;flex-direction:column;gap:4px}
-.intro-tier-card:hover{background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.55);transform:translateY(-3px);box-shadow:0 8px 26px rgba(0,212,255,.16)}
-.intro-tier-card.active{background:linear-gradient(145deg,rgba(0,212,255,.22),rgba(0,110,200,.12));border-color:#00d4ff;box-shadow:0 0 28px rgba(0,212,255,.32),inset 0 0 16px rgba(0,212,255,.12);transform:translateY(-2px)}
+.intro-track-card{position:relative;background:rgba(3,10,28,.78);border:1px solid rgba(0,212,255,.24);border-radius:14px;padding:14px 14px 13px;text-align:left;cursor:pointer;transition:all .25s cubic-bezier(.22,1,.36,1);backdrop-filter:blur(12px);color:var(--text);display:flex;flex-direction:column;gap:4px}
+.intro-track-card:hover{background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.55);transform:translateY(-3px);box-shadow:0 8px 26px rgba(0,212,255,.16)}
+.intro-track-card.active{background:linear-gradient(145deg,rgba(0,212,255,.22),rgba(0,110,200,.12));border-color:#00d4ff;box-shadow:0 0 28px rgba(0,212,255,.32),inset 0 0 16px rgba(0,212,255,.12);transform:translateY(-2px)}
 .itc-badge{position:absolute;top:10px;right:10px;font-family:'Orbitron',sans-serif;font-size:7px;font-weight:900;letter-spacing:.14em;padding:3px 7px;border-radius:10px;background:rgba(0,212,255,.22);border:1px solid rgba(0,212,255,.5);color:#fff}
 .itc-icon{font-size:24px;line-height:1;margin-bottom:2px}
 .itc-title{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;color:#fff;letter-spacing:.06em}
 .itc-age{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;color:var(--cyan);letter-spacing:.12em;text-transform:uppercase}
 .itc-desc{font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;color:rgba(205,230,255,.8);line-height:1.45;margin-top:2px}
+.intro-depth-bar{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.intro-depth-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.2em;color:rgba(160,215,255,.85)}
+#intro-tier-grid{display:flex;gap:8px;flex-wrap:wrap}
+.intro-tier-card{display:inline-flex;align-items:center;gap:6px;background:rgba(3,10,28,.82);border:1px solid rgba(0,212,255,.24);border-radius:20px;padding:7px 15px;cursor:pointer;transition:all .2s;color:var(--text);font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:800;letter-spacing:.1em}
+.intro-tier-card:hover{background:rgba(0,212,255,.15);border-color:var(--cyan);color:#fff}
+.intro-tier-card.active{background:linear-gradient(135deg,rgba(0,212,255,.28),rgba(0,120,220,.18));border-color:#00d4ff;color:#fff;box-shadow:0 0 18px rgba(0,212,255,.32)}
 
-/* ── Topbar: Tier Button, Frontier Toggle, Audio Volume Slider & Voice Select ─ */
-#tier-hud-btn,#frontier-hud-btn{display:flex;align-items:center;gap:6px;background:rgba(0,212,255,.07);border:1px solid var(--border);color:var(--text);padding:0 11px;height:32px;border-radius:16px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transition:all .2s;white-space:nowrap;flex-shrink:0}
-#tier-hud-btn:hover,#frontier-hud-btn:hover{background:rgba(0,212,255,.18);border-color:var(--cyan);color:#fff}
+/* ── Topbar: Track Button, Science Depth Pills, Frontier Toggle, Audio & Voice ─ */
+#track-hud-btn,#tier-hud-btn,#frontier-hud-btn{display:flex;align-items:center;gap:6px;background:rgba(0,212,255,.07);border:1px solid var(--border);color:var(--text);padding:0 11px;height:32px;border-radius:16px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;transition:all .2s;white-space:nowrap;flex-shrink:0}
+#track-hud-btn:hover,#tier-hud-btn:hover,#frontier-hud-btn:hover{background:rgba(0,212,255,.18);border-color:var(--cyan);color:#fff}
+#depth-hud-group{display:flex;align-items:center;gap:2px;background:rgba(2,8,24,.88);border:1px solid var(--border);border-radius:16px;padding:2px;height:32px;flex-shrink:0}
+.depth-hud-pill{background:transparent;border:1px solid transparent;color:var(--dim);height:26px;padding:0 9px;border-radius:13px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:800;letter-spacing:.06em;transition:all .18s;white-space:nowrap}
+.depth-hud-pill:hover{color:#fff;background:rgba(0,212,255,.1)}
+.depth-hud-pill.active{background:rgba(0,212,255,.24);border-color:var(--cyan);color:#fff;box-shadow:0 0 10px rgba(0,212,255,.22)}
 #frontier-hud-btn.active{background:linear-gradient(135deg,rgba(0,232,140,.18),rgba(0,180,255,.15));border-color:#00e896;color:#fff;box-shadow:0 0 14px rgba(0,232,150,.25)}
 #audio-hud-group{display:flex;align-items:center;gap:6px;background:rgba(0,212,255,.05);border:1px solid var(--border);border-radius:8px;padding:2px 8px 2px 3px}
 #audio-vol-slider{-webkit-appearance:none;appearance:none;width:58px;height:3px;border-radius:2px;background:rgba(0,212,255,.25);outline:none;cursor:pointer}
@@ -767,13 +773,13 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #voice-select{background:rgba(2,8,24,.92);border:1px solid var(--border);color:var(--cyan);height:32px;padding:0 8px;border-radius:7px;font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;font-weight:600;max-width:155px;cursor:pointer;outline:none;transition:border-color .2s}
 #voice-select:hover,#voice-select:focus{border-color:var(--cyan)}
 #voice-select option{background:#030a1c;color:#e8f4ff}
-@media(max-width:980px){.hud-btn-label,#voice-select{display:none}}
+@media(max-width:1120px){.hud-btn-label,#voice-select{display:none}}
 
-/* ── Side Menu Explorer Tier Pills ─────────────────────────────────────────── */
-#smenu-tier-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:4px}
-.smenu-tier-pill{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--dim);padding:7px 4px;border-radius:8px;font-family:'Orbitron',sans-serif;font-size:8px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center}
-.smenu-tier-pill:hover{border-color:rgba(0,212,255,.4);color:#fff}
-.smenu-tier-pill.active{background:rgba(0,212,255,.2);border-color:var(--cyan);color:#fff;box-shadow:0 0 10px rgba(0,212,255,.2)}
+/* ── Side Menu Interest Track & Science Depth Pills ────────────────────────── */
+#smenu-track-row,#smenu-tier-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:4px}
+.smenu-track-pill,.smenu-tier-pill{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--dim);padding:7px 4px;border-radius:8px;font-family:'Orbitron',sans-serif;font-size:8px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center}
+.smenu-track-pill:hover,.smenu-tier-pill:hover{border-color:rgba(0,212,255,.4);color:#fff}
+.smenu-track-pill.active,.smenu-tier-pill.active{background:rgba(0,212,255,.2);border-color:var(--cyan);color:#fff;box-shadow:0 0 10px rgba(0,212,255,.2)}
 
 /* ── Human Frontier Quick-Jump Bar & 3D Labels ─────────────────────────────── */
 #frontier-bar{position:fixed;top:58px;left:18px;z-index:96;display:none;align-items:center;gap:6px;flex-wrap:wrap;background:rgba(2,8,24,.88);border:1px solid rgba(0,232,150,.32);border-radius:30px;padding:5px 12px;backdrop-filter:blur(16px);box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 18px rgba(0,232,150,.1)}

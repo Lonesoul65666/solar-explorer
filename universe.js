@@ -1653,17 +1653,57 @@ const _planetLabelEls = {};
   });
 })();
 
-// ─── EXPLORER AGE TIER SYSTEM (Young Explorer / Space Cadet / Mission Director) ─
-const EXPLORER_TIERS = {
-  kids:     { id:'kids',     icon:'🚀', name:'Young Explorer',   age:'Ages 7–10',          rateMod: 1.02 },
-  cadet:    { id:'cadet',    icon:'🪐', name:'Space Cadet',      age:'Ages 11–15',         rateMod: 0.96 },
-  director: { id:'director', icon:'🔭', name:'Mission Director', age:'Adult / Deep Science', rateMod: 0.92 }
+// ─── INTEREST TRACKS & SCIENCE DEPTH SYSTEM ─────────────────────────────────
+const INTEREST_TRACKS = {
+  worlds:   { id:'worlds',   icon:'🪐', name:'Planets & Worlds',     short:'Worlds',   tagline:'Volcanoes, subsurface oceans, diamond rain & alien weather' },
+  rockets:  { id:'rockets',  icon:'🚀', name:'Rockets & Propulsion', short:'Rockets',  tagline:'Launch vehicles, orbital transfer mechanics, probes & Starship' },
+  traveler: { id:'traveler', icon:'🧑‍🚀', name:'Space Traveler Life',  short:'Traveler', tagline:'Living in orbit, spacesuits, microgravity & future habitats' }
 };
+
+const EXPLORER_TIERS = {
+  kids:     { id:'kids',     icon:'🌟', label:'Kid',   badge:'🌟 KID DEPTH (AGES 7–10)',         name:'Young Explorer',   age:'Kid · Fun & Vivid',         rateMod: 1.00 },
+  cadet:    { id:'cadet',    icon:'⚡', label:'Teen',  badge:'⚡ TEEN DEPTH (AGES 11–15)',       name:'Space Cadet',      age:'Teen · STEM & Missions',    rateMod: 0.96 },
+  director: { id:'director', icon:'🔭', label:'Adult', badge:'🔭 ADULT DEPTH (DEEP SCIENCE)',    name:'Mission Director', age:'Adult · Deep Astrophysics', rateMod: 0.93 }
+};
+
+let interestTrack = 'worlds';
+try {
+  const savedTrack = localStorage.getItem('ue_interest_track');
+  if (savedTrack && INTEREST_TRACKS[savedTrack]) interestTrack = savedTrack;
+} catch(e) {}
+
 let explorerTier = 'cadet';
 try {
   const savedTier = localStorage.getItem('ue_explorer_tier');
   if (savedTier && EXPLORER_TIERS[savedTier]) explorerTier = savedTier;
 } catch(e) {}
+
+function setInterestTrack(track, announce=false) {
+  if (!INTEREST_TRACKS[track]) return;
+  interestTrack = track;
+  try { localStorage.setItem('ue_interest_track', track); } catch(e) {}
+  const tInfo = INTEREST_TRACKS[track];
+  document.querySelectorAll('.intro-track-card').forEach(el => {
+    el.classList.toggle('active', el.dataset.track === track);
+  });
+  document.querySelectorAll('.smenu-track-pill').forEach(el => {
+    el.classList.toggle('active', el.dataset.track === track);
+  });
+  const trackIcon = document.getElementById('track-hud-icon');
+  const trackLbl  = document.getElementById('track-hud-label');
+  if (trackIcon) trackIcon.textContent = tInfo.icon;
+  if (trackLbl)  trackLbl.textContent  = tInfo.short;
+  if (announce) {
+    showToast(`TRACK: ${tInfo.name.toUpperCase()}`, tInfo.tagline, tInfo.icon);
+    if (currentPlanet) {
+      const panel = document.getElementById('info-panel');
+      if (panel && panel.classList.contains('open')) {
+        if (currentPlanet === 'sun') openSun(false);
+        else openPlanet(currentPlanet, false);
+      }
+    }
+  }
+}
 
 function setExplorerTier(tier, announce=false) {
   if (!EXPLORER_TIERS[tier]) return;
@@ -1676,12 +1716,15 @@ function setExplorerTier(tier, announce=false) {
   document.querySelectorAll('.smenu-tier-pill').forEach(el => {
     el.classList.toggle('active', el.dataset.tier === tier);
   });
+  document.querySelectorAll('.depth-hud-pill').forEach(el => {
+    el.classList.toggle('active', el.dataset.tier === tier);
+  });
   const hudIcon = document.getElementById('tier-hud-icon');
   const hudLbl  = document.getElementById('tier-hud-label');
   if (hudIcon) hudIcon.textContent = info.icon;
-  if (hudLbl)  hudLbl.textContent  = info.name;
+  if (hudLbl)  hudLbl.textContent  = info.label;
   if (announce) {
-    showToast(`MODE: ${info.name.toUpperCase()}`, `${info.age} — Voiceovers & science depth updated!`, info.icon);
+    showToast(`DEPTH: ${info.label.toUpperCase()} (${info.name.toUpperCase()})`, `${info.age} — Voiceovers & science depth updated!`, info.icon);
     if (currentPlanet) {
       const panel = document.getElementById('info-panel');
       if (panel && panel.classList.contains('open')) {
@@ -1693,7 +1736,31 @@ function setExplorerTier(tier, announce=false) {
 }
 
 setTimeout(() => {
+  setInterestTrack(interestTrack, false);
   setExplorerTier(explorerTier, false);
+
+  document.querySelectorAll('.intro-track-card').forEach(card => {
+    card.addEventListener('click', () => {
+      setInterestTrack(card.dataset.track, false);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  });
+  document.querySelectorAll('.smenu-track-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      setInterestTrack(pill.dataset.track, true);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  });
+  const trackHudBtn = document.getElementById('track-hud-btn');
+  if (trackHudBtn) {
+    trackHudBtn.addEventListener('click', () => {
+      const order = ['worlds', 'rockets', 'traveler'];
+      const next = order[(order.indexOf(interestTrack) + 1) % order.length];
+      setInterestTrack(next, true);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  }
+
   document.querySelectorAll('.intro-tier-card').forEach(card => {
     card.addEventListener('click', () => {
       setExplorerTier(card.dataset.tier, false);
@@ -1701,6 +1768,12 @@ setTimeout(() => {
     });
   });
   document.querySelectorAll('.smenu-tier-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      setExplorerTier(pill.dataset.tier, true);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  });
+  document.querySelectorAll('.depth-hud-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       setExplorerTier(pill.dataset.tier, true);
       if (typeof playUIClick === 'function') playUIClick();
@@ -4846,7 +4919,7 @@ document.getElementById('side-menu-overlay').addEventListener('click', closeSide
 document.getElementById('explore-launcher').addEventListener('click', openSideMenu);
 
 // ─── PANEL MANAGEMENT ────────────────────────────────────────────────────────
-// ESC closes any open panel
+// ESC closes any open panel or modal cleanly
 document.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
   if(document.getElementById('tour-lightbox').classList.contains('show')) {
@@ -4854,6 +4927,9 @@ document.addEventListener('keydown', e => {
   }
   if(document.getElementById('hint-overlay').classList.contains('show')) {
     document.getElementById('hint-skip').click(); return;
+  }
+  if(document.getElementById('kb-modal').classList.contains('show')) {
+    document.getElementById('kb-modal').classList.remove('show'); return;
   }
   if(document.getElementById('quiz-modal').classList.contains('open')) {
     document.getElementById('quiz-modal').classList.remove('open');
@@ -4863,7 +4939,20 @@ document.addEventListener('keydown', e => {
     return;
   }
   if(document.getElementById('moon-detail').classList.contains('open')) {
-    document.getElementById('moon-detail').classList.remove('open'); return;
+    document.getElementById('moon-detail').classList.remove('open');
+    if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
+    return;
+  }
+  if(document.getElementById('mission-briefing').classList.contains('open')) {
+    document.getElementById('mission-briefing').classList.remove('open');
+    stopNarration();
+    _setActiveMission(_completedMissions.size);
+    return;
+  }
+  if(document.getElementById('mission-complete').classList.contains('show')) {
+    document.getElementById('mission-complete').classList.remove('show');
+    stopNarration();
+    return;
   }
   if(document.getElementById('achievement-panel').classList.contains('open')) {
     document.getElementById('achievement-panel').classList.remove('open'); return;
@@ -4886,10 +4975,42 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Canvas click closes panels (but not during tour or rocket flight)
-renderer.domElement.addEventListener('click', () => {
-  if(rocketFlight) return;
+// Canvas backdrop click closes open side panels when clicking empty 3D space (not dragging or hitting a planet)
+let _canvasDownPos = { x: 0, y: 0 };
+renderer.domElement.addEventListener('pointerdown', e => {
+  _canvasDownPos.x = e.clientX;
+  _canvasDownPos.y = e.clientY;
+}, false);
+
+renderer.domElement.addEventListener('click', e => {
+  if(rocketFlight || tourActive || _introActive || _cinActive) return;
   if(document.getElementById('apollo-popup').classList.contains('show')) return;
+  // Ignore if user dragged the camera more than 6px
+  const dx = e.clientX - _canvasDownPos.x;
+  const dy = e.clientY - _canvasDownPos.y;
+  if (dx * dx + dy * dy > 36) return;
+
+  // Check if click hit a 3D object; if so, let the object click handler open that target
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(getPickList());
+  if (hits.length > 0) return;
+
+  // Clicked empty space outside active panels: close open side panels cleanly
+  if (document.getElementById('mission-panel').classList.contains('open')) {
+    closeMissionPanel();
+  }
+  if (document.getElementById('rocket-launchpad').classList.contains('open')) {
+    closeRocketLaunchpad();
+  }
+  if (document.getElementById('info-panel').classList.contains('open')) {
+    closePanel();
+    animateCameraTo({x:0,y:28,z:55},{x:0,y:0,z:0});
+    currentPlanet = null;
+    document.getElementById('location-label').textContent = 'Overview';
+    pushHistory({type:'overview'});
+  }
 }, false);
 
 // First-visit menu hint — pulse the menu button 3 times on first load
@@ -5429,9 +5550,6 @@ document.getElementById('replay-premiere-btn').addEventListener('click', () => {
 let _saganAudioEl = null;
 
 function runCinematic() {
-  let seenIntro = false;
-  try { seenIntro = localStorage.getItem('ue_seen_intro') === '1'; } catch (e) {}
-  if (seenIntro && !_forceIntroReplay) { _enterAfterIntro(); return; }
   _forceIntroReplay = false;
   try { localStorage.setItem('ue_seen_intro', '1'); } catch (e) {}
 
@@ -6538,6 +6656,12 @@ function toggleKbModal() {
 document.getElementById('kb-close-btn').addEventListener('click', ()=>{
   document.getElementById('kb-modal').classList.remove('show');
 });
+const _kbTopCloseBtn = document.getElementById('kb-top-close-btn');
+if (_kbTopCloseBtn) {
+  _kbTopCloseBtn.addEventListener('click', () => {
+    document.getElementById('kb-modal').classList.remove('show');
+  });
+}
 document.getElementById('kb-modal').addEventListener('click', e=>{
   if(e.target === e.currentTarget) document.getElementById('kb-modal').classList.remove('show');
 });
@@ -6751,42 +6875,156 @@ function _initVoices() {
 }
 _initVoices();
 
+let _speechStartTimer = null;
+let _speechSeqId = 0;
+window._activeUtterance = null;
+window._activeUtteranceQueue = [];
+
+function _splitIntoSpeechChunks(rawText, maxLen = 185) {
+  const clean = String(rawText || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  if (clean.length <= maxLen) return [clean];
+
+  // Split on sentence boundaries (. ! ? — ;) while keeping punctuation attached
+  const sentences = clean.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || [clean];
+  const chunks = [];
+  let current = '';
+
+  for (const s of sentences) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if ((current ? current + ' ' + trimmed : trimmed).length <= maxLen) {
+      current = current ? current + ' ' + trimmed : trimmed;
+    } else {
+      if (current) chunks.push(current);
+      if (trimmed.length <= maxLen) {
+        current = trimmed;
+      } else {
+        // Sub-split very long clauses on commas/dashes or word boundaries
+        const words = trimmed.split(' ');
+        current = '';
+        for (const w of words) {
+          if ((current ? current + ' ' + w : w).length <= maxLen) {
+            current = current ? current + ' ' + w : w;
+          } else {
+            if (current) chunks.push(current);
+            current = w;
+          }
+        }
+      }
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function speakNarration(text, opts) {
   if (!_voiceEnabled || !window.speechSynthesis) {
     if (opts && opts.onend) opts.onend();
-    return;
+    return null;
   }
   const o = opts || {};
-  window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  // Always enforce English locale so browser never synthesizes with a Spanish accent
-  if (_bestVoice) {
-    utt.voice = _bestVoice;
-    utt.lang = _bestVoice.lang || 'en-US';
-  } else {
-    utt.lang = 'en-US';
+  const seqId = ++_speechSeqId;
+
+  if (_speechStartTimer) {
+    clearTimeout(_speechStartTimer);
+    _speechStartTimer = null;
   }
-  utt.rate   = o.rate   !== undefined ? o.rate   : 0.92;
-  utt.pitch  = o.pitch  !== undefined ? o.pitch  : 0.96;
-  utt.volume = o.volume !== undefined ? o.volume : 0.95;
+  try { window.speechSynthesis.cancel(); } catch(e) {}
+  window._activeUtterance = null;
+  window._activeUtteranceQueue = [];
+
+  const chunks = _splitIntoSpeechChunks(text, 185);
+  if (!chunks.length) {
+    if (o.onend) o.onend();
+    return null;
+  }
 
   // Duck background music by 80% while voiceover speaks
   setMusicDuck(true);
 
-  utt.onend = () => {
-    setMusicDuck(false);
-    if (o.onend) o.onend();
-  };
-  utt.onerror = () => {
-    setMusicDuck(false);
-    if (o.onerror) o.onerror();
-  };
-  window.speechSynthesis.speak(utt);
-  return utt;
+  const tierMod = (EXPLORER_TIERS[explorerTier] && EXPLORER_TIERS[explorerTier].rateMod) || 1.0;
+  const baseRate = o.rate !== undefined ? o.rate : 0.92;
+  const finalRate = Math.max(0.75, Math.min(1.18, baseRate * tierMod));
+  const finalPitch = o.pitch !== undefined ? o.pitch : 0.96;
+  const finalVol = o.volume !== undefined ? o.volume : 0.95;
+
+  // Wait 60ms after speechSynthesis.cancel() so Chrome/Edge async queue flush never swallows the new utterance
+  _speechStartTimer = setTimeout(() => {
+    _speechStartTimer = null;
+    if (seqId !== _speechSeqId) return;
+
+    // Refresh voice list if it wasn't populated yet at boot
+    if (!_bestVoice && window.speechSynthesis.getVoices().length) {
+      _initVoices();
+    }
+
+    let idx = 0;
+    const speakNextChunk = () => {
+      if (seqId !== _speechSeqId) return;
+      if (idx >= chunks.length) {
+        window._activeUtterance = null;
+        window._activeUtteranceQueue = [];
+        setMusicDuck(false);
+        if (o.onend) o.onend();
+        return;
+      }
+
+      const utt = new SpeechSynthesisUtterance(chunks[idx++]);
+      // Pin utterance on window so V8 garbage collection never collects it mid-sentence
+      window._activeUtterance = utt;
+      window._activeUtteranceQueue.push(utt);
+
+      if (_bestVoice) {
+        utt.voice = _bestVoice;
+        utt.lang = _bestVoice.lang || 'en-US';
+      } else {
+        utt.lang = 'en-US';
+      }
+      utt.rate   = finalRate;
+      utt.pitch  = finalPitch;
+      utt.volume = finalVol;
+
+      utt.onend = () => {
+        if (seqId !== _speechSeqId) return;
+        speakNextChunk();
+      };
+      utt.onerror = (ev) => {
+        if (seqId !== _speechSeqId) return;
+        // Ignore 'interrupted' / 'canceled' events triggered by deliberate stopNarration()
+        if (ev && (ev.error === 'interrupted' || ev.error === 'canceled')) return;
+        window._activeUtterance = null;
+        window._activeUtteranceQueue = [];
+        setMusicDuck(false);
+        if (o.onerror) o.onerror(ev);
+      };
+
+      try {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utt);
+      } catch(err) {
+        setMusicDuck(false);
+        if (o.onerror) o.onerror(err);
+      }
+    };
+
+    speakNextChunk();
+  }, 60);
+
+  return window._activeUtterance;
 }
 
 function stopNarration() {
-  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  _speechSeqId++;
+  if (_speechStartTimer) {
+    clearTimeout(_speechStartTimer);
+    _speechStartTimer = null;
+  }
+  window._activeUtterance = null;
+  window._activeUtteranceQueue = [];
+  if (window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch(e) {}
+  }
   setMusicDuck(false);
 }
 
@@ -7247,6 +7485,45 @@ const _planetVoiceIdx = {};
 let _speakingPlanet = null;
 const _voicedBodies = new Set();
 
+const INTEREST_TRACK_INSIGHTS = {
+  worlds: {
+    sun: "On the Planets and Worlds track, notice how my solar wind sculpts the magnetospheres and auroras of every planet from Mercury to Neptune!",
+    mercury: "On the Planets and Worlds track, explore my Caloris Basin—an impact crater so huge that shockwaves buckled my crust on the exact opposite side of the planet!",
+    venus: "On the Planets and Worlds track, compare my runaway greenhouse atmosphere with Earth's carbon cycle locked safely in limestone and oceans!",
+    earth: "On the Planets and Worlds track, study how my plate tectonics, liquid iron dynamo, and large Moon work together to keep surface oceans stable for billions of years!",
+    mars: "On the Planets and Worlds track, trace the dried river deltas of Jezero Crater and the three-thousand-kilometer canyon of Valles Marineris!",
+    jupiter: "On the Planets and Worlds track, dive into my forty-thousand-kilometer ocean of liquid metallic hydrogen and the subsurface oceans of my moons Europa and Ganymede!",
+    saturn: "On the Planets and Worlds track, marvel at my hexagon polar jet stream, house-sized ring boulders, and the geysers of Enceladus!",
+    uranus: "On the Planets and Worlds track, see how my ninety-eight-degree tilt creates forty-two-year-long polar summers and winters above a super-ionic water-ammonia mantle!",
+    neptune: "On the Planets and Worlds track, witness two-thousand-kilometer-per-hour supersonic methane winds and diamond rain deep inside my mantle!",
+    pluto: "On the Planets and Worlds track, inspect Sputnik Planitia—a convecting nitrogen-ice glacier beating like a cosmic heart at minus two hundred and thirty degrees Celsius!"
+  },
+  rockets: {
+    sun: "On the Rockets and Propulsion track, NASA's Parker Solar Probe used seven Venus gravity assists to dive through my corona at six hundred and ninety thousand kilometers per hour!",
+    mercury: "On the Rockets and Propulsion track, reaching my deep solar gravity well requires more delta-v than flying to Pluto, demanding multiple planetary gravity assists and ion propulsion!",
+    venus: "On the Rockets and Propulsion track, Soviet Venera landers needed titanium pressure spheres built like deep-sea submarines just to survive fifty-two minutes on my surface!",
+    earth: "On the Rockets and Propulsion track, escaping my gravity well to Low Earth Orbit takes nine point four kilometers per second of delta-v—half the energy needed to reach anywhere else in the solar system!",
+    mars: "On the Rockets and Propulsion track, Hohmann transfer launch windows open every twenty-six months, where SpaceX Starship will use supersonic retropropulsion and in-situ methalox refueling!",
+    jupiter: "On the Rockets and Propulsion track, my colossal gravity acts as a cosmic slingshot—boosting Voyager, Cassini, and New Horizons by up to sixteen kilometers per second without spending a drop of fuel!",
+    saturn: "On the Rockets and Propulsion track, Cassini used four gravity assists at Venus, Earth, and Jupiter before firing its main engine for ninety-six minutes to enter orbit around my rings!",
+    uranus: "On the Rockets and Propulsion track, Voyager 2 used a rare once-every-176-years Grand Tour planetary alignment to slingshot from Saturn to me in just four and a half years!",
+    neptune: "On the Rockets and Propulsion track, Voyager 2 skimmed just four thousand nine hundred kilometers above my north pole to bend its trajectory toward Triton and out into interstellar space!",
+    pluto: "On the Rockets and Propulsion track, an Atlas V rocket with a Star 48B third stage hurled New Horizons away from Earth at sixteen point two six kilometers per second—the fastest launch in history!"
+  },
+  traveler: {
+    sun: "On the Space Traveler Life track, astronauts venturing beyond Earth's magnetosphere must monitor my solar flares closely and shelter inside water-lined storm bunkers during coronal mass ejections!",
+    mercury: "On the Space Traveler Life track, a future human base here could ride on giant tracks along my slow-moving terminator line where temperatures stay a comfortable twenty degrees Celsius!",
+    venus: "On the Space Traveler Life track, fifty-five kilometers up in my clouds, air pressure and temperature match Earth's surface—meaning astronauts could live in buoyant aerostat cloud cities!",
+    earth: "On the Space Traveler Life track, astronauts aboard the International Space Station orbit four hundred kilometers overhead, watching sixteen sunrises and sunsets every single day in microgravity!",
+    mars: "On the Space Traveler Life track, future Mars pioneers will live in lava-tube habitats or 3D-printed regolith domes, growing hydroponic crops under thirty-eight percent of Earth's gravity!",
+    jupiter: "On the Space Traveler Life track, my radiation belts are far too intense for astronauts at Io or Europa, making outer moon Callisto the safest site for a human fueling outpost in the Jovian system!",
+    saturn: "On the Space Traveler Life track, my moon Titan has a thick nitrogen atmosphere so dense that humans wearing heated suits could strap wings to their arms and literally fly!",
+    uranus: "On the Space Traveler Life track, with surface gravity actually slightly weaker than Earth's at my cloud tops, floating habitats in my upper atmosphere would feel surprisingly Earth-like!",
+    neptune: "On the Space Traveler Life track, looking back from my orbit thirty Astronomical Units out, the Sun appears nine hundred times dimmer than on Earth—just a brilliantly bright star in eternal twilight!",
+    pluto: "On the Space Traveler Life track, in my six-percent gravity, a human explorer in a spacesuit could leap over a three-story building in slow motion beneath a crystal-clear nitrogen sky!"
+  }
+};
+
 function _getLinesForBody(id) {
   const v = PLANET_VOICES[id];
   if (!v) {
@@ -7265,12 +7542,15 @@ function _getLinesForBody(id) {
     }
     return null;
   }
-  const tierLines = (v.tiers && (v.tiers[explorerTier] || v.tiers.cadet)) || v.lines || [];
+  const baseLines = (v.tiers && (v.tiers[explorerTier] || v.tiers.cadet)) || v.lines || [];
+  const trackInsight = INTEREST_TRACK_INSIGHTS[interestTrack] && INTEREST_TRACK_INSIGHTS[interestTrack][id];
+  const tierLines = trackInsight ? [...baseLines, trackInsight] : [...baseLines];
   return { rate: v.rate || 0.92, pitch: v.pitch || 0.95, lines: tierLines };
 }
 
 function _updateTranscriptBoxes(id, text) {
   const tierLabel = (EXPLORER_TIERS[explorerTier] || EXPLORER_TIERS.cadet).badge;
+  const trackInfo = INTEREST_TRACKS[interestTrack] || INTEREST_TRACKS.worlds;
   const boxes = [
     document.getElementById('panel-voice-transcript'),
     document.getElementById('moon-voice-transcript'),
@@ -7282,7 +7562,7 @@ function _updateTranscriptBoxes(id, text) {
     if (!text) {
       box.classList.remove('show');
     } else {
-      box.innerHTML = `<div style="font-family:Orbitron,sans-serif;font-size:8px;letter-spacing:.16em;color:var(--cyan);margin-bottom:4px;text-transform:uppercase">${tierLabel} · FIRST-PERSON AUDIO TRANSMISSION</div>“${text}”`;
+      box.innerHTML = `<div style="font-family:Orbitron,sans-serif;font-size:8px;letter-spacing:.16em;color:var(--cyan);margin-bottom:4px;text-transform:uppercase">${trackInfo.icon} ${trackInfo.name} · ${tierLabel}</div>“${text}”`;
       box.classList.add('show');
     }
   });
@@ -7293,7 +7573,8 @@ function speakAsPlanet(id, advance=false) {
   if (!profile || !profile.lines.length) return;
 
   // If clicking main button while already speaking this body (and not clicking "Tell Me More"), stop speech
-  if (!advance && _speakingPlanet === id && window.speechSynthesis && window.speechSynthesis.speaking) {
+  const isCurrentlySpeaking = (window.speechSynthesis && window.speechSynthesis.speaking) || !!window._activeUtterance || !!_speechStartTimer;
+  if (!advance && _speakingPlanet === id && isCurrentlySpeaking) {
     stopNarration();
     _speakingPlanet = null;
     _syncSpeakBtn();
@@ -7748,14 +8029,20 @@ function showMissionBriefing(idx) {
   const m = MISSION_CHAIN[idx];
   const pname = m.planet==='sun' ? 'The Sun' : (PLANETS.find(p=>p.id===m.planet)||{name:m.planet}).name;
   const tierInfo = EXPLORER_TIERS[explorerTier] || EXPLORER_TIERS.cadet;
+  const trackInfo = INTEREST_TRACKS[interestTrack] || INTEREST_TRACKS.worlds;
+  const trackLine = interestTrack === 'rockets'
+    ? 'Rockets and Propulsion telemetry is highlighted across all worlds and spacecraft. '
+    : interestTrack === 'traveler'
+    ? 'Space Traveler Life habitats, spacewalk conditions, and orbital outposts are highlighted across the system. '
+    : 'Planetary geology, extreme weather, and subsurface oceans are highlighted across every world. ';
   const aiGreeting = idx === 0
     ? (explorerTier === 'kids'
-        ? `Welcome aboard the Odyssey cockpit, Young Explorer! I am your Ship AI. Drag to spin around space, scroll to zoom, click any glowing planet to hear it speak in first person, and press F to explore the Human Frontier! `
+        ? `Welcome aboard the Odyssey cockpit, Young Explorer! I am your Ship AI. ${trackLine}Drag to spin around space, scroll to zoom, click any glowing planet to hear it speak in first person, and press F to explore the Human Frontier! `
         : explorerTier === 'director'
-        ? `Ship AI online. Welcome, Mission Director. Deep telemetry, Live ISS orbital tracking, Human Frontier nodes, and NASA archive feeds are active. Use orbital camera controls to inspect any body or press F to toggle the Human Frontier layer. `
-        : `Welcome to the Odyssey cockpit, Space Cadet! Ship AI online. Click any world to scan its NASA photo gallery and hear its first-person story, or toggle the Human Frontier bar to track the Live ISS, SpaceX Starship, and JWST. `)
+        ? `Ship AI online. Welcome, Mission Director. ${trackLine}Deep telemetry, Live ISS orbital tracking, Human Frontier nodes, and NASA archive feeds are active. Use orbital camera controls to inspect any body or press F to toggle the Human Frontier layer. `
+        : `Welcome to the Odyssey cockpit, Space Cadet! Ship AI online. ${trackLine}Click any world to scan its NASA photo gallery and hear its first-person story, or toggle the Human Frontier bar to track the Live ISS, SpaceX Starship, and JWST. `)
     : '';
-  document.getElementById('mbrief-chapter').textContent = `${tierInfo.icon} ${tierInfo.label.toUpperCase()} · Mission ${m.ch} of ${MISSION_CHAIN.length}`;
+  document.getElementById('mbrief-chapter').textContent = `${trackInfo.icon} ${trackInfo.short.toUpperCase()} · ${tierInfo.icon} ${tierInfo.label.toUpperCase()} · Mission ${m.ch} of ${MISSION_CHAIN.length}`;
   document.getElementById('mbrief-icon').textContent = m.icon;
   document.getElementById('mbrief-title').textContent = m.title;
   document.getElementById('mbrief-target').textContent = 'Target: '+pname;
@@ -7768,16 +8055,26 @@ function showMissionBriefing(idx) {
   setTimeout(() => speakNarration(aiGreeting + 'Mission '+m.ch+'. '+m.title+'. '+m.briefing, {rate:0.94, pitch:0.98}), 400);
 }
 
-document.getElementById('mbrief-start').addEventListener('click', () => {
+function _dismissMissionBriefingAndStart() {
   document.getElementById('mission-briefing').classList.remove('open');
   stopNarration();
   _setActiveMission(_completedMissions.size);
-  // First-run tutorial. window.maybeShowHints was defined but never called from
-  // anywhere, so the whole 4-step overlay in universe.html was dead code and no
-  // new user ever saw it. This is the first moment the user actually has the
-  // app to themselves — the welcome screen, premiere and briefing are all done.
-  // maybeShowHints() self-suppresses via the ue_hints_seen localStorage key.
   setTimeout(() => { if(window.maybeShowHints) window.maybeShowHints(); }, 900);
+}
+
+document.getElementById('mbrief-start').addEventListener('click', _dismissMissionBriefingAndStart);
+const _mbriefSkipBtn = document.getElementById('mbrief-skip');
+if (_mbriefSkipBtn) {
+  _mbriefSkipBtn.addEventListener('click', _dismissMissionBriefingAndStart);
+}
+document.getElementById('mission-briefing').addEventListener('click', e => {
+  if (e.target === e.currentTarget) _dismissMissionBriefingAndStart();
+});
+document.getElementById('mission-complete').addEventListener('click', e => {
+  if (e.target === e.currentTarget) {
+    document.getElementById('mission-complete').classList.remove('show');
+    stopNarration();
+  }
 });
 
 function _setActiveMission(idx) {

@@ -99,13 +99,25 @@ C:\SolarExplorer\
 - **`9bc5e0f` — feat: talking planets — each body speaks for itself in its own voice**
 - **`729f235` — feat: complete all 5 STATE.md priorities and cohesive UX polish**:
   - Unified `openPlanet('sun')` → `openSun()`, strict `8/8` planet counter, `QUIZ.pluto` + key `'9'`, 35 procedural SVG mission/tour schematics (`MISSION_ART_SPECS`), vertex-colored Spacetime Gravity Well (`G`), and `P`/`H` hotkeys.
-- **Latest — Massive 7-Step Visual, Audio, Voice, NASA Gallery & Human Frontier Overhaul**:
+- **`9d1a0fa` — Massive 7-Step Visual, Audio, Voice, NASA Gallery & Human Frontier Overhaul**:
   1. **Removed Solar Flare Flash & Static Noise → Added Silent 3D Coronal Loops**: Ripped out `#flare-overlay`, `#flare-warning`, `triggerSolarFlare()`, `playSolarFlareAudio()`, and all white-noise bursts; added 8 dynamic 3D magnetic coronal loop tubes + 260 solar prominence particles on the 3D Sun mesh.
   2. **Cockpit Explorer Tier Selector & Real 3D Carl Sagan Fly-In**: Added 3-tier selector (`Young Explorer 7–10`, `Space Cadet 11–15`, `Mission Director Adult/Deep Science`) on `#intro`, topbar, and side menu; replaced the 2D tunnel canvas with a real 3D Three.js camera fly-in from deep interstellar space past Saturn, Jupiter, and the Pale Blue Dot of Earth synced to Carl Sagan's *Pale Blue Dot* speech and followed by a Ship AI HUD welcome.
   3. **Strict English Voice Selector, 80% Audio Ducking & Age-Tiered First-Person Planets**: Fixed Spanish TTS bug by strictly filtering for `en-*` voices, added `#voice-select` in the HUD, implemented 80% music ducking during speech, and rewrote `PLANET_VOICES` + `speakAsPlanet` with multi-paragraph age-tiered first-person stories, `"Tell Me More ↻"` buttons, and live voice transcripts across all planets, moons, missions, and Frontier nodes.
   4. **Lush Stellardrone / Interstellar / Mass Effect Procedural Ambient Synth**: Replaced harsh vibraphone/noise drones with warm major/minor 7th & 9th polyphonic pads, gentle low-pass filter modulation, and `#audio-vol-slider` in the HUD.
   5. **Live NASA Image Galleries & Lightbox Carousel**: Integrated `images-api.nasa.gov` photo search into every planet, Sun, moon, mission, and Frontier panel with a full prev/next carousel lightbox and instant offline procedural SVG fallback.
   6. **The "Human Frontier" Layer (`F` / HUD / Quick-Jump Bar)**: Added clickable 3D markers, trajectories, live ISS telemetry (`api.wheretheiss.at`), SpaceX Starship Mars Transfer, Orbital AI Data Center, JWST at L2, and Voyager 1.
+- **Latest — 5 Focused UX & Functional Regression Fixes (`v=7`)**:
+  1. **Eliminated `favicon.ico` 404 Error**: Added an inline SVG data-URI `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,...">` directly in `index.html` `<head>` plus local `favicon.svg` and binary `favicon.ico` fallbacks at the repository root.
+  2. **Fixed Skipped Fly-Through Intro & Unguided Adult/Parental Drop-In**:
+     - Removed the `if (seenIntro && !_forceIntroReplay)` early bypass in `runCinematic()` so **every** launch from `#intro` runs the full 3D camera fly-through into the solar system with Carl Sagan quote narration.
+     - Fixed the `TypeError: Cannot read properties of undefined (reading 'toUpperCase')` crash in `showMissionBriefing()` where `tierInfo.label` (and `tierInfo.badge` in `_updateTranscriptBoxes()`) were missing on `EXPLORER_TIERS`, ensuring every track and depth mode lands in a guided interactive onboarding/mission briefing with an optional `'Skip Briefing ✕'` button (`#mbrief-skip`).
+  3. **Fixed Planet & Info Modals Overflowing 1080p Screens**:
+     - Constrained all side panels (`#info-panel`, `#mission-panel`, `#tour-panel`, `#rocket-launchpad`) and modal cards (`#mbriefing-card`, `#mcomplete-card`, `#moon-card`, `#quiz-card`, `#kb-card`, `#ach-card`, `#hint-card`) to `top: 60px; max-height: 82vh; overflow-y: auto;` with `position: sticky; top: 0; z-index: 20;` headers (`.panel-sticky-header`, `.modal-sticky-header`) and high-contrast `✕ Close` buttons (`.modal-close-pill`).
+     - Wired `Escape` and backdrop clicks (including clicking empty 3D canvas space outside open side panels without dragging) to always close active panels and modals cleanly.
+  4. **Fixed Silent / Failing Voiceovers (`speakNarration` / `stopNarration`)**:
+     - Kept `#voice-select` in the HUD and refactored `speakNarration()` to cancel active speech, wait **60ms via `setTimeout`** before calling `speechSynthesis.speak()`, split long monologues (`>185` chars) into sentence chunks queued sequentially, and pin the active utterance on `window._activeUtterance` (and queue on `window._activeUtteranceQueue`) so V8 garbage collection never kills speech mid-sentence.
+  5. **Replaced Age Labels with Interest Tracks + Science Depth**:
+     - Added `INTEREST_TRACKS` (`"Planets & Worlds"`, `"Rockets & Propulsion"`, `"Space Traveler Life"`) alongside the Science Depth toggle (`Kid` / `Teen` / `Adult`) on the entry screen (`#intro-track-grid`, `#intro-tier-grid`), topbar HUD (`#track-hud-btn`, `#depth-hud-group`), and Side Menu (`#smenu-track-row`, `#smenu-tier-row`), with track-specific bonus voiceover insights (`INTEREST_TRACK_INSIGHTS`).
 
 ---
 

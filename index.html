@@ -4,10 +4,12 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Universe Explorer — Solar System</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23020818'/%3E%3Ccircle cx='32' cy='32' r='14' fill='%23ffaa22'/%3E%3Cellipse cx='32' cy='32' rx='26' ry='9' fill='none' stroke='%2300d4ff' stroke-width='3.5' transform='rotate(-22 32 32)'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%23ffe066'/%3E%3C/svg%3E">
+<link rel="alternate icon" href="favicon.ico">
 <!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
      so the app renders correctly offline and on networks that block it. -->
 <link rel="stylesheet" href="vendor/fonts/orbitron.css">
-<link rel="stylesheet" href="universe.css?v=6">
+<link rel="stylesheet" href="universe.css?v=7">
 <script>
 // Catch any JS errors and show them on-screen so we can diagnose
 window.addEventListener('error', function(e) {
@@ -44,7 +46,7 @@ window.addEventListener('unhandledrejection', function(e) {
   <!-- TR corner -->
   <div class="intro-corner-wrap tr">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,40 L118,2 L80,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="116" y1="60" x2="110" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
-    <div class="corner-data">BODIES: 10<br/>FRONTIER: LIVE<br/>VER: 3.0.0</div>
+    <div class="corner-data">BODIES: 10<br/>FRONTIER: LIVE<br/>VER: 3.1.0</div>
   </div>
   <!-- BL corner -->
   <div class="intro-corner-wrap bl">
@@ -65,29 +67,35 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
     <div class="intro-divider"><span class="intro-divider-dot"></span></div>
 
-    <!-- Cockpit Explorer Tier Onboarding Selector -->
+    <!-- Cockpit Interest Track + Science Depth Selector -->
     <div class="intro-tier-section">
-      <div class="intro-tier-prompt">WHO IS EXPLORING TODAY?</div>
-      <div class="intro-tier-grid" id="intro-tier-grid">
-        <button type="button" class="intro-tier-card" data-tier="kids">
-          <div class="itc-icon">🚀</div>
-          <div class="itc-title">Young Explorer</div>
-          <div class="itc-age">Ages 7 – 10</div>
-          <div class="itc-desc">Fun, vivid stories, wild space comparisons &amp; friendly talking worlds</div>
-        </button>
-        <button type="button" class="intro-tier-card active" data-tier="cadet">
-          <div class="itc-badge">RECOMMENDED</div>
+      <div class="intro-tier-prompt">CHOOSE YOUR EXPLORATION TRACK</div>
+      <div class="intro-tier-grid" id="intro-track-grid">
+        <button type="button" class="intro-track-card active" data-track="worlds">
+          <div class="itc-badge">POPULAR</div>
           <div class="itc-icon">🪐</div>
-          <div class="itc-title">Space Cadet</div>
-          <div class="itc-age">Ages 11 – 15</div>
-          <div class="itc-desc">Awesome STEM discoveries, spaceflight mechanics &amp; mission challenges</div>
+          <div class="itc-title">Planets &amp; Worlds</div>
+          <div class="itc-age">Cosmic Wonders &amp; Moons</div>
+          <div class="itc-desc">Diamond rain, subsurface oceans, giant volcanoes &amp; first-person talking worlds</div>
         </button>
-        <button type="button" class="intro-tier-card" data-tier="director">
-          <div class="itc-icon">🔭</div>
-          <div class="itc-title">Mission Director</div>
-          <div class="itc-age">Adult / Deep Science</div>
-          <div class="itc-desc">Full astrophysics, orbital mechanics, delta-v &amp; deep telemetry</div>
+        <button type="button" class="intro-track-card" data-track="rockets">
+          <div class="itc-icon">🚀</div>
+          <div class="itc-title">Rockets &amp; Propulsion</div>
+          <div class="itc-age">Spaceflight &amp; Engineering</div>
+          <div class="itc-desc">SpaceX Starship, orbital transfers, JWST, deep-space probes &amp; rocket telemetry</div>
         </button>
+        <button type="button" class="intro-track-card" data-track="traveler">
+          <div class="itc-icon">👨‍🚀</div>
+          <div class="itc-title">Space Traveler Life</div>
+          <div class="itc-age">Humanity Among the Stars</div>
+          <div class="itc-desc">Living aboard the Live ISS, walking on the Moon &amp; Mars, spacesuits &amp; habitats</div>
+        </button>
+      </div>
+      <div class="intro-depth-bar" id="intro-tier-grid">
+        <span class="intro-depth-label">SCIENCE DEPTH:</span>
+        <button type="button" class="intro-tier-card" data-tier="kids" title="Vivid analogies, friendly stories &amp; zero jargon">🌟 Kid</button>
+        <button type="button" class="intro-tier-card active" data-tier="cadet" title="STEM discoveries, spaceflight mechanics &amp; missions">⚡ Teen</button>
+        <button type="button" class="intro-tier-card" data-tier="director" title="Full astrophysics, orbital mechanics &amp; deep telemetry">🔭 Adult</button>
       </div>
     </div>
 
@@ -129,7 +137,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Mission Briefing -->
 <div id="mission-briefing">
   <div id="mbriefing-card">
-    <div id="mbrief-chapter">Mission 1 of 9</div>
+    <div class="modal-sticky-header">
+      <div id="mbrief-chapter">Mission 1 of 9</div>
+      <button id="mbrief-skip" class="modal-close-pill" title="Skip Briefing &amp; Explore (Esc)">Skip Briefing &#10005;</button>
+    </div>
     <span id="mbrief-icon">&#127758;</span>
     <div id="mbrief-title">Signal Detected</div>
     <div id="mbrief-target">Target: Earth</div>
@@ -189,10 +200,16 @@ window.addEventListener('unhandledrejection', function(e) {
     <button class="nav-btn" id="btn-fwd" title="Forward" disabled>&#8594;</button>
   </div>
   <div id="breadcrumb">Solar System &rsaquo; <span id="location-label">Overview</span></div>
-  <button id="tier-hud-btn" title="Switch Explorer Age Tier (Young Explorer / Space Cadet / Mission Director)">
-    <span id="tier-hud-icon">🪐</span>
-    <span id="tier-hud-label">Space Cadet</span>
+  <button id="track-hud-btn" title="Switch Interest Track (Planets &amp; Worlds / Rockets &amp; Propulsion / Space Traveler Life)">
+    <span id="track-hud-icon">🪐</span>
+    <span id="track-hud-label" class="hud-btn-label">Planets &amp; Worlds</span>
   </button>
+  <div id="depth-hud-group" title="Switch Science Depth (Kid / Teen / Adult)">
+    <button type="button" class="depth-hud-pill" data-tier="kids">Kid</button>
+    <button type="button" class="depth-hud-pill active" data-tier="cadet">Teen</button>
+    <button type="button" class="depth-hud-pill" data-tier="director">Adult</button>
+  </div>
+  <button id="tier-hud-btn" style="display:none" aria-hidden="true"><span id="tier-hud-icon">⚡</span><span id="tier-hud-label">Teen</span></button>
   <button id="frontier-hud-btn" class="active" title="Toggle Human Frontier Layer: Live ISS, SpaceX Starship, Orbital AI Data Center, JWST (F)">
     <span>🛰️</span>
     <span class="hud-btn-label">Human Frontier</span>
@@ -235,14 +252,20 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="side-menu">
   <div id="side-menu-header">
     <div id="side-menu-title">&#9670; MISSION CONTROL</div>
-    <button id="side-menu-close">&#10005;</button>
+    <button id="side-menu-close" title="Close Menu (Esc)">&#10005; Close</button>
   </div>
   <div id="side-menu-body">
-    <div class="smenu-section-label">EXPLORER PROFILE</div>
+    <div class="smenu-section-label">INTEREST TRACK</div>
+    <div id="smenu-track-row">
+      <button class="smenu-track-pill active" data-track="worlds">🪐 Worlds</button>
+      <button class="smenu-track-pill" data-track="rockets">🚀 Rockets</button>
+      <button class="smenu-track-pill" data-track="traveler">👨‍🚀 Life</button>
+    </div>
+    <div class="smenu-section-label">SCIENCE DEPTH</div>
     <div id="smenu-tier-row">
-      <button class="smenu-tier-pill" data-tier="kids">🚀 Ages 7–10</button>
-      <button class="smenu-tier-pill active" data-tier="cadet">🪐 Ages 11–15</button>
-      <button class="smenu-tier-pill" data-tier="director">🔭 Director</button>
+      <button class="smenu-tier-pill" data-tier="kids">🌟 Kid</button>
+      <button class="smenu-tier-pill active" data-tier="cadet">⚡ Teen</button>
+      <button class="smenu-tier-pill" data-tier="director">🔭 Adult</button>
     </div>
     <div class="smenu-section-label">EXPLORE</div>
     <button class="smenu-btn" id="resume-campaign-btn">&#127919; Resume Campaign<span class="smenu-hint" id="resume-campaign-hint">Continue guided solar system missions</span></button>
@@ -289,16 +312,19 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <!-- Mission Detail Panel -->
 <div id="mission-panel">
-  <button id="mission-panel-close">&#10005;</button>
+  <div class="panel-sticky-header">
+    <span class="panel-sticky-title">&#128752; SPACECRAFT TELEMETRY</span>
+    <button id="mission-panel-close" class="modal-close-pill" title="Close Panel (Esc)">&#10005; Close</button>
+  </div>
   <div id="mission-scroll"></div>
 </div>
 
 <!-- Rocket Launchpad Panel -->
 <div id="rocket-launchpad">
-  <div id="rl-header">
-    <div id="rl-title-row">
+  <div id="rl-header" class="panel-sticky-header" style="flex-direction:column;align-items:stretch;gap:4px">
+    <div id="rl-title-row" style="display:flex;align-items:center;justify-content:space-between">
       <div id="rl-title">&#128640; LAUNCH CONTROL</div>
-      <button id="rl-close">&#10005;</button>
+      <button id="rl-close" class="modal-close-pill" title="Close Launchpad (Esc)">&#10005; Close</button>
     </div>
     <div id="rl-subtitle">Where are we going today, astronaut?</div>
   </div>
@@ -347,8 +373,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Achievement Panel -->
 <div id="achievement-panel">
   <div id="ach-card">
-    <button id="ach-close">&#10005;</button>
-    <div id="ach-title">&#9733; MISSION ACHIEVEMENTS</div>
+    <div class="modal-sticky-header">
+      <div id="ach-title" style="margin:0">&#9733; MISSION ACHIEVEMENTS</div>
+      <button id="ach-close" class="modal-close-pill" title="Close (Esc)">&#10005; Close</button>
+    </div>
     <div id="ach-subtitle">Explore, learn, and unlock rewards</div>
     <div id="ach-score-row">
       <div>
@@ -370,7 +398,10 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <!-- Info Panel -->
 <div id="info-panel">
-  <button id="panel-close">&#10005;</button>
+  <div class="panel-sticky-header">
+    <span class="panel-sticky-title">&#9672; PLANETARY TELEMETRY</span>
+    <button id="panel-close" class="modal-close-pill" title="Close Panel (Esc)">&#10005; Close</button>
+  </div>
   <div id="panel-scroll">
     <canvas id="panel-canvas" width="320" height="320"></canvas>
     <div id="panel-name">Earth</div>
@@ -421,7 +452,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Keyboard Shortcut Modal -->
 <div id="kb-modal">
   <div id="kb-card">
-    <div id="kb-title">&#9670;&nbsp; KEYBOARD SHORTCUTS &nbsp;&#9670;</div>
+    <div class="modal-sticky-header">
+      <div id="kb-title" style="margin:0">&#9670;&nbsp; KEYBOARD SHORTCUTS &nbsp;&#9670;</div>
+      <button id="kb-top-close-btn" class="modal-close-pill" onclick="document.getElementById('kb-modal').classList.remove('show')" title="Close (Esc)">&#10005; Close</button>
+    </div>
     <div class="kb-section">Navigation</div>
     <div class="kb-row"><span class="kb-key">1 – 8</span><span class="kb-desc">Jump to planet (Mercury–Neptune)</span></div>
     <div class="kb-row"><span class="kb-key">9</span><span class="kb-desc">Jump to Pluto (Dwarf Planet)</span></div>
@@ -460,8 +494,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="quiz-flash"></div>
 <div id="quiz-modal">
   <div id="quiz-card">
-    <button id="quiz-close">&#10005;</button>
-    <div id="quiz-planet-name"></div>
+    <div class="modal-sticky-header">
+      <div id="quiz-planet-name" style="margin:0"></div>
+      <button id="quiz-close" class="modal-close-pill" title="Close Quiz (Esc)">&#10005; Close</button>
+    </div>
     <div id="quiz-progress"></div>
     <div id="quiz-question"></div>
     <div id="quiz-timer-wrap"><div id="quiz-timer-bar"></div></div>
@@ -476,8 +512,10 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Moon Detail Modal -->
 <div id="moon-detail">
   <div id="moon-card">
-    <button id="moon-close">&#10005;</button>
-    <h2 id="moon-name">The Moon</h2>
+    <div class="modal-sticky-header">
+      <h2 id="moon-name" style="margin:0">The Moon</h2>
+      <button id="moon-close" class="modal-close-pill" title="Close (Esc)">&#10005; Close</button>
+    </div>
     <div class="tagline" id="moon-tagline"></div>
     <div class="panel-speak-row" style="margin-bottom:12px">
       <button id="moon-speak" class="speak-btn-shared" title="Hear this moon speak in first person">
@@ -632,6 +670,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 
-<script type="module" src="universe.js?v=6"></script>
+<script type="module" src="universe.js?v=7"></script>
 </body>
 </html>
