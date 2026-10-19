@@ -7,7 +7,7 @@
 <!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
      so the app renders correctly offline and on networks that block it. -->
 <link rel="stylesheet" href="vendor/fonts/orbitron.css">
-<link rel="stylesheet" href="universe.css?v=5">
+<link rel="stylesheet" href="universe.css?v=6">
 <script>
 // Catch any JS errors and show them on-screen so we can diagnose
 window.addEventListener('error', function(e) {
@@ -44,7 +44,7 @@ window.addEventListener('unhandledrejection', function(e) {
   <!-- TR corner -->
   <div class="intro-corner-wrap tr">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,40 L118,2 L80,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="116" y1="60" x2="110" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
-    <div class="corner-data">BODIES: 9<br/>SOL: 1 AU<br/>VER: 2.4.1</div>
+    <div class="corner-data">BODIES: 10<br/>FRONTIER: LIVE<br/>VER: 3.0.0</div>
   </div>
   <!-- BL corner -->
   <div class="intro-corner-wrap bl">
@@ -54,21 +54,48 @@ window.addEventListener('unhandledrejection', function(e) {
   <!-- BR corner -->
   <div class="intro-corner-wrap br">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-duration:15s;animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,80 L118,118 L80,118" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="118" r="2.5" fill="rgba(0,212,255,.9)"/></g></svg>
-    <div class="corner-data">PLANETS: 8<br/>MOONS: 200+<br/>MISSIONS: LIVE</div>
+    <div class="corner-data">PLANETS: 9<br/>MOONS: 200+<br/>NASA API: READY</div>
   </div>
 
   <div class="intro-content">
-    <div class="intro-badge">An Interactive Journey Through Space</div>
+    <div class="intro-badge">&#9672; Interactive 3D Planetarium &amp; Deep-Space Observatory &#9672;</div>
     <div class="intro-title">
       <span class="intro-title-main">UNIVERSE</span>
       <span class="intro-title-sub">EXPLORER</span>
     </div>
     <div class="intro-divider"><span class="intro-divider-dot"></span></div>
+
+    <!-- Cockpit Explorer Tier Onboarding Selector -->
+    <div class="intro-tier-section">
+      <div class="intro-tier-prompt">WHO IS EXPLORING TODAY?</div>
+      <div class="intro-tier-grid" id="intro-tier-grid">
+        <button type="button" class="intro-tier-card" data-tier="kids">
+          <div class="itc-icon">🚀</div>
+          <div class="itc-title">Young Explorer</div>
+          <div class="itc-age">Ages 7 – 10</div>
+          <div class="itc-desc">Fun, vivid stories, wild space comparisons &amp; friendly talking worlds</div>
+        </button>
+        <button type="button" class="intro-tier-card active" data-tier="cadet">
+          <div class="itc-badge">RECOMMENDED</div>
+          <div class="itc-icon">🪐</div>
+          <div class="itc-title">Space Cadet</div>
+          <div class="itc-age">Ages 11 – 15</div>
+          <div class="itc-desc">Awesome STEM discoveries, spaceflight mechanics &amp; mission challenges</div>
+        </button>
+        <button type="button" class="intro-tier-card" data-tier="director">
+          <div class="itc-icon">🔭</div>
+          <div class="itc-title">Mission Director</div>
+          <div class="itc-age">Adult / Deep Science</div>
+          <div class="itc-desc">Full astrophysics, orbital mechanics, delta-v &amp; deep telemetry</div>
+        </button>
+      </div>
+    </div>
+
     <div id="intro-loader">
       <div id="intro-loader-track"><div id="intro-loader-fill"></div></div>
       <div id="intro-loader-label">Initializing Solar System</div>
     </div>
-    <button id="start-btn" disabled>Begin Your Journey</button>
+    <button id="start-btn" disabled>Launch Into The Cosmos &#9654;</button>
     <div class="intro-dedication">
       <span class="intro-ded-text">"The sky is the limit &mdash; so I bring it a little closer for you"</span>
       <span class="intro-ded-sig">Love, Scott &nbsp;&#10084;</span>
@@ -80,11 +107,6 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Flash & warp overlays -->
 <div id="screen-flash"></div>
 <div id="warp-overlay"></div>
-<div id="flare-overlay"></div>
-<div id="flare-warning">
-  <span id="flare-warning-icon">⚡</span>
-  <span id="flare-warning-text">Solar Flare Detected</span>
-</div>
 <div id="levelup-card"><div id="levelup-flash"></div><div id="levelup-text"><div id="levelup-star">★</div><div id="levelup-title">RANK UP</div><div id="levelup-rank">NAVIGATOR</div></div></div>
 
 <!-- Cinematic Premiere Overlay -->
@@ -134,20 +156,16 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 </div>
 
-<!-- Cinematic Intro Sequence -->
+<!-- Cinematic 3D Fly-In Sequence Overlay -->
 <div id="cinematic">
   <canvas id="cine-canvas"></canvas>
+  <div id="cine-flyin-badge">&#9672; CARL SAGAN &middot; PALE BLUE DOT (1994) &#9672;</div>
   <div id="cine-text"></div>
   <div id="cine-bottom">
     <div id="cine-progress-wrap"><div id="cine-progress-legacy"></div></div>
-    <button id="cine-skip">Skip &rsaquo;&rsaquo;</button>
+    <button id="cine-skip">Skip Intro &rsaquo;&rsaquo;</button>
   </div>
 </div>
-
-<!-- The background score is generated procedurally in the Web Audio API
-     (see "PLANETARIUM BGM" in universe.js) — there is no audio file to load.
-     A 5.6MB music/soundtrack.mp3 and its <audio> element used to live here;
-     nothing in the code ever played it, so both were removed. -->
 
 <!-- Floating EXPLORE menu launcher -->
 <div id="explore-launcher" title="Open Menu">
@@ -171,12 +189,46 @@ window.addEventListener('unhandledrejection', function(e) {
     <button class="nav-btn" id="btn-fwd" title="Forward" disabled>&#8594;</button>
   </div>
   <div id="breadcrumb">Solar System &rsaquo; <span id="location-label">Overview</span></div>
+  <button id="tier-hud-btn" title="Switch Explorer Age Tier (Young Explorer / Space Cadet / Mission Director)">
+    <span id="tier-hud-icon">🪐</span>
+    <span id="tier-hud-label">Space Cadet</span>
+  </button>
+  <button id="frontier-hud-btn" class="active" title="Toggle Human Frontier Layer: Live ISS, SpaceX Starship, Orbital AI Data Center, JWST (F)">
+    <span>🛰️</span>
+    <span class="hud-btn-label">Human Frontier</span>
+  </button>
   <div id="planet-counter" title="Planets explored"><div id="planet-counter-icon">&#9793;</div><div id="planet-counter-value">0/8</div></div>
   <div id="rank-display" title="Explorer Rank"><div id="rank-icon">★</div><div id="rank-name">CADET</div></div>
   <div id="score-display"><div id="score-label">Score</div><div id="score-value">0</div></div>
   <button id="gravity-hud-btn" title="Toggle Spacetime Grid / Gravity Well (G)" aria-label="Toggle Spacetime Grid / Gravity Well">&#127760;</button>
-  <button id="audio-btn" title="Toggle Audio">&#128263;</button>
+  <div id="audio-hud-group" title="Space Ambience &amp; Music Volume">
+    <button id="audio-btn" title="Mute / Unmute Audio (A)">&#128263;</button>
+    <input type="range" id="audio-vol-slider" min="0" max="100" value="75" title="Music &amp; Ambience Volume"/>
+  </div>
+  <select id="voice-select" title="Select English Narrator &amp; Ship AI Voice" aria-label="Select English Narrator Voice">
+    <option value="">🎙️ English AI Voice</option>
+  </select>
   <button id="menu-btn" title="Open Mission Control Menu" aria-label="Open menu"><span style="font-size:16px">&#9776;</span>&nbsp;MENU</button>
+</div>
+
+<!-- Human Frontier Floating Quick-Jump Bar -->
+<div id="frontier-bar" class="visible">
+  <div class="fbar-title"><span>🛰️</span> HUMAN FRONTIER</div>
+  <button class="fbar-chip" data-frontier="frontier_iss" title="Live International Space Station (Real-time telemetry)">
+    <span class="fbar-dot live"></span><span>Live ISS</span>
+  </button>
+  <button class="fbar-chip" data-frontier="starship_mars" title="SpaceX Starship Interplanetary Mars Transfer">
+    <span class="fbar-dot"></span><span>SpaceX Starship</span>
+  </button>
+  <button class="fbar-chip" data-frontier="orbital_datacenter" title="Orbital AI Compute &amp; Radiative Data Center">
+    <span class="fbar-dot"></span><span>Orbital AI Center</span>
+  </button>
+  <button class="fbar-chip" data-frontier="frontier_jwst" title="James Webb Space Telescope at Sun-Earth L2">
+    <span class="fbar-dot"></span><span>JWST (L2)</span>
+  </button>
+  <button class="fbar-chip" data-frontier="frontier_voyager" title="Voyager 1 in Interstellar Space">
+    <span class="fbar-dot"></span><span>Voyager 1</span>
+  </button>
 </div>
 
 <!-- Side Menu Panel -->
@@ -186,16 +238,23 @@ window.addEventListener('unhandledrejection', function(e) {
     <button id="side-menu-close">&#10005;</button>
   </div>
   <div id="side-menu-body">
+    <div class="smenu-section-label">EXPLORER PROFILE</div>
+    <div id="smenu-tier-row">
+      <button class="smenu-tier-pill" data-tier="kids">🚀 Ages 7–10</button>
+      <button class="smenu-tier-pill active" data-tier="cadet">🪐 Ages 11–15</button>
+      <button class="smenu-tier-pill" data-tier="director">🔭 Director</button>
+    </div>
     <div class="smenu-section-label">EXPLORE</div>
     <button class="smenu-btn" id="resume-campaign-btn">&#127919; Resume Campaign<span class="smenu-hint" id="resume-campaign-hint">Continue guided solar system missions</span></button>
-    <button class="smenu-btn" id="replay-intro-btn">&#127756; Replay Warp Intro<span class="smenu-hint">Fly the tunnel into the solar system again</span></button>
+    <button class="smenu-btn" id="replay-intro-btn">&#127756; Replay Sagan Fly-In<span class="smenu-hint">Carl Sagan Pale Blue Dot 3D fly-in</span></button>
     <button class="smenu-btn" id="replay-premiere-btn">&#127916; Replay Premiere<span class="smenu-hint">The cinematic camera fly-through</span></button>
     <button class="smenu-btn" id="tour-btn">&#127758; Guided Tour<span class="smenu-hint">Cinematic journey Sun → Pluto</span></button>
     <button class="smenu-btn" id="missions-btn">&#9678; Space Missions<span class="smenu-hint">8 spacecraft — ISS, JWST &amp; more</span></button>
     <button class="smenu-btn" id="rocket-mode-btn">&#128640; Rocket Mode<span class="smenu-hint">Launch to any planet — hear its story en route!</span></button>
     <button class="smenu-btn" id="achievements-btn">&#9733; My Achievements<span class="smenu-hint">View your progress and explorer score</span></button>
     <button class="smenu-btn" id="surprise-btn">&#10024; Surprise Me<span class="smenu-hint">Teleport to a random planet</span></button>
-    <div class="smenu-section-label">VIEW</div>
+    <div class="smenu-section-label">VIEW &amp; LAYERS</div>
+    <button class="smenu-btn active" id="frontier-toggle">🛰️ Human Frontier Layer<span class="smenu-hint">Live ISS, SpaceX Starship, Orbital AI Center, JWST (F)</span></button>
     <button class="smenu-btn" id="gravity-toggle">&#127760; Spacetime Grid / Gravity Well<span class="smenu-hint">Visualize Einstein's spacetime curvature (G)</span></button>
     <button class="smenu-btn" id="comparison-toggle">&#9632; Compare Planets<span class="smenu-hint">True relative sizes</span></button>
     <button class="smenu-btn" id="scale-toggle">&#9654; True Scale Mode<span class="smenu-hint">Real AU orbital distances</span></button>
@@ -316,11 +375,17 @@ window.addEventListener('unhandledrejection', function(e) {
     <canvas id="panel-canvas" width="320" height="320"></canvas>
     <div id="panel-name">Earth</div>
     <div id="panel-tagline">Our Blue Home</div>
-    <button id="panel-speak" title="Let this world introduce itself">
-      <span id="panel-speak-icon">&#128266;</span>
-      <span id="panel-speak-label">Hear it speak</span>
-      <span class="speak-wave"><i></i><i></i><i></i><i></i></span>
-    </button>
+    <div class="panel-speak-row">
+      <button id="panel-speak" title="Let this world introduce itself in first person">
+        <span id="panel-speak-icon">&#128266;</span>
+        <span id="panel-speak-label">Hear Me Speak</span>
+        <span class="speak-wave"><i></i><i></i><i></i><i></i></span>
+      </button>
+      <button id="panel-speak-more" title="Hear another secret story from this world">
+        <span>Tell Me More &#8635;</span>
+      </button>
+    </div>
+    <div id="panel-voice-transcript" class="voice-transcript-box"></div>
     <div id="panel-body-content"></div>
   </div>
 </div>
@@ -329,7 +394,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <div id="tooltip"></div>
 
 <!-- Music credit (CC Attribution) -->
-<div id="music-credit">&#9834; Generative Planetarium Score</div>
+<div id="music-credit">&#9834; Ambient Deep-Space Synthesizer</div>
 
 <!-- Achievement Toast -->
 <div id="achievement-toast">
@@ -365,6 +430,7 @@ window.addEventListener('unhandledrejection', function(e) {
     <div class="kb-section">Features</div>
     <div class="kb-row"><span class="kb-key">T</span><span class="kb-desc">Start Guided Tour</span></div>
     <div class="kb-row"><span class="kb-key">R</span><span class="kb-desc">Toggle Rocket Mode</span></div>
+    <div class="kb-row"><span class="kb-key">F</span><span class="kb-desc">Toggle Human Frontier Layer (ISS / SpaceX / JWST)</span></div>
     <div class="kb-row"><span class="kb-key">G</span><span class="kb-desc">Toggle Spacetime Gravity Well</span></div>
     <div class="kb-row"><span class="kb-key">P</span><span class="kb-desc">Pause / resume orbital motion</span></div>
     <div class="kb-row"><span class="kb-key">M</span><span class="kb-desc">Toggle Side Menu</span></div>
@@ -413,8 +479,20 @@ window.addEventListener('unhandledrejection', function(e) {
     <button id="moon-close">&#10005;</button>
     <h2 id="moon-name">The Moon</h2>
     <div class="tagline" id="moon-tagline"></div>
+    <div class="panel-speak-row" style="margin-bottom:12px">
+      <button id="moon-speak" class="speak-btn-shared" title="Hear this moon speak in first person">
+        <span>&#128266;</span>
+        <span id="moon-speak-label">Hear Me Speak</span>
+        <span class="speak-wave"><i></i><i></i><i></i><i></i></span>
+      </button>
+      <button id="moon-speak-more" class="speak-more-shared" title="Next secret story">
+        <span>Tell Me More &#8635;</span>
+      </button>
+    </div>
+    <div id="moon-voice-transcript" class="voice-transcript-box"></div>
     <p id="moon-desc"></p>
     <div class="stat-grid" id="moon-stats"></div>
+    <div id="moon-nasa-gallery" class="nasa-gallery-section"></div>
   </div>
 </div>
 
@@ -458,7 +536,18 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 <!-- Cinematic planet title card (center screen) -->
 <div id="tour-title-card"><div id="tour-title-inner"><div id="tour-title-name"></div><div id="tour-title-sub"></div></div></div>
-<div id="tour-lightbox"><img id="tour-lightbox-img" src="" alt=""></div>
+<div id="tour-lightbox">
+  <div class="lightbox-inner">
+    <button id="tour-lightbox-close" title="Close (Esc)">&#10005;</button>
+    <button id="tour-lightbox-prev" class="lightbox-nav prev" title="Previous Photo">&#8592;</button>
+    <img id="tour-lightbox-img" src="" alt="">
+    <button id="tour-lightbox-next" class="lightbox-nav next" title="Next Photo">&#8594;</button>
+    <div class="lightbox-meta">
+      <div id="tour-lightbox-caption"></div>
+      <div id="tour-lightbox-credit"></div>
+    </div>
+  </div>
+</div>
 <div id="planet-labels"></div>
 <div id="tour-rocket-flash"><canvas id="tour-warp-canvas"></canvas><div id="trf-inner"></div></div>
 <div id="tour-sagan-quote"><div id="tsq-text"></div><div id="tsq-author"></div></div>
@@ -543,6 +632,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 
-<script type="module" src="universe.js?v=5"></script>
+<script type="module" src="universe.js?v=6"></script>
 </body>
 </html>

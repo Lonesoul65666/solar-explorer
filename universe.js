@@ -995,7 +995,7 @@ scene.add(fillLight);
   scene.add(new THREE.Points(geo,new THREE.PointsMaterial({vertexColors:true,sizeAttenuation:false,size:0.9,transparent:true,opacity:0.75})));
 })();
 
-// Sun
+// Sun + Silent 3D Magnetic Coronal Loops & Solar Prominence Particle System
 function createSun() {
   const group = new THREE.Group();
   const geo = new THREE.SphereGeometry(2.5, 48, 48);
@@ -1004,22 +1004,135 @@ function createSun() {
   const grd=ctx.createRadialGradient(256,256,0,256,256,256);
   grd.addColorStop(0,'#fff8e0'); grd.addColorStop(.3,'#ffe040'); grd.addColorStop(.7,'#ff8000'); grd.addColorStop(1,'#ff4000');
   ctx.fillStyle=grd; ctx.fillRect(0,0,512,512);
-  // Sunspots
-  for(let i=0;i<20;i++){ctx.beginPath();ctx.arc(100+Math.random()*300,100+Math.random()*300,3+Math.random()*8,0,Math.PI*2);ctx.fillStyle='rgba(150,60,0,0.5)';ctx.fill();}
+  // Sunspots & active regions
+  for(let i=0;i<24;i++){ctx.beginPath();ctx.arc(90+Math.random()*330,90+Math.random()*330,3+Math.random()*8,0,Math.PI*2);ctx.fillStyle='rgba(150,55,0,0.48)';ctx.fill();}
   const mat = new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)});
   const mesh = new THREE.Mesh(geo, mat);
   group.add(mesh);
-  // Glow
+
+  // Inner & outer corona glows
   const glowGeo = new THREE.SphereGeometry(3.8, 32, 32);
-  const glowMat = new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.12,side:THREE.BackSide});
+  const glowMat = new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:0.13,side:THREE.BackSide,depthWrite:false});
   group.add(new THREE.Mesh(glowGeo, glowMat));
-  const glowGeo2 = new THREE.SphereGeometry(5.5, 32, 32);
-  const glowMat2 = new THREE.MeshBasicMaterial({color:0xff6600,transparent:true,opacity:0.05,side:THREE.BackSide});
+  const glowGeo2 = new THREE.SphereGeometry(5.6, 32, 32);
+  const glowMat2 = new THREE.MeshBasicMaterial({color:0xff5500,transparent:true,opacity:0.055,side:THREE.BackSide,depthWrite:false});
   group.add(new THREE.Mesh(glowGeo2, glowMat2));
+
+  // 3D Magnetic Coronal Loops (silent plasma arches hugging the solar surface)
+  const loopSpecs = [
+    {lat: 0.25, lon: 0.0,  span: 0.52, height: 0.95, tilt: 0.2,  speed: 0.9,  phase: 0.0, color: 0xffaa22},
+    {lat:-0.30, lon: 1.15, span: 0.60, height: 1.15, tilt:-0.25, speed: 0.75, phase: 1.4, color: 0xff7711},
+    {lat: 0.42, lon: 2.35, span: 0.48, height: 0.85, tilt: 0.35, speed: 1.1,  phase: 2.8, color: 0xffcc44},
+    {lat:-0.18, lon: 3.55, span: 0.66, height: 1.28, tilt:-0.15, speed: 0.68, phase: 4.1, color: 0xff5500},
+    {lat: 0.12, lon: 4.65, span: 0.55, height: 1.05, tilt: 0.28, speed: 0.85, phase: 5.2, color: 0xff9922},
+    {lat:-0.48, lon: 5.50, span: 0.46, height: 0.82, tilt:-0.32, speed: 1.02, phase: 2.1, color: 0xffbb33},
+    {lat: 0.62, lon: 1.80, span: 0.42, height: 0.76, tilt: 0.40, speed: 0.95, phase: 3.6, color: 0xff6611},
+    {lat:-0.55, lon: 4.10, span: 0.50, height: 0.92, tilt:-0.22, speed: 0.80, phase: 0.8, color: 0xffaa33}
+  ];
+
+  const prominenceLoops = [];
+  const R = 2.46;
+  const _sphToVec = (lat, lon, rad) => new THREE.Vector3(
+    rad * Math.cos(lat) * Math.cos(lon),
+    rad * Math.sin(lat),
+    rad * Math.cos(lat) * Math.sin(lon)
+  );
+
+  loopSpecs.forEach(spec => {
+    const p0 = _sphToVec(spec.lat - spec.span * 0.35, spec.lon - spec.span * 0.5, R);
+    const p3 = _sphToVec(spec.lat + spec.span * 0.35, spec.lon + spec.span * 0.5, R);
+    const midLat = spec.lat + spec.tilt * 0.25;
+    const midLon = spec.lon;
+    const p1 = _sphToVec(midLat - spec.span * 0.12, midLon - spec.span * 0.18, R + spec.height);
+    const p2 = _sphToVec(midLat + spec.span * 0.12, midLon + spec.span * 0.18, R + spec.height);
+    const curve = new THREE.CubicBezierCurve3(p0, p1, p2, p3);
+    const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.042, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({
+      color: spec.color,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+    group.add(tubeMesh);
+
+    // Outer soft halo tube around the magnetic loop
+    const haloGeo = new THREE.TubeGeometry(curve, 28, 0.11, 8, false);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xff5500,
+      transparent: true,
+      opacity: 0.16,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+    group.add(haloMesh);
+
+    prominenceLoops.push({curve, tubeMesh, haloMesh, spec});
+  });
+
+  // Coronal plasma particles streaming along the magnetic loops
+  const PARTICLE_COUNT = 320;
+  const pPos = new Float32Array(PARTICLE_COUNT * 3);
+  const pCol = new Float32Array(PARTICLE_COUNT * 3);
+  const pMeta = [];
+  for(let i = 0; i < PARTICLE_COUNT; i++) {
+    const loopIdx = i % prominenceLoops.length;
+    const t0 = Math.random();
+    const spd = 0.18 + Math.random() * 0.28;
+    pMeta.push({loopIdx, t: t0, speed: spd, jitter: (Math.random() - 0.5) * 0.09});
+    pCol[i*3]   = 1.0;
+    pCol[i*3+1] = 0.55 + Math.random() * 0.42;
+    pCol[i*3+2] = 0.15 + Math.random() * 0.25;
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+  const pMat = new THREE.PointsMaterial({
+    size: 0.16,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.82,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const coronalPoints = new THREE.Points(pGeo, pMat);
+  group.add(coronalPoints);
+
   scene.add(group);
-  return {group, mesh};
+  return {group, mesh, prominenceLoops, coronalPoints, pMeta};
 }
 const sunObj = createSun();
+const _promTmpPt = new THREE.Vector3();
+
+function updateSolarProminences(t) {
+  if(!sunObj || !sunObj.prominenceLoops) return;
+  sunObj.group.rotation.y = t * 0.035;
+  const loops = sunObj.prominenceLoops;
+  for(let i = 0; i < loops.length; i++) {
+    const L = loops[i];
+    const wave = 0.5 + 0.5 * Math.sin(t * L.spec.speed + L.spec.phase);
+    L.tubeMesh.material.opacity = 0.22 + wave * 0.52;
+    L.haloMesh.material.opacity = 0.07 + wave * 0.22;
+    const sc = 0.96 + wave * 0.09;
+    L.tubeMesh.scale.setScalar(sc);
+    L.haloMesh.scale.setScalar(sc);
+  }
+  const posAttr = sunObj.coronalPoints.geometry.getAttribute('position');
+  const arr = posAttr.array;
+  const meta = sunObj.pMeta;
+  for(let i = 0; i < meta.length; i++) {
+    const m = meta[i];
+    m.t = (m.t + 0.0045 * m.speed) % 1;
+    const L = loops[m.loopIdx];
+    L.curve.getPoint(m.t, _promTmpPt);
+    arr[i*3]   = _promTmpPt.x + m.jitter;
+    arr[i*3+1] = _promTmpPt.y + m.jitter;
+    arr[i*3+2] = _promTmpPt.z + m.jitter;
+  }
+  posAttr.needsUpdate = true;
+}
 
 // Orbit rings
 function createOrbitRing(radius) {
@@ -1540,6 +1653,707 @@ const _planetLabelEls = {};
   });
 })();
 
+// ─── EXPLORER AGE TIER SYSTEM (Young Explorer / Space Cadet / Mission Director) ─
+const EXPLORER_TIERS = {
+  kids:     { id:'kids',     icon:'🚀', name:'Young Explorer',   age:'Ages 7–10',          rateMod: 1.02 },
+  cadet:    { id:'cadet',    icon:'🪐', name:'Space Cadet',      age:'Ages 11–15',         rateMod: 0.96 },
+  director: { id:'director', icon:'🔭', name:'Mission Director', age:'Adult / Deep Science', rateMod: 0.92 }
+};
+let explorerTier = 'cadet';
+try {
+  const savedTier = localStorage.getItem('ue_explorer_tier');
+  if (savedTier && EXPLORER_TIERS[savedTier]) explorerTier = savedTier;
+} catch(e) {}
+
+function setExplorerTier(tier, announce=false) {
+  if (!EXPLORER_TIERS[tier]) return;
+  explorerTier = tier;
+  try { localStorage.setItem('ue_explorer_tier', tier); } catch(e) {}
+  const info = EXPLORER_TIERS[tier];
+  document.querySelectorAll('.intro-tier-card').forEach(el => {
+    el.classList.toggle('active', el.dataset.tier === tier);
+  });
+  document.querySelectorAll('.smenu-tier-pill').forEach(el => {
+    el.classList.toggle('active', el.dataset.tier === tier);
+  });
+  const hudIcon = document.getElementById('tier-hud-icon');
+  const hudLbl  = document.getElementById('tier-hud-label');
+  if (hudIcon) hudIcon.textContent = info.icon;
+  if (hudLbl)  hudLbl.textContent  = info.name;
+  if (announce) {
+    showToast(`MODE: ${info.name.toUpperCase()}`, `${info.age} — Voiceovers & science depth updated!`, info.icon);
+    if (currentPlanet) {
+      const panel = document.getElementById('info-panel');
+      if (panel && panel.classList.contains('open')) {
+        if (currentPlanet === 'sun') openSun(false);
+        else openPlanet(currentPlanet, false);
+      }
+    }
+  }
+}
+
+setTimeout(() => {
+  setExplorerTier(explorerTier, false);
+  document.querySelectorAll('.intro-tier-card').forEach(card => {
+    card.addEventListener('click', () => {
+      setExplorerTier(card.dataset.tier, false);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  });
+  document.querySelectorAll('.smenu-tier-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      setExplorerTier(pill.dataset.tier, true);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  });
+  const tierHudBtn = document.getElementById('tier-hud-btn');
+  if (tierHudBtn) {
+    tierHudBtn.addEventListener('click', () => {
+      const order = ['kids', 'cadet', 'director'];
+      const next = order[(order.indexOf(explorerTier) + 1) % order.length];
+      setExplorerTier(next, true);
+      if (typeof playUIClick === 'function') playUIClick();
+    });
+  }
+}, 0);
+
+// ─── LIVE NASA IMAGES API GALLERY FETCHER + OFFLINE SCHEMATIC FALLBACK ──────
+const _nasaGalleryCache = {};
+let _activeLightboxItems = [];
+let _activeLightboxIdx = 0;
+
+function openLightboxCarousel(items, startIndex=0) {
+  if (!items || !items.length) return;
+  _activeLightboxItems = items;
+  _activeLightboxIdx = Math.max(0, Math.min(items.length - 1, startIndex));
+  _renderLightboxSlide();
+  document.getElementById('tour-lightbox').classList.add('show');
+}
+
+function _renderLightboxSlide() {
+  const item = _activeLightboxItems[_activeLightboxIdx];
+  if (!item) return;
+  const imgEl = document.getElementById('tour-lightbox-img');
+  const capEl = document.getElementById('tour-lightbox-caption');
+  const credEl = document.getElementById('tour-lightbox-credit');
+  const prevBtn = document.getElementById('tour-lightbox-prev');
+  const nextBtn = document.getElementById('tour-lightbox-next');
+  if (imgEl) {
+    imgEl.onerror = () => {
+      if (item.fallbackSrc) imgEl.src = item.fallbackSrc;
+    };
+    imgEl.src = item.src;
+    imgEl.alt = item.title || 'Space Imagery';
+  }
+  if (capEl) capEl.textContent = item.title || '';
+  if (credEl) credEl.textContent = item.credit || `Image ${_activeLightboxIdx + 1} of ${_activeLightboxItems.length}`;
+  if (prevBtn) prevBtn.style.display = _activeLightboxItems.length > 1 ? 'flex' : 'none';
+  if (nextBtn) nextBtn.style.display = _activeLightboxItems.length > 1 ? 'flex' : 'none';
+}
+
+setTimeout(() => {
+  const prevBtn = document.getElementById('tour-lightbox-prev');
+  const nextBtn = document.getElementById('tour-lightbox-next');
+  const closeBtn = document.getElementById('tour-lightbox-close');
+  if (prevBtn) prevBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!_activeLightboxItems.length) return;
+    _activeLightboxIdx = (_activeLightboxIdx - 1 + _activeLightboxItems.length) % _activeLightboxItems.length;
+    _renderLightboxSlide();
+  });
+  if (nextBtn) nextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!_activeLightboxItems.length) return;
+    _activeLightboxIdx = (_activeLightboxIdx + 1) % _activeLightboxItems.length;
+    _renderLightboxSlide();
+  });
+  if (closeBtn) closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('tour-lightbox').classList.remove('show');
+  });
+}, 0);
+
+function fetchNasaGallery(query, containerEl, fallbackSpecs=[]) {
+  if (!containerEl) return;
+  const fallbackItems = (fallbackSpecs.length ? fallbackSpecs : [
+    {src: 'photos/missions/earth/apollo.jpg', title: `${query} — Deep Space Telemetry Schematic`},
+    {src: 'photos/missions/jwst/deep_field.jpg', title: `${query} — High-Gain Sensor Array View`}
+  ]).map(f => ({
+    src: resolveMissionPhoto(f.src, f.title),
+    fallbackSrc: resolveMissionPhoto(f.src, f.title),
+    title: f.title || query,
+    credit: 'SOLAR EXPLORER ARCHIVE · OFFLINE SCHEMATIC'
+  }));
+
+  const renderGrid = (items, isLive) => {
+    containerEl.innerHTML = `
+      <div class="nasa-gallery-header">
+        <span class="nasa-gallery-title">📸 NASA / JPL Space Imagery</span>
+        <span class="nasa-live-badge ${isLive ? '' : 'offline'}">${isLive ? '● LIVE NASA ARCHIVE' : '◆ OFFLINE SCHEMATICS'}</span>
+      </div>
+      <div class="nasa-gallery-grid">
+        ${items.map((it, idx) => `
+          <div class="nasa-photo-card" data-idx="${idx}">
+            <img src="${it.src}" alt="${(it.title||'').replace(/"/g,'&quot;')}" loading="lazy"/>
+            <div class="nasa-photo-cap">${it.title || query}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    containerEl.querySelectorAll('.nasa-photo-card').forEach(card => {
+      const idx = parseInt(card.dataset.idx, 10) || 0;
+      const img = card.querySelector('img');
+      if (img && fallbackItems[idx % fallbackItems.length]) {
+        img.addEventListener('error', () => {
+          img.src = fallbackItems[idx % fallbackItems.length].src;
+        }, {once:true});
+      }
+      card.addEventListener('click', () => openLightboxCarousel(items, idx));
+    });
+  };
+
+  // Render offline schematics immediately so there is never an empty box
+  renderGrid(fallbackItems, false);
+
+  if (_nasaGalleryCache[query]) {
+    renderGrid(_nasaGalleryCache[query], true);
+    return;
+  }
+
+  const url = `https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=6`;
+  fetch(url)
+    .then(r => r.ok ? r.json() : Promise.reject(new Error('NASA API status ' + r.status)))
+    .then(data => {
+      const rawItems = (data && data.collection && data.collection.items) || [];
+      const parsed = [];
+      for (const item of rawItems) {
+        if (!item.links || !item.links.length || !item.data || !item.data.length) continue;
+        const imgLink = item.links.find(l => l.render === 'image' && l.href) || item.links[0];
+        if (!imgLink || !imgLink.href) continue;
+        const d = item.data[0];
+        parsed.push({
+          src: imgLink.href.replace(/^http:\/\//i, 'https://'),
+          fallbackSrc: fallbackItems[parsed.length % fallbackItems.length].src,
+          title: d.title || query,
+          credit: `NASA / ${d.center || 'JPL-Caltech'}${d.date_created ? ' · ' + d.date_created.slice(0,10) : ''}`
+        });
+        if (parsed.length >= 6) break;
+      }
+      if (parsed.length > 0) {
+        _nasaGalleryCache[query] = parsed;
+        renderGrid(parsed, true);
+      }
+    })
+    .catch(() => {
+      // Offline or blocked: fallback schematics are already rendered cleanly
+    });
+}
+
+// ─── HUMAN FRONTIER 3D LAYER (Live ISS, SpaceX Starship, Orbital AI Center, JWST, Voyager 1) ─
+const HUMAN_FRONTIER = [
+  {
+    id: 'frontier_iss',
+    name: 'International Space Station (Live)',
+    short: 'Live ISS',
+    tagline: 'Humanity\'s Permanent Outpost in Low Earth Orbit',
+    type: 'Live Orbital Laboratory',
+    agency: 'NASA / Roscosmos / ESA / JAXA / CSA',
+    color: '#00ff9d',
+    hostPlanet: 'earth',
+    orbitHeight: 1.55,
+    nasaQuery: 'International Space Station Earth orbit',
+    fallbackPhotos: [
+      {src: 'photos/missions/iss/station.jpg', title: 'ISS — 109m Truss & Solar Array Complex'},
+      {src: 'photos/missions/iss/earth_view.jpg', title: 'Cupola Observational Module Over Earth'}
+    ],
+    stats: {
+      Altitude: '408 km (LEO)',
+      Velocity: '27,600 km/h (7.66 km/s)',
+      Orbit_Period: '92.9 minutes',
+      Continuous_Crew: '24+ Years Occupied',
+      Mass: '450,000 kg',
+      Telemetry: 'Live WhereTheISS API'
+    },
+    desc: 'Moving at 27,600 km/h — nearly 8 kilometers every second — the International Space Station circles Earth 16 times every single day. Its live 3D coordinates are streamed directly from orbital telemetry.',
+    facts: [
+      'Astronauts aboard the ISS witness 16 sunrises and 16 sunsets every 24 hours.',
+      'Spanning 109 meters end-to-end, the station is as large as an American football field including the end zones.',
+      'In microgravity, astronauts grow up to 5 cm taller as their spines decompress, and water floats in shimmering spheres.',
+      'Over 3,000 scientific experiments in medicine, materials, and growing food in space have been conducted aboard.'
+    ]
+  },
+  {
+    id: 'starship_mars',
+    name: 'SpaceX Starship — Mars Transfer',
+    short: 'SpaceX Starship',
+    tagline: 'Fully Reusable Interplanetary Super Heavy Transport',
+    type: 'Interplanetary Crewed & Cargo Vehicle',
+    agency: 'SpaceX · Starbase',
+    color: '#ff9933',
+    isTransferVessel: true,
+    nasaQuery: 'SpaceX rocket launch Mars',
+    fallbackPhotos: [
+      {src: 'photos/missions/perseverance/rover.jpg', title: 'Interplanetary Mars Entry & Aerocapture Profile'},
+      {src: 'photos/missions/perseverance/surface.jpg', title: 'Martian Surface Landing Zone Telemetry'}
+    ],
+    stats: {
+      Height: '121 meters (Full Stack)',
+      Propulsion: '39× Raptor Methalox Engines',
+      Payload_to_LEO: '100–150+ metric tons',
+      Transfer_Orbit: 'Earth → Mars Hohmann Arc',
+      Delta_V_Budget: '~6.2 km/s (Trans-Mars + Capture)',
+      Hull_Material: '30X Cryogenic Stainless Steel'
+    },
+    desc: 'Designed to make humanity a multi-planetary species, Starship is the tallest and most powerful launch vehicle ever built. Utilizing orbital propellant depot refilling in Low Earth Orbit, Starship resets the rocket equation to carry up to 100 tons of cargo and crew all the way to the surface of Mars.',
+    facts: [
+      'Super Heavy\'s 33 Raptor engines produce over 74 meganewtons (16.7 million lbs) of thrust — more than twice the Apollo Saturn V.',
+      'Starship burns liquid methane and liquid oxygen (methalox), which can be synthesized on Mars from underground water ice and atmospheric CO2 via the Sabatier reaction.',
+      'During Martian atmospheric entry at 7.5 km/s, Starship uses its belly-flop aerodynamic skydiver maneuver and hexagonal ceramic heatshield tiles to shed 99% of its kinetic energy.',
+      'The Super Heavy booster returns to the launch tower to be caught mid-air by mechanical "Mechazilla" chopstick arms.'
+    ]
+  },
+  {
+    id: 'orbital_datacenter',
+    name: 'Orbital AI & Radiative Compute Cluster',
+    short: 'Orbital AI Center',
+    tagline: 'Zero-Atmosphere Solar-Powered Deep-Space Exascale Node',
+    type: 'Orbital Compute Infrastructure',
+    agency: 'Commercial Orbital Frontier',
+    color: '#00e5ff',
+    hostPlanet: 'earth',
+    orbitHeight: 2.35,
+    nasaQuery: 'solar array satellite earth orbit',
+    fallbackPhotos: [
+      {src: 'photos/missions/hubble/telescope.jpg', title: 'High-Orbit Solar Array & Cryo-Radiator Wing'},
+      {src: 'photos/missions/jwst/spacecraft.jpg', title: 'Deep-Space Infrared Radiative Cooling Panels'}
+    ],
+    stats: {
+      Orbit: 'Sun-Synchronous / High Earth Orbit',
+      Power_Source: '100% Unfiltered Solar (1,361 W/m²)',
+      Cooling: '3 Kelvin Deep-Space Infrared Radiators',
+      Interconnect: '100 Gbps Free-Space Optical Laser Mesh',
+      Water_Usage: 'Zero Liters (Closed-Loop Radiative)',
+      Compute_Role: 'Autonomous Space Telemetry & AI'
+    },
+    desc: 'As AI and planetary sensor networks scale, orbital data centers harness uninterrupted, unfiltered 24/7 solar energy in space while radiating waste heat directly into the 3-Kelvin (-270°C) sink of deep space — using zero terrestrial water or power grids.',
+    facts: [
+      'Above Earth\'s atmosphere, solar panels receive 1,361 Watts per square meter with zero clouds, dust, or night-time interruption in sun-synchronous dawn-dusk orbits.',
+      'Instead of evaporative cooling towers that consume millions of gallons of water on Earth, orbital compute nodes dump heat as infrared photons straight into the vacuum of space.',
+      'Optical laser cross-links beam petabytes of Earth-observation, climate, and deep-space telescope data between satellites faster than fiber-optic cables.',
+      'Processing raw hyperspectral satellite imagery directly in orbit reduces downlink bandwidth bottlenecks by over 99%.'
+    ]
+  },
+  {
+    id: 'frontier_jwst',
+    name: 'James Webb Space Telescope (Sun-Earth L2)',
+    short: 'JWST (L2)',
+    tagline: 'Infrared Time Machine Looking Back 13.5 Billion Years',
+    type: 'L2 Halo Orbit Infrared Observatory',
+    agency: 'NASA / ESA / CSA',
+    color: '#ffd040',
+    isL2Halo: true,
+    nasaQuery: 'James Webb Space Telescope nebula',
+    fallbackPhotos: [
+      {src: 'photos/missions/jwst/spacecraft.jpg', title: 'JWST 6.5m 18-Segment Beryllium-Gold Mirror'},
+      {src: 'photos/missions/jwst/deep_field.jpg', title: 'First Deep Field — SMACS 0723 Gravitational Lens'}
+    ],
+    stats: {
+      Location: 'Sun-Earth L2 Lagrange Point (1.5M km)',
+      Primary_Mirror: '6.5m (18 Gold-Coated Hexagons)',
+      Cold_Side_Temp: '-233°C (40 Kelvin) / MIRI at 6.7 K',
+      Sunshield: '5-Layer Kapton (21m × 14m)',
+      Wavelengths: '0.6 – 28.5 Microns (Infrared)',
+      Deployments: '344 Single-Point-Failure Steps Aced'
+    },
+    desc: 'Stationed in a vast halo orbit around the second Sun-Earth Lagrange point (L2) 1.5 million km beyond Earth, the James Webb Space Telescope keeps its 5-layer tennis-court-sized sunshield permanently between its gold mirror and the Sun, Earth, and Moon.',
+    facts: [
+      'Because cosmic expansion stretches light from the earliest stars into infrared wavelengths, JWST was built as an infrared telescope to see galaxies formed just 200 million years after the Big Bang.',
+      'The temperature difference between JWST\'s sun-facing side (+85°C) and its shaded mirror (-233°C) is over 315°C — enough to boil water on one side and freeze nitrogen on the other.',
+      'Each of the 18 hexagonal beryllium mirror segments is coated in a microscopic layer of pure gold (100 nanometers thick) — only 48 grams of gold across the entire telescope!',
+      'JWST analyzes starlight passing through exoplanet atmospheres to detect water vapor, carbon dioxide, methane, and sulfur dioxide on distant worlds.'
+    ]
+  },
+  {
+    id: 'frontier_voyager',
+    name: 'Voyager 1 — Interstellar Frontier',
+    short: 'Voyager 1',
+    tagline: 'The Farthest Human-Made Object in History (163+ AU)',
+    type: 'Interstellar Probe',
+    agency: 'NASA / JPL',
+    color: '#b388ff',
+    deepPos: {x: 82, y: 18, z: -64},
+    nasaQuery: 'Voyager 1 Golden Record Pale Blue Dot',
+    fallbackPhotos: [
+      {src: 'photos/missions/voyager/probe.jpg', title: 'Voyager 1 — 3.7m High-Gain Dish & RTG Boom'},
+      {src: 'photos/missions/voyager/pale_blue_dot.jpg', title: 'Pale Blue Dot — Earth from 6 Billion km'}
+    ],
+    stats: {
+      Distance: '24.5+ Billion km (~164 AU)',
+      Light_Time: '22 Hours 40 Minutes One-Way',
+      Speed: '61,200 km/h (17.0 km/s)',
+      Heliopause: 'Crossed August 25, 2012',
+      Power: '3× Plutonium-238 RTGs',
+      Payload: 'The Golden Record (Sounds of Earth)'
+    },
+    desc: 'Launched in September 1977, Voyager 1 has exited the Sun\'s magnetic bubble (the heliosphere) and is now flying through true interstellar space between the stars — still whispering back to NASA\'s Deep Space Network with a 22-watt radio transmitter.',
+    facts: [
+      'Radio signals traveling at the speed of light (300,000 km/s) take nearly 23 hours to travel from Voyager 1 to Earth — a 45-hour round-trip conversation!',
+      'On Valentine\'s Day 1990, Carl Sagan persuaded NASA to turn Voyager 1\'s camera backward one last time from 6 billion km away, capturing Earth as a single 0.12-pixel "Pale Blue Dot".',
+      'Bolted to Voyager\'s hull is a 12-inch gold-plated copper phonograph record carrying greetings in 55 languages, whale songs, brainwaves, Bach, Mozart, and Chuck Berry.',
+      'Even after its plutonium generators fade in the 2030s, Voyager 1 will drift silently around the center of the Milky Way galaxy for billions of years.'
+    ]
+  }
+];
+
+let frontierVisible = true;
+const frontierMeshes = [];
+const _frontierLabelEls = {};
+let _issLiveTelemetry = {
+  lat: 28.57,
+  lon: -80.64,
+  alt: 417.8,
+  vel: 27584,
+  live: false,
+  updatedAt: null
+};
+
+// Poll live ISS coordinates from api.wheretheiss.at (with automatic offline orbital propagation fallback)
+function _pollLiveISS() {
+  fetch('https://api.wheretheiss.at/v1/satellites/25544')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(d => {
+      if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
+        _issLiveTelemetry = {
+          lat: d.latitude,
+          lon: d.longitude,
+          alt: d.altitude || 418.2,
+          vel: d.velocity || 27580,
+          live: true,
+          updatedAt: new Date().toLocaleTimeString()
+        };
+        const box = document.getElementById('iss-live-telemetry-readout');
+        if (box) {
+          box.innerHTML = `
+            <div>LAT: <strong>${_issLiveTelemetry.lat.toFixed(4)}°</strong></div>
+            <div>LON: <strong>${_issLiveTelemetry.lon.toFixed(4)}°</strong></div>
+            <div>ALT: <strong>${_issLiveTelemetry.alt.toFixed(1)} km</strong></div>
+            <div>VEL: <strong>${Math.round(_issLiveTelemetry.vel).toLocaleString()} km/h</strong></div>
+          `;
+        }
+      }
+    })
+    .catch(() => {
+      // Offline: orbital inclination 51.6° propagation in updateHumanFrontier handles coordinates smoothly
+    });
+}
+setTimeout(() => {
+  _pollLiveISS();
+  setInterval(_pollLiveISS, 12000);
+}, 1500);
+
+function _buildFrontierMesh(node) {
+  const g = new THREE.Group();
+  const col = new THREE.Color(node.color);
+  // Invisible pick sphere first (children[0]) so raycasting is super easy to click
+  const pickMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 12, 12),
+    new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.0, depthWrite: false})
+  );
+  g.add(pickMesh);
+
+  // Pulsing outer beacon halo (children[1])
+  const haloMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.32, 16, 16),
+    new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false})
+  );
+  g.add(haloMesh);
+
+  if (node.id === 'frontier_iss') {
+    // Truss + central modules + 4 solar wings
+    const truss = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.03, 0.03), new THREE.MeshStandardMaterial({color: 0xddeeff, metalness: 0.8, roughness: 0.2}));
+    const hab   = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.26, 12), new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.6, roughness: 0.3}));
+    hab.rotation.x = Math.PI / 2;
+    g.add(truss, hab);
+    [-0.2, -0.1, 0.1, 0.2].forEach(xOff => {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.34), new THREE.MeshBasicMaterial({color: 0x2299ff}));
+      wing.position.set(xOff, 0, 0);
+      g.add(wing);
+    });
+  } else if (node.id === 'starship_mars') {
+    // Stainless steel Starship hull + nosecone + 4 flaps + glowing Raptor plume
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 16), new THREE.MeshStandardMaterial({color: 0xe0e8f0, metalness: 0.9, roughness: 0.15}));
+    hull.rotation.z = -Math.PI / 2;
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 16), new THREE.MeshStandardMaterial({color: 0xe0e8f0, metalness: 0.9, roughness: 0.15}));
+    nose.rotation.z = -Math.PI / 2;
+    nose.position.x = 0.23;
+    const plume = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 12), new THREE.MeshBasicMaterial({color: 0x66ccff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending}));
+    plume.rotation.z = Math.PI / 2;
+    plume.position.x = -0.26;
+    g.add(hull, nose, plume);
+  } else if (node.id === 'orbital_datacenter') {
+    // Octagonal compute core + gold solar wings + crimson infrared radiator fins
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), new THREE.MeshStandardMaterial({color: 0x00e5ff, emissive: 0x006688, metalness: 0.8, roughness: 0.2}));
+    const sWing = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.01, 0.12), new THREE.MeshBasicMaterial({color: 0xffcc33}));
+    const radFin = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.36, 0.01), new THREE.MeshBasicMaterial({color: 0xff4466}));
+    g.add(core, sWing, radFin);
+  } else if (node.id === 'frontier_jwst') {
+    // Diamond 5-layer sunshield + gold hexagonal primary mirror
+    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.015, 0.22), new THREE.MeshStandardMaterial({color: 0xc8d8f0, metalness: 0.85, roughness: 0.2}));
+    const mirror = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.02, 6), new THREE.MeshBasicMaterial({color: 0xffd020}));
+    mirror.rotation.z = Math.PI / 2;
+    mirror.position.y = 0.09;
+    g.add(shield, mirror);
+  } else {
+    // Voyager 1 dish + magnetometer boom
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.03, 0.04, 16), new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.5, roughness: 0.4}));
+    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.42, 8), new THREE.MeshBasicMaterial({color: 0xb388ff}));
+    boom.rotation.z = Math.PI / 3;
+    g.add(dish, boom);
+  }
+  return {group: g, pickMesh, haloMesh, node};
+}
+
+let _starshipArcLine = null;
+function initHumanFrontier() {
+  if (frontierMeshes.length > 0) return;
+  HUMAN_FRONTIER.forEach(node => {
+    const built = _buildFrontierMesh(node);
+    scene.add(built.group);
+    frontierMeshes.push(built);
+
+    // Create 3D HUD label
+    const lbl = document.createElement('div');
+    lbl.className = 'planet-label frontier-label';
+    lbl.innerHTML = `<div class="planet-label-name">🛰️ ${node.short}</div><div class="planet-label-dot"></div>`;
+    lbl.style.cursor = 'pointer';
+    lbl.style.pointerEvents = 'auto';
+    lbl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openFrontierNode(node.id);
+    });
+    _labelContainer.appendChild(lbl);
+    _frontierLabelEls[node.id] = lbl;
+  });
+
+  // Dashed transfer trajectory arc between Earth and Mars for SpaceX Starship
+  const arcGeo = new THREE.BufferGeometry();
+  const arcPos = new Float32Array(40 * 3);
+  arcGeo.setAttribute('position', new THREE.BufferAttribute(arcPos, 3));
+  const arcMat = new THREE.LineBasicMaterial({color: 0xff9933, transparent: true, opacity: 0.42});
+  _starshipArcLine = new THREE.Line(arcGeo, arcMat);
+  scene.add(_starshipArcLine);
+
+  // Wire HUD & side-menu toggle buttons + quick-jump bar chips
+  const hudBtn = document.getElementById('frontier-hud-btn');
+  const menuBtn = document.getElementById('frontier-toggle');
+  if (hudBtn) hudBtn.addEventListener('click', () => toggleHumanFrontier());
+  if (menuBtn) menuBtn.addEventListener('click', () => { closeSideMenu(); toggleHumanFrontier(); });
+  document.querySelectorAll('.fbar-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const targetId = chip.dataset.frontier;
+      if (targetId) openFrontierNode(targetId);
+    });
+  });
+}
+
+function toggleHumanFrontier(forceState) {
+  frontierVisible = typeof forceState === 'boolean' ? forceState : !frontierVisible;
+  frontierMeshes.forEach(fm => { fm.group.visible = frontierVisible; });
+  if (_starshipArcLine) _starshipArcLine.visible = frontierVisible;
+  Object.values(_frontierLabelEls).forEach(el => {
+    if (!frontierVisible) el.style.opacity = '0';
+  });
+  const hudBtn = document.getElementById('frontier-hud-btn');
+  const menuBtn = document.getElementById('frontier-toggle');
+  const bar = document.getElementById('frontier-bar');
+  if (hudBtn) hudBtn.classList.toggle('active', frontierVisible);
+  if (menuBtn) menuBtn.classList.toggle('active', frontierVisible);
+  if (bar) bar.classList.toggle('visible', frontierVisible);
+  _pickListSig = -1; // invalidate raycast cache
+  showToast(
+    frontierVisible ? 'HUMAN FRONTIER: ONLINE' : 'HUMAN FRONTIER: HIDDEN',
+    frontierVisible ? 'Showing Live ISS, SpaceX Starship, Orbital AI Center, JWST & Voyager 1' : 'Press F anytime to restore Human Frontier markers',
+    '🛰️'
+  );
+}
+
+const _earthWpos = new THREE.Vector3();
+const _marsWpos  = new THREE.Vector3();
+const _arcPtTmp  = new THREE.Vector3();
+
+function updateHumanFrontier(delta) {
+  if (!frontierMeshes.length) initHumanFrontier();
+  if (!frontierVisible) return;
+
+  const earthEntry = planetMeshes.find(p => p.pdata.id === 'earth');
+  const marsEntry  = planetMeshes.find(p => p.pdata.id === 'mars');
+  if (earthEntry) earthEntry.group.getWorldPosition(_earthWpos);
+  if (marsEntry)  marsEntry.group.getWorldPosition(_marsWpos);
+
+  // Advance offline ISS coordinate model smoothly if live API hasn't updated this second
+  if (!_issLiveTelemetry.live) {
+    _issLiveTelemetry.lon = ((_issLiveTelemetry.lon + delta * 4.2 + 180) % 360) - 180;
+    _issLiveTelemetry.lat = 51.6 * Math.sin(elapsed * 0.45);
+  }
+
+  const pulse = 0.16 + 0.10 * Math.sin(elapsed * 3.2);
+
+  frontierMeshes.forEach(fm => {
+    fm.haloMesh.material.opacity = pulse;
+    const id = fm.node.id;
+    if (id === 'frontier_iss') {
+      const latR = (_issLiveTelemetry.lat * Math.PI) / 180;
+      const lonR = (_issLiveTelemetry.lon * Math.PI) / 180 + elapsed * 0.35;
+      const r = 1.55;
+      fm.group.position.set(
+        _earthWpos.x + r * Math.cos(latR) * Math.cos(lonR),
+        _earthWpos.y + r * Math.sin(latR),
+        _earthWpos.z + r * Math.cos(latR) * Math.sin(lonR)
+      );
+      fm.group.rotation.y = -lonR;
+    } else if (id === 'orbital_datacenter') {
+      const a = elapsed * 0.52 + 2.1;
+      const r = 2.35;
+      fm.group.position.set(
+        _earthWpos.x + Math.cos(a) * r,
+        _earthWpos.y + Math.sin(a * 1.3) * 0.85,
+        _earthWpos.z + Math.sin(a) * r
+      );
+      fm.group.rotation.y += delta * 0.6;
+    } else if (id === 'frontier_jwst') {
+      // Sun-Earth L2 point: radially outward from Sun beyond Earth + halo orbit
+      const dirX = _earthWpos.x || 14;
+      const dirZ = _earthWpos.z || 0;
+      const len  = Math.hypot(dirX, dirZ) || 1;
+      const l2X  = _earthWpos.x + (dirX / len) * 3.4;
+      const l2Z  = _earthWpos.z + (dirZ / len) * 3.4;
+      const haloA = elapsed * 0.4;
+      fm.group.position.set(
+        l2X + Math.cos(haloA) * 0.55,
+        Math.sin(haloA) * 0.65,
+        l2Z + Math.sin(haloA) * 0.55
+      );
+      fm.group.lookAt(0, 0, 0);
+    } else if (id === 'starship_mars') {
+      // Update Earth -> Mars Hohmann-style curved transfer arc
+      const ctrlX = (_earthWpos.x + _marsWpos.x) * 0.5 - (_marsWpos.z - _earthWpos.z) * 0.28;
+      const ctrlY = 3.2;
+      const ctrlZ = (_earthWpos.z + _marsWpos.z) * 0.5 + (_marsWpos.x - _earthWpos.x) * 0.28;
+      if (_starshipArcLine) {
+        const attr = _starshipArcLine.geometry.getAttribute('position');
+        const arr = attr.array;
+        for (let i = 0; i < 40; i++) {
+          const u = i / 39;
+          const inv = 1 - u;
+          arr[i*3]   = inv*inv*_earthWpos.x + 2*inv*u*ctrlX + u*u*_marsWpos.x;
+          arr[i*3+1] = inv*inv*_earthWpos.y + 2*inv*u*ctrlY + u*u*_marsWpos.y;
+          arr[i*3+2] = inv*inv*_earthWpos.z + 2*inv*u*ctrlZ + u*u*_marsWpos.z;
+        }
+        attr.needsUpdate = true;
+        _starshipArcLine.geometry.computeBoundingSphere();
+      }
+      const u = (elapsed * 0.055) % 1;
+      const inv = 1 - u;
+      fm.group.position.set(
+        inv*inv*_earthWpos.x + 2*inv*u*ctrlX + u*u*_marsWpos.x,
+        inv*inv*_earthWpos.y + 2*inv*u*ctrlY + u*u*_marsWpos.y,
+        inv*inv*_earthWpos.z + 2*inv*u*ctrlZ + u*u*_marsWpos.z
+      );
+      const uNext = Math.min(1, u + 0.02);
+      const invN = 1 - uNext;
+      _arcPtTmp.set(
+        invN*invN*_earthWpos.x + 2*invN*uNext*ctrlX + uNext*uNext*_marsWpos.x,
+        invN*invN*_earthWpos.y + 2*invN*uNext*ctrlY + uNext*uNext*_marsWpos.y,
+        invN*invN*_earthWpos.z + 2*invN*uNext*ctrlZ + uNext*uNext*_marsWpos.z
+      );
+      fm.group.lookAt(_arcPtTmp);
+      fm.group.rotateY(-Math.PI / 2);
+    } else if (id === 'frontier_voyager') {
+      fm.group.position.set(nodePos(fm.node).x, nodePos(fm.node).y, nodePos(fm.node).z);
+      fm.group.lookAt(0, 0, 0);
+    }
+  });
+}
+
+function nodePos(node) {
+  return node.deepPos || {x: 82, y: 18, z: -64};
+}
+
+function openFrontierNode(id) {
+  const node = HUMAN_FRONTIER.find(n => n.id === id);
+  if (!node) return;
+  if (!frontierVisible) toggleHumanFrontier(true);
+  const fm = frontierMeshes.find(x => x.node.id === id);
+  if (fm) {
+    const wpos = new THREE.Vector3();
+    fm.group.getWorldPosition(wpos);
+    animateCameraTo(
+      {x: wpos.x + 2.8, y: wpos.y + 1.6, z: wpos.z + 2.8},
+      {x: wpos.x, y: wpos.y, z: wpos.z}
+    );
+  }
+  if (typeof playPlanetOpen === 'function') playPlanetOpen();
+
+  const statsHTML = Object.entries(node.stats).map(([k,v]) =>
+    `<div class="stat-box"><div class="stat-label">${k.replace(/_/g,' ')}</div><div class="stat-value">${v}</div></div>`
+  ).join('');
+  const factsHTML = node.facts.map(f => `<li>${f}</li>`).join('');
+  const liveISSHTML = id === 'frontier_iss' ? `
+    <div class="iss-live-box">
+      <div class="iss-live-header">
+        <span>● LIVE ORBITAL TELEMETRY (NORAD #25544)</span>
+        <span>${_issLiveTelemetry.live ? 'ONLINE' : 'ORBITAL MODEL'}</span>
+      </div>
+      <div class="iss-live-coords" id="iss-live-telemetry-readout">
+        <div>LAT: <strong>${_issLiveTelemetry.lat.toFixed(4)}°</strong></div>
+        <div>LON: <strong>${_issLiveTelemetry.lon.toFixed(4)}°</strong></div>
+        <div>ALT: <strong>${_issLiveTelemetry.alt.toFixed(1)} km</strong></div>
+        <div>VEL: <strong>${Math.round(_issLiveTelemetry.vel).toLocaleString()} km/h</strong></div>
+      </div>
+    </div>` : '';
+
+  const scrollEl = document.getElementById('mission-scroll');
+  scrollEl.innerHTML = `
+    <div class="mission-badge">&#128752; ${node.type} &mdash; ${node.agency}</div>
+    <div id="mission-panel-name">${node.name}</div>
+    <div id="mission-panel-tagline">${node.tagline}</div>
+    <div class="mission-status-badge active">&#9679; Active Human Frontier Node</div>
+    <div class="panel-speak-row">
+      <button id="frontier-speak-btn" class="speak-btn-shared" data-body="${node.id}">
+        <span>&#128266;</span>
+        <span id="frontier-speak-label">Hear First-Person Briefing</span>
+        <span class="speak-wave"><i></i><i></i><i></i><i></i></span>
+      </button>
+      <button id="frontier-speak-more-btn" class="speak-more-shared" data-body="${node.id}">
+        <span>Tell Me More &#8635;</span>
+      </button>
+    </div>
+    <div id="frontier-voice-transcript" class="voice-transcript-box"></div>
+    ${liveISSHTML}
+    <div class="mission-desc">${node.desc}</div>
+    <div class="panel-section">
+      <h3>Telemetry &amp; Specifications</h3>
+      <div class="mission-stats-grid">${statsHTML}</div>
+    </div>
+    <div id="frontier-nasa-gallery" class="nasa-gallery-section"></div>
+    <div class="panel-section">
+      <h3>Engineering &amp; Mission Highlights</h3>
+      <ul class="fact-list">${factsHTML}</ul>
+    </div>
+  `;
+
+  const spkBtn = document.getElementById('frontier-speak-btn');
+  const moreBtn = document.getElementById('frontier-speak-more-btn');
+  if (spkBtn) spkBtn.addEventListener('click', () => speakAsPlanet(node.id, false));
+  if (moreBtn) moreBtn.addEventListener('click', () => speakAsPlanet(node.id, true));
+
+  fetchNasaGallery(node.nasaQuery, document.getElementById('frontier-nasa-gallery'), node.fallbackPhotos);
+
+  document.getElementById('location-label').textContent = node.short;
+  closeAllPanels({keepTour:true});
+  document.getElementById('mission-panel').classList.add('open');
+}
+
 const _labelTmpV = new THREE.Vector3();
 const _lblWpos = new THREE.Vector3();
 const _lblProj = new THREE.Vector3();
@@ -1554,8 +2368,6 @@ function _updatePlanetLabels() {
   } else { sunEl.style.opacity = '0'; }
   planetMeshes.forEach(pm => {
     const el = _planetLabelEls[pm.pdata.id]; if(!el) return;
-    // Reuse scratch vectors: this ran a new Vector3 plus a .clone() per planet
-    // per frame (~1200 allocations/sec) purely to project a label position.
     pm.group.getWorldPosition(_lblWpos); _lblWpos.y += pm.pdata.size + 0.3;
     const v = _lblProj.copy(_lblWpos).project(camera);
     const x = (v.x*0.5+0.5)*W, y = (-v.y*0.5+0.5)*H;
@@ -1565,6 +2377,21 @@ function _updatePlanetLabels() {
       el.style.opacity = Math.min(1,(dist-pm.pdata.size*4)/(pm.pdata.size*8)).toFixed(2);
     } else { el.style.opacity = '0'; }
   });
+  if (frontierVisible) {
+    frontierMeshes.forEach(fm => {
+      const el = _frontierLabelEls[fm.node.id]; if (!el) return;
+      fm.group.getWorldPosition(_lblWpos); _lblWpos.y += 0.45;
+      const v = _lblProj.copy(_lblWpos).project(camera);
+      const x = (v.x*0.5+0.5)*W, y = (-v.y*0.5+0.5)*H;
+      const dist = camera.position.distanceTo(_lblWpos);
+      if (v.z < 1 && x > 0 && x < W && y > 45 && y < H - 30 && dist < 140) {
+        el.style.left = x + 'px'; el.style.top = y + 'px';
+        el.style.opacity = '0.92';
+      } else {
+        el.style.opacity = '0';
+      }
+    });
+  }
 }
 
 // ─── SUN INFO PANEL ──────────────────────────────────────────────────────────
@@ -1603,11 +2430,15 @@ function openSun(addHistory=true) {
   updatePanelPreview('sun');
   const body = document.getElementById('panel-body-content');
   const s = SUN_DATA.stats;
-  const overviewHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Quick Stats</h3><div class="stat-grid"><div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${s.diameter}</div></div><div class="stat-box"><div class="stat-label">Type</div><div class="stat-value">${s.type}</div></div><div class="stat-box"><div class="stat-label">Surface Temp</div><div class="stat-value">${s.surfaceTemp}</div></div><div class="stat-box"><div class="stat-label">Core Temp</div><div class="stat-value">${s.coreTemp}</div></div><div class="stat-box"><div class="stat-label">Age</div><div class="stat-value">${s.age}</div></div><div class="stat-box"><div class="stat-label">Rotation</div><div class="stat-value">${s.rotation}</div></div></div></div><div class="panel-section"><h3>Fascinating Facts</h3>${SUN_DATA.facts.map(f=>`<div class="sun-fact-item">${f}</div>`).join('')}</div><button class="take-quiz-btn" onclick="window.launchQuiz('sun')">&#9670; Take Sun Quiz</button>`;
+  const overviewHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Quick Stats</h3><div class="stat-grid"><div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${s.diameter}</div></div><div class="stat-box"><div class="stat-label">Type</div><div class="stat-value">${s.type}</div></div><div class="stat-box"><div class="stat-label">Surface Temp</div><div class="stat-value">${s.surfaceTemp}</div></div><div class="stat-box"><div class="stat-label">Core Temp</div><div class="stat-value">${s.coreTemp}</div></div><div class="stat-box"><div class="stat-label">Age</div><div class="stat-value">${s.age}</div></div><div class="stat-box"><div class="stat-label">Rotation</div><div class="stat-value">${s.rotation}</div></div></div></div><div id="sun-nasa-gallery" class="nasa-gallery-section"></div><div class="panel-section"><h3>Fascinating Facts</h3>${SUN_DATA.facts.map(f=>`<div class="sun-fact-item">${f}</div>`).join('')}</div><button class="take-quiz-btn" onclick="window.launchQuiz('sun')">&#9670; Take Sun Quiz</button>`;
   const missionsHTML = SUN_DATA.missions.map(m=>`<div class="mission-card"><div class="mission-header"><span class="mission-name">${m.name}</span><span class="mission-meta">${m.year} · ${m.agency}</span></div><div class="mission-type">${m.type}</div><div class="mission-note">${m.note}</div></div>`).join('');
   const surfaceHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Composition</h3><p style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:10px;font-family:'Segoe UI',system-ui,sans-serif">The Sun is a ball of plasma — hydrogen and helium in their ionized state — sustained by nuclear fusion. Every atom heavier than hydrogen in your body was forged in stars like this one.</p><div class="surface-bar">${SUN_DATA.surfaceComp.map(c=>`<div class="surface-seg" style="flex:${c.pct};background:${c.color}" title="${c.label}: ${c.pct}%"></div>`).join('')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:7px">${SUN_DATA.surfaceComp.map(c=>`<span style="font-size:9px;color:var(--dim)"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${c.color};margin-right:3px;vertical-align:middle"></span>${c.label} ${c.pct}%</span>`).join('')}</div></div><div class="panel-section"><h3>Structure (Surface → Core)</h3>${SUN_DATA.layers.map(([l,d])=>`<div class="poi-item"><div class="poi-name">${l}</div><div class="poi-desc">${d}</div></div>`).join('')}</div>`;
   body.innerHTML = `<div class="tab-bar"><button class="tab-btn active" data-tab="overview">Overview</button><button class="tab-btn" data-tab="missions">Probes</button><button class="tab-btn" data-tab="surface">Structure</button></div><div class="tab-pane active" id="tab-overview">${overviewHTML}</div><div class="tab-pane" id="tab-missions">${missionsHTML}</div><div class="tab-pane" id="tab-surface">${surfaceHTML}</div>`;
   body.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{body.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));body.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));btn.classList.add('active');body.querySelector('#tab-'+btn.dataset.tab).classList.add('active');});});
+  fetchNasaGallery('Sun solar corona SDO', document.getElementById('sun-nasa-gallery'), [
+    {src:'photos/missions/sun/corona.jpg', title:'Solar Dynamics Observatory — Extreme UV Coronal Loops'},
+    {src:'photos/missions/sun/parker.jpg', title:'Parker Solar Probe — Perihelion Coronal Dive'}
+  ]);
   closeAllPanels({keepTour:true});
   document.getElementById('info-panel').classList.add('open');
 }
@@ -1726,13 +2557,14 @@ function openPlanet(id, addHistory=true) {
       ${scaleCompareHTML}
       ${lifeHereHTML}
     </div>
+    <div id="planet-nasa-gallery" class="nasa-gallery-section"></div>
     <div class="panel-section">
       <h3>Key Facts</h3>
       <ul class="fact-list">${pdata.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
     </div>
     ${pdata.moons.length>0?`
     <div class="panel-section">
-      <h3>Moons (${pdata.stats.moons})</h3>
+      <h3>Moons (${pdata.stats.moons}) — Click to Explore &amp; Hear Speak</h3>
       <div class="moon-grid">
         ${pdata.moons.map(m=>`<div class="moon-chip" onclick="showMoon('${id}','${m.name}')"><div class="moon-chip-name">${m.name}</div><div class="moon-chip-sub">${m.tagline}</div></div>`).join('')}
         ${pdata.moons.length<parseInt(pdata.stats.moons)?`<div class="moon-chip" style="opacity:.4;cursor:default"><div class="moon-chip-name">+${parseInt(pdata.stats.moons)-pdata.moons.length} more</div><div class="moon-chip-sub">smaller moons</div></div>`:''}
@@ -1801,6 +2633,14 @@ function openPlanet(id, addHistory=true) {
     });
   });
 
+  // Wire live NASA photo gallery for this planet (with instant schematic fallback)
+  const tourStop = TOUR_STOPS.find(s => s.planetId === id);
+  const fbSpecs = (tourStop && tourStop.photos ? tourStop.photos : []).map(src => ({
+    src,
+    title: `${pdata.name} — NASA / JPL Reconnaissance`
+  }));
+  fetchNasaGallery(`planet ${pdata.name} NASA`, document.getElementById('planet-nasa-gallery'), fbSpecs);
+
   closeAllPanels({keepTour:true});
   document.getElementById('info-panel').classList.add('open');
 }
@@ -1834,6 +2674,24 @@ window.showMoon = function(planetId, moonName) {
   document.getElementById('moon-stats').innerHTML = Object.entries(moon.stats).map(([k,v])=>`
     <div class="stat-box"><div class="stat-label">${k.charAt(0).toUpperCase()+k.slice(1)}</div><div class="stat-value">${v}</div></div>
   `).join('');
+
+  const moonVoiceKey = 'moon_' + moon.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const moonSpeakBtn = document.getElementById('moon-speak');
+  const moonMoreBtn  = document.getElementById('moon-speak-more');
+  const moonTrans    = document.getElementById('moon-voice-transcript');
+  if (moonTrans) { moonTrans.classList.remove('show'); moonTrans.textContent = ''; }
+  if (moonSpeakBtn) {
+    moonSpeakBtn.dataset.body = moonVoiceKey;
+    moonSpeakBtn.onclick = () => speakAsPlanet(moonVoiceKey, false);
+  }
+  if (moonMoreBtn) {
+    moonMoreBtn.dataset.body = moonVoiceKey;
+    moonMoreBtn.onclick = () => speakAsPlanet(moonVoiceKey, true);
+  }
+  fetchNasaGallery(`${moon.name} moon ${pdata.name} NASA`, document.getElementById('moon-nasa-gallery'), [
+    {src: 'photos/missions/earth/apollo.jpg', title: `${moon.name} — Orbital Reconnaissance`}
+  ]);
+
   closeAllPanels({keepTour:true});
   document.getElementById('moon-detail').classList.add('open');
 };
@@ -1856,17 +2714,19 @@ const mouse = new THREE.Vector2();
 const tooltip = document.getElementById('tooltip');
 let hoveredPlanet = null;
 
-// Cached raycast target list. Rebuilding this per mousemove allocated a new
-// array (plus a map + forEach) on every pointer event; it only actually
-// changes when bodies are added, so cache it and rebuild on count change.
+// Cached raycast target list (includes planets, Sun, missions, and Human Frontier nodes)
 let _pickList = [];
 let _pickListSig = -1;
 function getPickList() {
-  const sig = planetMeshes.length * 1000 + missionMeshes.length;
+  const fCount = frontierVisible ? frontierMeshes.length : 0;
+  const sig = planetMeshes.length * 10000 + missionMeshes.length * 100 + fCount;
   if(sig !== _pickListSig) {
     _pickList = planetMeshes.map(p=>p.mesh);
     _pickList.push(sunObj.mesh);
     missionMeshes.forEach(mo => { if(mo.group.children[0]) _pickList.push(mo.group.children[0]); });
+    if (frontierVisible) {
+      frontierMeshes.forEach(fm => { if(fm.pickMesh) _pickList.push(fm.pickMesh); });
+    }
     _pickListSig = sig;
   }
   return _pickList;
@@ -1881,7 +2741,8 @@ renderer.domElement.addEventListener('mousemove', e => {
     const hit=hits[0].object;
     const pm=planetMeshes.find(p=>p.mesh===hit);
     const mo=pm ? null : missionMeshes.find(x=>x.group.children[0]===hit);
-    const name=pm?pm.pdata.name:mo?mo.mission.name:'The Sun';
+    const fm=(pm || mo) ? null : frontierMeshes.find(x=>x.pickMesh===hit);
+    const name=pm?pm.pdata.name:mo?mo.mission.name:fm?('🛰️ '+fm.node.name):'The Sun';
     tooltip.style.opacity='1';
     tooltip.style.left=(e.clientX+16)+'px';
     tooltip.style.top=(e.clientY-8)+'px';
@@ -1935,7 +2796,6 @@ function triggerNavPing() {
 
   function drawComets() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    let anyClickable = false;
     comets = comets.filter(c => {
       c.tail.unshift({ x: c.x, y: c.y });
       if (c.tail.length > 12) c.tail.pop();
@@ -1957,19 +2817,11 @@ function triggerNavPing() {
       ctx.save(); ctx.shadowBlur = 12; ctx.shadowColor = `rgba(150,230,255,${alpha.toFixed(2)})`;
       ctx.beginPath(); ctx.arc(c.x, c.y, 3.5, 0, Math.PI*2);
       ctx.fillStyle = `rgba(220,245,255,${alpha.toFixed(2)})`; ctx.fill(); ctx.restore();
-      if (c.clickable) anyClickable = true;
       return true;
     });
     requestAnimationFrame(drawComets);
   }
 
-  // The comet canvas is inset:0 at z-index 80, directly over the WebGL canvas
-  // (z-index 0). Enabling pointer-events on it to catch comet clicks turned it
-  // into a full-viewport click shield, so while any comet was on screen the
-  // planet hover/click handlers on renderer.domElement never fired at all.
-  // Keep the canvas inert and listen on the window instead; the hit test below
-  // already rejects clicks that aren't near a comet, and returning early only
-  // on an actual hit lets everything else fall through to the scene.
   window.addEventListener('click', function(e) {
     if(!comets.some(c => c.clickable && !c.clicked)) return;
     const rect = canvas.getBoundingClientRect();
@@ -1993,83 +2845,6 @@ function triggerNavPing() {
   }, { once: true });
 })();
 
-// ─── SOLAR FLARE EVENT SYSTEM ─────────────────────────────────────────────────
-let flareActive = false;
-let _flareWarningHideTimer = null;
-let _flareActiveTimer = null;
-
-function playSolarFlareAudio() {
-  if (!audioCtx || !audioEnabled) return;
-  const ctx = audioCtx;
-  const now = ctx.currentTime;
-  const boomOsc = ctx.createOscillator(); const boomGain = ctx.createGain();
-  boomOsc.type = 'sine'; boomOsc.frequency.setValueAtTime(55, now);
-  boomOsc.frequency.exponentialRampToValueAtTime(28, now + 0.8);
-  boomGain.gain.setValueAtTime(0, now); boomGain.gain.linearRampToValueAtTime(0.38, now + 0.06);
-  boomGain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
-  boomOsc.connect(boomGain); boomGain.connect(ctx.destination);
-  boomOsc.start(now); boomOsc.stop(now + 1.5);
-  const midOsc = ctx.createOscillator(); const midGain = ctx.createGain();
-  midOsc.type = 'sawtooth'; midOsc.frequency.setValueAtTime(140, now);
-  midOsc.frequency.exponentialRampToValueAtTime(60, now + 0.5);
-  midGain.gain.setValueAtTime(0, now); midGain.gain.linearRampToValueAtTime(0.18, now + 0.04);
-  midGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-  midOsc.connect(midGain); midGain.connect(ctx.destination);
-  midOsc.start(now); midOsc.stop(now + 0.8);
-  const sr = ctx.sampleRate; const noiseDur = 1.5;
-  const noiseBuf = ctx.createBuffer(1, Math.ceil(sr*noiseDur), sr);
-  const nd = noiseBuf.getChannelData(0);
-  for (let i = 0; i < nd.length; i++) nd[i] = Math.random()*2-1;
-  const noiseSrc = ctx.createBufferSource(); noiseSrc.buffer = noiseBuf;
-  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
-  bp.frequency.setValueAtTime(3000, now); bp.Q.setValueAtTime(1.2, now);
-  const hp = ctx.createBiquadFilter(); hp.type = 'highpass';
-  hp.frequency.setValueAtTime(1800, now);
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0, now); noiseGain.gain.linearRampToValueAtTime(0.22, now+0.05);
-  noiseGain.gain.setValueAtTime(0.22, now+0.3); noiseGain.gain.exponentialRampToValueAtTime(0.001, now+1.5);
-  noiseSrc.connect(bp); bp.connect(hp); hp.connect(noiseGain); noiseGain.connect(ctx.destination);
-  noiseSrc.start(now); noiseSrc.stop(now+noiseDur);
-}
-
-function showFlareOverlay() {
-  const el = document.getElementById('flare-overlay');
-  if (!el) return;
-  el.classList.remove('flare-burst','flare-bonus-flash'); void el.offsetWidth;
-  el.classList.add('flare-burst');
-}
-
-function triggerFlareBonusEffect() {
-  const el = document.getElementById('flare-overlay');
-  if (!el) return;
-  el.classList.remove('flare-burst','flare-bonus-flash'); void el.offsetWidth;
-  el.classList.add('flare-bonus-flash');
-  showToast('☀️ SOLAR STORM RIDER! +150', 'Clicked the Sun during a solar flare!', '☀️');
-  checkMissionComplete('flare_bonus', {});
-}
-
-function showFlareWarning() {
-  const el = document.getElementById('flare-warning');
-  if (!el) return;
-  if (_flareWarningHideTimer) { clearTimeout(_flareWarningHideTimer); _flareWarningHideTimer = null; }
-  el.classList.remove('hiding'); void el.offsetWidth; el.classList.add('visible');
-  _flareWarningHideTimer = setTimeout(() => {
-    el.classList.remove('visible'); el.classList.add('hiding'); _flareWarningHideTimer = null;
-  }, 3000);
-}
-
-function triggerSolarFlare() {
-  if (flareActive) return;
-  flareActive = true;
-  showFlareOverlay(); showFlareWarning(); playSolarFlareAudio();
-  if (_flareActiveTimer) clearTimeout(_flareActiveTimer);
-  _flareActiveTimer = setTimeout(() => { flareActive = false; _flareActiveTimer = null; }, 3000);
-}
-
-window.addEventListener('solar-system-ready', () => {
-  setInterval(() => { if (Math.random() < 0.07) triggerSolarFlare(); }, 5000);
-}, { once: true });
-
 renderer.domElement.addEventListener('click', e => {
   mouse.x=(e.clientX/window.innerWidth)*2-1;
   mouse.y=-(e.clientY/window.innerHeight)*2+1;
@@ -2077,7 +2852,6 @@ renderer.domElement.addEventListener('click', e => {
   const hits = raycaster.intersectObjects(getPickList());
   if(hits.length>0) {
     triggerClickBurst(e);
-    // During guided tour, planet clicks navigate the tour instead of opening panels
     if(tourActive) {
       const hit = hits[0].object;
       const pm = planetMeshes.find(p=>p.mesh===hit);
@@ -2092,10 +2866,11 @@ renderer.domElement.addEventListener('click', e => {
       return;
     }
     const hit = hits[0].object;
-    if(flareActive && hit === sunObj.mesh) { flareActive = false; awardPoints(150); triggerFlareBonusEffect(); return; }
     if(hit === sunObj.mesh) { openSun(); return; }
     const pm = planetMeshes.find(p=>p.mesh===hit);
     if(pm) { openPlanet(pm.pdata.id, true); return; }
+    const fm = frontierMeshes.find(x=>x.pickMesh===hit);
+    if(fm) { openFrontierNode(fm.node.id); return; }
     const mo = missionMeshes.find(x=>x.group.children[0]===hit);
     if(mo) openMission(mo.mission.id);
   }
@@ -2108,11 +2883,9 @@ const dateDisplay = document.getElementById('date-display');
 const tcPlay = document.getElementById('tc-play');
 
 function sliderToSpeed(val) {
-  // Exponential mapping: 0→0.05×, 27→0.5×, 35→1×, 100→100×
   return Math.pow(10, (val-35)/28);
 }
 
-// Initialise display to match default speedMult=0.5 (slider value=27)
 speedDisplay.textContent = '0.5× speed';
 
 speedSlider.addEventListener('input', () => {
@@ -2155,9 +2928,13 @@ document.getElementById('panel-close').addEventListener('click', () => {
 
 document.getElementById('moon-close').addEventListener('click', () => {
   document.getElementById('moon-detail').classList.remove('open');
+  if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
 });
 document.getElementById('moon-detail').addEventListener('click', e => {
-  if(e.target===document.getElementById('moon-detail')) document.getElementById('moon-detail').classList.remove('open');
+  if(e.target===document.getElementById('moon-detail')) {
+    document.getElementById('moon-detail').classList.remove('open');
+    if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
+  }
 });
 
 // Panel canvas click → lightbox (zoom into planet texture)
@@ -2170,7 +2947,6 @@ document.getElementById('panel-canvas').addEventListener('click', () => {
 const clock = new THREE.Clock();
 let simYear = 2024;
 
-// Scratch state for the render loop, hoisted so the loop allocates nothing.
 let _lastShownYear = -1;
 let _beltRefs = null;
 const _wposTmp = new THREE.Vector3();
@@ -2187,8 +2963,6 @@ function animate() {
   if(!paused) {
     elapsed += delta * speedMult;
     simYear = 2024 + elapsed/10;
-    // Only touch the DOM when the displayed year actually changes, instead of
-    // writing the same string 60x/second.
     const yr = Math.floor(simYear);
     if(yr !== _lastShownYear) { _lastShownYear = yr; dateDisplay.textContent = 'Year '+yr; }
 
@@ -2209,7 +2983,6 @@ function animate() {
         if(child.userData.isCloudLayer) {
           child.rotation.y += delta * 0.06 * speedMult;
         }
-        // Mission orbit pivots
         if(child.userData.missionOrbitSpeed !== undefined) {
           child.rotation.y += delta * child.userData.missionOrbitSpeed * 0.001 * speedMult * 60;
         }
@@ -2228,17 +3001,23 @@ function animate() {
     // Update comets
     updateComets();
 
-    // Asteroid belt slow rotation. Cached on first frame so we don't walk the
-    // whole scene graph every frame looking for it.
+    // Asteroid belt slow rotation
     if(_beltRefs === null) {
       _beltRefs = scene.children.filter(c => c.userData && c.userData.isAsteroidBelt);
     }
     for(const c of _beltRefs) c.rotation.y += delta * 0.0015 * speedMult;
 
-    // Sun pulse
+    // Sun pulse & 3D silent coronal loop prominences
     const pulse = 1 + Math.sin(elapsed*2)*0.015;
     sunObj.mesh.scale.setScalar(pulse);
+    updateSolarProminences(elapsed);
+  } else {
+    // Keep solar coronal loops gently alive even when orbits are paused
+    updateSolarProminences(performance.now() * 0.0005);
   }
+
+  // Update 3D Human Frontier nodes (ISS, Starship, Orbital AI Center, JWST, Voyager)
+  updateHumanFrontier(delta);
 
   // Tour camera fly runs even when paused (planets are frozen during tour)
   if(tourActive && tourCamAnim) updateTourCamera(delta);
@@ -2990,10 +3769,46 @@ function updateRocketFlight(delta) {
   }
 }
 
-// ─── AUDIO SYSTEM ────────────────────────────────────────────────────────────
+// ─── AUDIO SYSTEM (WARM STELLARDRONE / INTERSTELLAR AMBIENT SYNTH) ───────────
 let audioCtx = null;
 let audioEnabled = false;
 let ambientMaster = null;
+let masterUserVolume = 0.75; // 0.0 to 1.0 controlled by #audio-vol-slider
+let _isMusicDucked = false;  // true while TTS voiceover is speaking (80% duck)
+
+function _effectiveBgmGain() {
+  const base = 0.56 * masterUserVolume;
+  return _isMusicDucked ? base * 0.20 : base;
+}
+
+function _effectiveAmbientGain() {
+  const base = 0.09 * masterUserVolume;
+  return _isMusicDucked ? base * 0.20 : base;
+}
+
+// Automatically ducks background music by 80% during any voice narration
+function setMusicDuck(isDucking) {
+  _isMusicDucked = !!isDucking;
+  if (!audioCtx || !audioEnabled) return;
+  const now = audioCtx.currentTime;
+  const ramp = isDucking ? 0.25 : 0.9;
+  if (bgmMaster) {
+    bgmMaster.gain.cancelScheduledValues(now);
+    bgmMaster.gain.setValueAtTime(bgmMaster.gain.value, now);
+    bgmMaster.gain.linearRampToValueAtTime(_effectiveBgmGain(), now + ramp);
+  }
+  if (ambientMaster) {
+    ambientMaster.gain.cancelScheduledValues(now);
+    ambientMaster.gain.setValueAtTime(ambientMaster.gain.value, now);
+    ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), now + ramp);
+  }
+  if (tourScoreGain) {
+    const tBase = 0.22 * masterUserVolume;
+    tourScoreGain.gain.cancelScheduledValues(now);
+    tourScoreGain.gain.setValueAtTime(tourScoreGain.gain.value, now);
+    tourScoreGain.gain.linearRampToValueAtTime(isDucking ? tBase * 0.20 : tBase, now + ramp);
+  }
+}
 
 function createReverb(ctx, secs, decay) {
   const conv = ctx.createConvolver();
@@ -3001,7 +3816,10 @@ function createReverb(ctx, secs, decay) {
   const buf = ctx.createBuffer(2, len, sr);
   for(let c=0; c<2; c++) {
     const d = buf.getChannelData(c);
-    for(let i=0; i<len; i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, decay);
+    for(let i=0; i<len; i++) {
+      // Smooth exponential decay with gentle low-pass warmth
+      d[i] = (Math.random()*2-1) * Math.pow(1-i/len, decay) * 0.75;
+    }
   }
   conv.buffer = buf;
   return conv;
@@ -3011,24 +3829,21 @@ function initAudio() {
   if(audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // ambientMaster: subtle spatial texture, separate from the BGM score
-  const reverb = createReverb(audioCtx, 9, 2.6);
-  const reverbGain = audioCtx.createGain(); reverbGain.gain.value = 0.6;
+  // ambientMaster: warm sub-harmonic room resonance
+  const reverb = createReverb(audioCtx, 8.5, 2.8);
+  const reverbGain = audioCtx.createGain(); reverbGain.gain.value = 0.65;
   reverb.connect(reverbGain);
   ambientMaster = audioCtx.createGain();
   ambientMaster.gain.value = 0;
   reverbGain.connect(ambientMaster);
   ambientMaster.connect(audioCtx.destination);
-  const dry = audioCtx.createGain(); dry.gain.value = 0.22;
+  const dry = audioCtx.createGain(); dry.gain.value = 0.20;
   dry.connect(ambientMaster);
 
-  // Very subtle spatial hum — ultra-low frequencies felt in the room
-  [[27.5, 0.18],[55, 0.12],[82.4, 0.08]].forEach(([f, g]) => {
+  // Warm, velvety sub-bass fifths (C1 32.7 Hz, G1 49.0 Hz, C2 65.41 Hz)
+  [[32.70, 0.16],[49.00, 0.10],[65.41, 0.08]].forEach(([f, g]) => {
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-    const lfo = audioCtx.createOscillator(), lfoG = audioCtx.createGain();
     osc.type = 'sine'; osc.frequency.value = f;
-    lfo.frequency.value = 0.05 + Math.random()*0.04; lfoG.gain.value = 0.25;
-    lfo.connect(lfoG); lfoG.connect(osc.frequency); lfo.start();
     gain.gain.value = g; osc.connect(gain); gain.connect(dry); osc.start();
   });
 
@@ -3036,24 +3851,19 @@ function initAudio() {
   syncAudioBtn();
 }
 
-// Keep the toolbar button in sync with the real audioEnabled state. initAudio()
-// enables audio (and the welcome-screen dismissal starts the BGM), but the
-// button markup is hardcoded to the muted glyph, so it used to sit on 🔇 while
-// audio was actually playing. The first click then correctly muted — and looked
-// like it had done nothing, because the icon was already 🔇.
 function syncAudioBtn() {
   const btn = document.getElementById('audio-btn');
   if(!btn) return;
-  btn.innerHTML = audioEnabled ? '&#128266;' : '&#128263;';
-  btn.classList.toggle('active', audioEnabled);
+  btn.innerHTML = (audioEnabled && masterUserVolume > 0.005) ? '&#128266;' : '&#128263;';
+  btn.classList.toggle('active', audioEnabled && masterUserVolume > 0.005);
 }
 
-// ─── PLANETARIUM BGM: "Vast & Wonderful" ────────────────────────────────────
-// A procedurally generated ambient score — no MP3 dependency, never loops.
-// Design: Cmaj9 → Fmaj9 → G add9 → Am7 chord cycle (12s each),
-//   a rising 5-note "wonder motif" every 22s,
-//   sub-bass pedal, bell shimmer, and pink-noise space wind.
-// Inspired by Hans Zimmer's Interstellar and Brian Eno's ambient work.
+// ─── PLANETARIUM BGM: "Stellardrone / Mass Effect Galaxy Pad" ────────────────
+// Lush, warm, evolving major/minor 7th & 9th analog-style pad synthesizer:
+//   - Progression: Cmaj9 → Am9 → Fmaj9(#11) → G6add9 → Em9 → Dm9 (14s per chord)
+//   - Dual detuned warm oscillators (sine + filtered triangle/saw) per voice
+//   - Slow breathing low-pass filter sweep (220 Hz – 640 Hz)
+//   - Soft celestial harmonic chime overtones (zero harsh static or noise!)
 
 let bgmNodes = [];
 let bgmMaster = null;
@@ -3066,161 +3876,145 @@ function startPlanetariumBGM() {
   const ctx = audioCtx;
   const now = ctx.currentTime;
 
-  // ── Bright, medium-length reverb — not a cave, more like an open dome ──
-  const hall  = createReverb(ctx, 6, 2.6);
-  const hallG = ctx.createGain(); hallG.gain.value = 0.58;
+  // Lush cosmic hall convolution reverb
+  const hall  = createReverb(ctx, 7.5, 2.5);
+  const hallG = ctx.createGain(); hallG.gain.value = 0.68;
   hall.connect(hallG);
 
-  // ── Short bright room reverb ──
-  const room  = createReverb(ctx, 2.5, 3.2);
-  const roomG = ctx.createGain(); roomG.gain.value = 0.32;
-  room.connect(roomG);
+  // Master bus with warm lowpass mastering filter so nothing ever sounds piercing
+  const masterLp = ctx.createBiquadFilter();
+  masterLp.type = 'lowpass';
+  masterLp.frequency.value = 1850;
+  masterLp.Q.value = 0.35;
 
-  // ── BGM master — 8s fade in ──
   bgmMaster = ctx.createGain();
   bgmMaster.gain.setValueAtTime(0, now);
-  bgmMaster.gain.linearRampToValueAtTime(0.52, now + 8);
-  hallG.connect(bgmMaster);
-  roomG.connect(bgmMaster);
+  bgmMaster.gain.linearRampToValueAtTime(_effectiveBgmGain(), now + 5.5);
+  hallG.connect(masterLp);
+  masterLp.connect(bgmMaster);
   bgmMaster.connect(ctx.destination);
 
-  const dry = ctx.createGain(); dry.gain.value = 0.24; dry.connect(bgmMaster);
+  const dry = ctx.createGain(); dry.gain.value = 0.26;
+  dry.connect(masterLp);
 
-  // ── LAYER 1: Warm bass foundation — C2/G2 (no LFO wobble) ──
-  // Simple, clean sine bass. Roots the music without unsettling wobble.
-  [[65.41, 0.14], [130.81, 0.09], [196.00, 0.05]].forEach(([freq, gain]) => {
-    const osc = ctx.createOscillator(), g = ctx.createGain();
-    const filt = ctx.createBiquadFilter();
-    osc.type = 'sine'; osc.frequency.value = freq;
-    filt.type = 'lowpass'; filt.frequency.value = 280; filt.Q.value = 0.5;
-    g.gain.value = gain;
-    osc.connect(filt); filt.connect(g); g.connect(dry);
-    osc.start(now); bgmNodes.push(osc);
-  });
+  // ── LAYER 1: Deep Warm Sub-Bass Pedal (glides with chord roots) ──
+  const subOsc = ctx.createOscillator();
+  const subSub = ctx.createOscillator();
+  const subFilt = ctx.createBiquadFilter();
+  const subGain = ctx.createGain();
+  subOsc.type = 'sine'; subOsc.frequency.value = 65.41; // C2
+  subSub.type = 'triangle'; subSub.frequency.value = 32.70; // C1
+  subFilt.type = 'lowpass'; subFilt.frequency.value = 140; subFilt.Q.value = 0.4;
+  subGain.gain.value = 0.16;
+  subOsc.connect(subFilt); subSub.connect(subFilt);
+  subFilt.connect(subGain); subGain.connect(dry); subGain.connect(hall);
+  subOsc.start(now); subSub.start(now);
+  bgmNodes.push(subOsc, subSub);
 
-  // ── LAYER 2: Bright, curious chord pad ──
-  // Cmaj7 → Em7 → Fmaj7 → G6 — the classic "wonder and delight" progression.
-  // All major/neutral chords = warm, bright, NOT eerie or minor-dark.
+  // ── LAYER 2: Lush Evolving 6-Voice Analog Pad (7th & 9th voicings) ──
   const CHORDS = [
-    // Cmaj7: C3 E3 G3 B3 — open, uplifting, hello-world
-    [[130.81,'sine'], [164.81,'triangle'], [196.00,'triangle'], [246.94,'triangle'], [261.63,'triangle']],
-    // Em7: E3 G3 B3 D4 — gentle, curious, wondering
-    [[164.81,'sine'], [196.00,'triangle'], [246.94,'triangle'], [293.66,'triangle'], [329.63,'triangle']],
-    // Fmaj7: F3 A3 C4 E4 — warm, moving, hopeful
-    [[174.61,'sine'], [220.00,'triangle'], [261.63,'triangle'], [329.63,'triangle'], [349.23,'triangle']],
-    // G6: G3 B3 D4 E4 — bright, resolving, almost playful
-    [[196.00,'sine'], [246.94,'triangle'], [293.66,'triangle'], [329.63,'triangle'], [392.00,'triangle']],
+    // Cmaj9: C2, C3, E3, G3, B3, D4
+    { root: 65.41, notes: [130.81, 164.81, 196.00, 246.94, 293.66, 392.00] },
+    // Am9: A1, A2, C3, E3, G3, B3
+    { root: 55.00, notes: [110.00, 130.81, 164.81, 196.00, 246.94, 329.63] },
+    // Fmaj9(#11): F1, F2, A2, C3, E3, G3, B3
+    { root: 43.65, notes: [87.31, 130.81, 164.81, 196.00, 246.94, 349.23] },
+    // G6(add9): G1, G2, B2, D3, E3, A3
+    { root: 49.00, notes: [98.00, 123.47, 146.83, 164.81, 220.00, 293.66] },
+    // Em9: E1, E2, G2, B2, D3, F#3
+    { root: 41.20, notes: [82.41, 123.47, 146.83, 185.00, 246.94, 329.63] },
+    // Dm9: D2, A2, C3, E3, F3, A3
+    { root: 73.42, notes: [110.00, 130.81, 164.81, 174.61, 220.00, 293.66] },
   ];
-  const PAD_GAINS = [0.028, 0.024, 0.020, 0.016, 0.013];
+  const PAD_GAINS = [0.032, 0.028, 0.024, 0.020, 0.017, 0.014];
 
-  bgmPadVoices = CHORDS[0].map(([freq, type], vi) => {
-    const osc = ctx.createOscillator(), g = ctx.createGain();
+  bgmPadVoices = CHORDS[0].notes.map((freq, vi) => {
+    // Dual oscillator per voice: warm triangle + softly detuned sawtooth through a deep lowpass filter
+    const oscA = ctx.createOscillator();
+    const oscB = ctx.createOscillator();
+    const mixG = ctx.createGain();
+    const sawG = ctx.createGain();
     const filt = ctx.createBiquadFilter();
-    osc.type = type; osc.frequency.value = freq;
-    osc.detune.value = (Math.random()-0.5)*5; // micro-detune for warmth
+    const lfo  = ctx.createOscillator();
+    const lfoG = ctx.createGain();
+
+    oscA.type = 'triangle';
+    oscA.frequency.value = freq;
+    oscA.detune.value = -4.5 + vi * 1.2;
+
+    oscB.type = 'sawtooth';
+    oscB.frequency.value = freq;
+    oscB.detune.value = +4.5 - vi * 1.1;
+    sawG.gain.value = 0.28; // subtle analog warmth
+
     filt.type = 'lowpass';
-    filt.frequency.value = 480 + vi*80; // brighter filter
-    filt.Q.value = 0.35;
-    g.gain.value = PAD_GAINS[vi];
-    osc.connect(filt); filt.connect(g);
-    g.connect(hall); g.connect(room);
-    osc.start(now); bgmNodes.push(osc);
-    return {osc, g, filt};
+    filt.frequency.value = 310 + vi * 55;
+    filt.Q.value = 0.45;
+
+    // Slow breathing filter LFO (0.04–0.09 Hz = 11–25 second cycle)
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.042 + vi * 0.009;
+    lfoG.gain.value = 110 + vi * 20;
+    lfo.connect(lfoG);
+    lfoG.connect(filt.frequency);
+
+    mixG.gain.value = PAD_GAINS[vi];
+    oscA.connect(filt);
+    oscB.connect(sawG);
+    sawG.connect(filt);
+    filt.connect(mixG);
+    mixG.connect(hall);
+    mixG.connect(dry);
+
+    oscA.start(now); oscB.start(now); lfo.start(now);
+    bgmNodes.push(oscA, oscB, lfo);
+    return { oscA, oscB, filt, mixG };
   });
 
-  // Chord cycle — 12s per chord, smooth 2.5s glide between them
+  // Smoothly morph chords every 14 seconds with a 3.8-second portamento glide
   let chordIdx = 0;
   bgmChordInterval = setInterval(() => {
+    if (!ctx || !bgmMaster) return;
     chordIdx = (chordIdx + 1) % CHORDS.length;
-    const chord = CHORDS[chordIdx];
+    const next = CHORDS[chordIdx];
     const t = ctx.currentTime;
-    bgmPadVoices.forEach(({osc, g, filt}, vi) => {
-      const [freq] = chord[vi];
-      osc.frequency.setTargetAtTime(freq, t, 2.5);
-      filt.frequency.setTargetAtTime(460 + vi*80, t, 2.5);
+    subOsc.frequency.setTargetAtTime(next.root, t, 3.2);
+    subSub.frequency.setTargetAtTime(next.root * 0.5, t, 3.2);
+    bgmPadVoices.forEach(({ oscA, oscB, filt }, vi) => {
+      const f = next.notes[vi];
+      oscA.frequency.setTargetAtTime(f, t, 3.5);
+      oscB.frequency.setTargetAtTime(f, t, 3.5);
+      filt.frequency.setTargetAtTime(290 + vi * 55 + (chordIdx % 2) * 45, t, 3.5);
     });
-  }, 12000);
+  }, 14000);
 
-  // ── LAYER 3: Playful plucked vibraphone melody ──
-  // Simulated vibraphone: very fast attack (5ms), medium decay, slight LFO tremolo.
-  // Plays a happy "space ditty" using C major pentatonic scale.
-  // C4-E4-G4-A4-C5 = pure curiosity and joy. Repeats every 20s.
-  function playVibraphone() {
+  // ── LAYER 3: Sparse, Dreamy "Galaxy Map" Soft Harmonic Drops ──
+  // Warm, slow-attack sine droplets in C Lydian / Major 9th every 16 seconds
+  function playGalaxyPulse() {
     if(!ctx || !bgmMaster) return;
-    // Phrase: a short, memorable, bouncy melody. Won't get old.
-    const phrase = [
-      [261.63,0],[329.63,0.55],[392.00,1.0],[440.00,1.45],[523.25,1.85],
-      [440.00,2.55],[392.00,3.0],[329.63,3.55],[261.63,4.1],
-      [392.00,5.0],[523.25,5.5],[659.26,6.2],[523.25,6.9],[392.00,7.5]
-    ];
-    phrase.forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator(), g = ctx.createGain();
-      const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+    const notes = [523.25, 659.25, 783.99, 987.77, 587.33, 659.25, 392.00];
+    const count = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      const freq = notes[(chordIdx + i * 2) % notes.length];
+      const delay = i * 2.4 + Math.random() * 0.4;
       const at = ctx.currentTime + delay;
-      // Vibraphone timbre: sine + slight triangle mix
-      osc.type = 'sine'; osc.frequency.value = freq;
-      // Tremolo LFO (vibraphone wobble)
-      lfo.frequency.value = 4.8; lfoG.gain.value = 0.006;
-      lfo.connect(lfoG); lfoG.connect(g.gain); lfo.start(at);
-      // Fast attack (pluck), medium decay (resonance)
+      const osc = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      lp.type = 'lowpass'; lp.frequency.value = 1100;
+      // Soft swell attack (0.45s) and long tail (4.2s) — never percussive or harsh
       g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(0.042, at + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.001, at + 2.8);
-      osc.connect(g); g.connect(hall); g.connect(dry);
-      osc.start(at); osc.stop(at + 3.0);
-      lfo.stop(at + 3.0);
-    });
+      g.gain.linearRampToValueAtTime(0.016, at + 0.45);
+      g.gain.exponentialRampToValueAtTime(0.0008, at + 4.4);
+      osc.connect(lp); lp.connect(g); g.connect(hall);
+      osc.start(at); osc.stop(at + 4.6);
+    }
   }
-  setTimeout(playVibraphone, 5000);
-  bgmMotifInterval = setInterval(playVibraphone, 20000);
-
-  // ── LAYER 4: Sparkling bell accents ──
-  // Every ~4s a random high bell note glints, like starlight catching your eye.
-  // Uses C major pentatonic: C5 E5 G5 A5 C6
-  const BELLS = [523.25, 659.26, 783.99, 880.00, 1046.50];
-  let bellTimer = null;
-  function scheduleBell() {
-    if(!ctx || !bgmMaster) return;
-    const freq = BELLS[Math.floor(Math.random() * BELLS.length)];
-    const osc = ctx.createOscillator(), g = ctx.createGain();
-    osc.type = 'sine'; osc.frequency.value = freq;
-    const at = ctx.currentTime;
-    g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(0.018, at + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.001, at + 2.2);
-    osc.connect(g); g.connect(hall);
-    osc.start(at); osc.stop(at + 2.5);
-    const nextMs = 3200 + Math.random() * 4000; // 3.2-7.2s random interval
-    bellTimer = setTimeout(scheduleBell, nextMs);
-  }
-  bellTimer = setTimeout(scheduleBell, 2500 + Math.random()*2000);
-  bgmNodes.push({ _isBellTimer: true, _stop: () => clearTimeout(bellTimer) });
-
-  // ── LAYER 5: Gentle air texture — very light, airy, NOT dark ──
-  // High-pass filtered noise — like a breath of space.
-  const noiseLen = ctx.sampleRate * 6;
-  const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-  const nd = noiseBuf.getChannelData(0);
-  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-  for(let i=0; i<noiseLen; i++) {
-    const w = Math.random()*2-1;
-    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
-    b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
-    b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
-    nd[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
-    b6 = w*0.115926;
-  }
-  const noiseNode = ctx.createBufferSource();
-  noiseNode.buffer = noiseBuf; noiseNode.loop = true;
-  const noiseHp = ctx.createBiquadFilter(); noiseHp.type='highpass'; noiseHp.frequency.value=1200; // much higher = airier
-  const noiseLp = ctx.createBiquadFilter(); noiseLp.type='lowpass';  noiseLp.frequency.value=6000;
-  const noiseG  = ctx.createGain(); noiseG.gain.value = 0.004; // very soft
-  noiseNode.connect(noiseHp); noiseHp.connect(noiseLp); noiseLp.connect(noiseG);
-  noiseG.connect(room);
-  noiseNode.start(now); bgmNodes.push(noiseNode);
+  setTimeout(playGalaxyPulse, 4000);
+  bgmMotifInterval = setInterval(playGalaxyPulse, 16000);
 }
 
-function stopPlanetariumBGM(fadeTime=3) {
+function stopPlanetariumBGM(fadeTime=2.5) {
   if(bgmChordInterval){ clearInterval(bgmChordInterval); bgmChordInterval=null; }
   if(bgmMotifInterval){ clearInterval(bgmMotifInterval); bgmMotifInterval=null; }
   if(bgmMaster && audioCtx) {
@@ -3240,71 +4034,92 @@ function stopPlanetariumBGM(fadeTime=3) {
 }
 
 function playUIClick() {
-  if(!audioCtx || !audioEnabled) return;
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
   const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(1100, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(550, audioCtx.currentTime+0.08);
-  g.gain.setValueAtTime(0.14, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.12);
+  osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime+0.07);
+  g.gain.setValueAtTime(0.09 * masterUserVolume, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.10);
   osc.connect(g); g.connect(audioCtx.destination);
-  osc.start(); osc.stop(audioCtx.currentTime+0.13);
+  osc.start(); osc.stop(audioCtx.currentTime+0.11);
 }
 
-// ─── PER-PLANET AMBIENT ATMOSPHERE ───────────────────────────────────────────
+// ─── PER-PLANET AMBIENT HARMONIC SIGNATURE (ZERO WHITE-NOISE HISS) ───────────
 let currentAmbienceNodes = [];
 
 function playPlanetAmbience(id) {
-  if(!audioCtx || !audioEnabled) return;
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
   const ctx = audioCtx, now = ctx.currentTime;
   currentAmbienceNodes.forEach(({gainNode,sourceNode})=>{
-    try { gainNode.gain.cancelScheduledValues(now); gainNode.gain.setValueAtTime(gainNode.gain.value,now); gainNode.gain.linearRampToValueAtTime(0,now+2); sourceNode.stop(now+2.05); } catch(e){}
+    try { gainNode.gain.cancelScheduledValues(now); gainNode.gain.setValueAtTime(gainNode.gain.value,now); gainNode.gain.linearRampToValueAtTime(0,now+1.5); sourceNode.stop(now+1.6); } catch(e){}
   });
   currentAmbienceNodes = [];
 
-  function makeNoise(dur) {
-    const sr=ctx.sampleRate, len=Math.ceil(sr*dur), buf=ctx.createBuffer(1,len,sr), d=buf.getChannelData(0);
-    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
-    const src=ctx.createBufferSource(); src.buffer=buf; return src;
-  }
+  const vScale = (_isMusicDucked ? 0.20 : 0.85) * masterUserVolume;
   function track(g,src){ currentAmbienceNodes.push({gainNode:g,sourceNode:src}); }
-  function env(g,peak,fi,hold,fo,t0){ g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(peak,t0+fi); g.gain.setValueAtTime(peak,t0+fi+hold); g.gain.linearRampToValueAtTime(0,t0+fi+hold+fo); }
-  function osc(type,freq,peak,fi,hold,fo,offset) {
-    const o=ctx.createOscillator(),g=ctx.createGain(),t0=now+(offset||0);
-    o.type=type; o.frequency.setValueAtTime(freq,now); env(g,peak,fi,hold,fo,t0);
-    o.connect(g); g.connect(ctx.destination); o.start(t0); o.stop(now+(offset||0)+fi+hold+fo+0.05); track(g,o);
+  function env(g,peak,fi,hold,fo,t0){
+    const p = peak * vScale;
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(p,t0+fi);
+    g.gain.setValueAtTime(p,t0+fi+hold);
+    g.gain.linearRampToValueAtTime(0,t0+fi+hold+fo);
   }
-  function noise(ftype,ffreq,Q,peak,dur,offset) {
-    const src=makeNoise(dur+0.5),filt=ctx.createBiquadFilter(),g=ctx.createGain(),t0=now+(offset||0);
-    filt.type=ftype; filt.frequency.setValueAtTime(ffreq,now); if(Q) filt.Q.setValueAtTime(Q,now);
-    const fi=Math.min(1,dur*.2),fo=Math.min(1.5,dur*.35),hold=Math.max(0,dur-fi-fo);
-    env(g,peak,fi,hold,fo,t0); src.connect(filt); filt.connect(g); g.connect(ctx.destination); src.start(t0); src.stop(t0+dur+0.5); track(g,src);
+  function osc(type,freq,peak,fi,hold,fo,offset) {
+    const o=ctx.createOscillator(),filt=ctx.createBiquadFilter(),g=ctx.createGain(),t0=now+(offset||0);
+    o.type=type; o.frequency.setValueAtTime(freq,now);
+    filt.type='lowpass'; filt.frequency.setValueAtTime(Math.min(1800, freq*3.5), now);
+    env(g,peak,fi,hold,fo,t0);
+    o.connect(filt); filt.connect(g); g.connect(ctx.destination);
+    o.start(t0); o.stop(now+(offset||0)+fi+hold+fo+0.05); track(g,o);
   }
 
+  // Warm harmonic chord signatures for each world — no gaseous white noise!
   switch(id) {
-    case 'mercury': [2800,3400,4100].forEach((f,i)=>{ osc('sine',f,0.07,0.005,0.02,0.6,i*1.4); osc('triangle',f*1.01,0.03,0.005,0.01,0.4,i*1.4+0.02); }); noise('highpass',6000,0.5,0.025,4.5,0); break;
-    case 'venus': osc('sawtooth',55,0.18,1,2.5,1.5,0); osc('sawtooth',57.5,0.12,1.2,2,1.5,0.1); noise('bandpass',180,1.5,0.15,5,0); noise('lowpass',300,null,0.1,4.5,0.3); break;
-    case 'earth': [[261.6,.12],[329.6,.09],[392,.08]].forEach(([f,v],i)=>{ osc('sine',f,v,1,2.5,1.5,i*.15); osc('triangle',f*2,v*.3,1,2,1.5,i*.15+.05); }); noise('lowpass',400,null,0.08,5,0); break;
-    case 'mars': [[220,.10],[261.6,.07],[330,.07]].forEach(([f,v],i)=>{ osc('triangle',f,v,1.2,2,1.8,i*.2); osc('sawtooth',f*.995,v*.25,1,1.5,2,i*.2+.1); }); noise('bandpass',600,0.6,0.07,5,0); noise('bandpass',1200,1.2,0.04,4,0.8); break;
-    case 'jupiter': osc('sine',30,0.22,0.8,3,1.5,0); osc('sine',40,0.18,1,2.5,1.5,0.2); osc('sawtooth',60,0.10,1,2.5,1.5,0); noise('lowpass',250,null,0.18,5,0); noise('bandpass',90,0.7,0.12,4.5,0.3); break;
-    case 'saturn': [[440,.10,0],[880,.07,.3],[1320,.05,.6],[2200,.04,1.0],[3520,.025,1.5]].forEach(([f,v,d])=>{ osc('sine',f,v,0.01,0.1,2.5,d); osc('triangle',f*1.004,v*.3,0.01,0.05,2,d+.01); }); noise('highpass',3000,0.5,0.025,4,0.2); break;
-    case 'uranus': osc('sine',1760,0.07,1.5,2,1.5,0); osc('sine',1768,0.06,1.5,2,1.5,0.05); osc('triangle',880,0.05,1.2,2.5,1.5,0.2); noise('highpass',4000,0.8,0.04,5,0); noise('bandpass',2400,1.5,0.03,4,0.5); break;
-    case 'neptune': osc('sine',25,0.20,1.5,2.5,1.5,0); osc('sine',35,0.15,1.8,2,1.5,0.3); osc('triangle',146.8,0.06,1.5,2.5,1.5,0.2); noise('lowpass',150,null,0.14,5,0); noise('bandpass',70,0.5,0.10,4.5,0.2); break;
-    case 'sun': noise('lowpass',800,null,0.20,5,0); noise('bandpass',300,0.4,0.16,4.5,0.1); noise('bandpass',1800,0.6,0.08,4,0.2); osc('sawtooth',220,0.08,0.5,3,1.5,0); osc('sine',50,0.15,0.5,3,1.5,0); break;
-    case 'pluto': osc('sine',523.3,0.035,2,1.5,2,0); osc('sine',526,0.025,2.2,1,2,0.3); osc('sine',261.6,0.020,2.5,1,2,0.5); noise('highpass',7000,0.5,0.012,5,0); break;
+    case 'sun':
+      // Deep, warm golden harmonic chord (C2, G2, D3, A3) — silent of any gas/static noise
+      [[65.41,0.09],[98.00,0.07],[146.83,0.05],[220.00,0.035]].forEach(([f,v],i)=>osc('sine',f,v,1.2,2.2,1.8,i*0.12));
+      break;
+    case 'mercury':
+      [[523.25,0.045],[659.25,0.035],[783.99,0.03]].forEach(([f,v],i)=>osc('sine',f,v,0.3,1.2,1.5,i*0.25));
+      break;
+    case 'venus':
+      [[73.42,0.08],[110.00,0.06],[164.81,0.045]].forEach(([f,v],i)=>osc('triangle',f,v,1.2,2.0,1.8,i*0.18));
+      break;
+    case 'earth':
+      [[261.63,0.07],[329.63,0.055],[392.00,0.05],[493.88,0.035]].forEach(([f,v],i)=>osc('sine',f,v,1.0,2.4,1.6,i*0.15));
+      break;
+    case 'mars':
+      [[146.83,0.07],[220.00,0.055],[261.63,0.045]].forEach(([f,v],i)=>osc('triangle',f,v,1.1,2.0,1.8,i*0.2));
+      break;
+    case 'jupiter':
+      [[43.65,0.11],[65.41,0.085],[98.00,0.06],[130.81,0.04]].forEach(([f,v],i)=>osc('sine',f,v,1.2,2.6,1.8,i*0.15));
+      break;
+    case 'saturn':
+      [[220.00,0.06],[329.63,0.05],[440.00,0.04],[659.25,0.03]].forEach(([f,v],i)=>osc('sine',f,v,0.8,2.2,2.0,i*0.22));
+      break;
+    case 'uranus':
+      [[392.00,0.045],[493.88,0.04],[587.33,0.035]].forEach(([f,v],i)=>osc('sine',f,v,1.4,2.0,1.8,i*0.2));
+      break;
+    case 'neptune':
+      [[55.00,0.09],[82.41,0.07],[123.47,0.05],[164.81,0.035]].forEach(([f,v],i)=>osc('sine',f,v,1.5,2.4,1.8,i*0.2));
+      break;
+    case 'pluto':
+      [[523.25,0.035],[659.25,0.03],[987.77,0.022]].forEach(([f,v],i)=>osc('sine',f,v,1.8,1.8,2.2,i*0.3));
+      break;
     default: break;
   }
 }
 
 function playPlanetOpen() {
-  if(!audioCtx || !audioEnabled) return;
-  [440, 550, 660].forEach((f, i) => {
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
+  [440, 554.37, 659.25].forEach((f, i) => {
     const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
     osc.type = 'sine';
     const t0 = audioCtx.currentTime + i*0.06;
     osc.frequency.setValueAtTime(f, t0);
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.11, t0+0.02);
+    g.gain.linearRampToValueAtTime(0.09 * masterUserVolume, t0+0.02);
     g.gain.exponentialRampToValueAtTime(0.001, t0+0.38);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t0); osc.stop(t0+0.4);
@@ -3312,14 +4127,14 @@ function playPlanetOpen() {
 }
 
 function playCorrect() {
-  if(!audioCtx || !audioEnabled) return;
-  [523, 659, 784].forEach((f, i) => {
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
+  [523.25, 659.25, 783.99].forEach((f, i) => {
     const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
     osc.type = 'triangle';
     const t0 = audioCtx.currentTime + i*0.1;
     osc.frequency.setValueAtTime(f, t0);
     g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(0.2, t0+0.02);
+    g.gain.linearRampToValueAtTime(0.16 * masterUserVolume, t0+0.02);
     g.gain.exponentialRampToValueAtTime(0.001, t0+0.28);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t0); osc.stop(t0+0.32);
@@ -3327,65 +4142,116 @@ function playCorrect() {
 }
 
 function playWrong() {
-  if(!audioCtx || !audioEnabled) return;
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
   const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-  osc.type = 'sawtooth';
+  osc.type = 'triangle';
   osc.frequency.setValueAtTime(220, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime+0.25);
-  g.gain.setValueAtTime(0.11, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(130, audioCtx.currentTime+0.25);
+  g.gain.setValueAtTime(0.10 * masterUserVolume, audioCtx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.28);
   osc.connect(g); g.connect(audioCtx.destination);
   osc.start(); osc.stop(audioCtx.currentTime+0.3);
 }
 
 function playRocketLaunch() {
-  if(!audioCtx || !audioEnabled) return;
-  const sr = audioCtx.sampleRate;
-  const buf = audioCtx.createBuffer(1, Math.floor(sr*2.4), sr);
-  const d = buf.getChannelData(0);
-  for(let i=0; i<d.length; i++) {
-    const t = i/sr;
-    d[i] = (Math.random()*2-1) * Math.min(1, t*5) * Math.exp(-t*0.9) * 0.55;
+  if(!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
+  const now = audioCtx.currentTime;
+  // Warm low-frequency thruster rumble (filtered sine sweep + soft lowpass rumble)
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(55, now);
+  osc.frequency.exponentialRampToValueAtTime(140, now + 2.2);
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 240;
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.22 * masterUserVolume, now + 0.25);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
+  osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 2.45);
+}
+
+function setMasterVolume(val) {
+  masterUserVolume = Math.max(0, Math.min(1, val));
+  const slider = document.getElementById('audio-vol-slider');
+  if (slider && Math.abs(parseFloat(slider.value) - masterUserVolume * 100) > 1) {
+    slider.value = String(Math.round(masterUserVolume * 100));
   }
-  const src = audioCtx.createBufferSource();
-  const g = audioCtx.createGain();
-  const filt = audioCtx.createBiquadFilter();
-  filt.type = 'bandpass'; filt.frequency.setValueAtTime(190, audioCtx.currentTime); filt.Q.setValueAtTime(0.6, audioCtx.currentTime);
-  src.buffer = buf; src.connect(filt); filt.connect(g);
-  g.gain.setValueAtTime(0.45, audioCtx.currentTime); g.connect(audioCtx.destination); src.start();
+  if (!audioCtx) {
+    if (masterUserVolume > 0) {
+      initAudio();
+      audioCtx.resume();
+      startPlanetariumBGM();
+    }
+    syncAudioBtn();
+    return;
+  }
+  if (masterUserVolume <= 0.005) {
+    audioEnabled = false;
+  } else if (!audioEnabled) {
+    audioEnabled = true;
+    audioCtx.resume();
+    if (!bgmMaster) startPlanetariumBGM();
+  }
+  const now = audioCtx.currentTime;
+  if (bgmMaster) {
+    bgmMaster.gain.cancelScheduledValues(now);
+    bgmMaster.gain.setValueAtTime(bgmMaster.gain.value, now);
+    bgmMaster.gain.linearRampToValueAtTime(audioEnabled ? _effectiveBgmGain() : 0, now + 0.15);
+  }
+  if (ambientMaster) {
+    ambientMaster.gain.cancelScheduledValues(now);
+    ambientMaster.gain.setValueAtTime(ambientMaster.gain.value, now);
+    ambientMaster.gain.linearRampToValueAtTime(audioEnabled ? _effectiveAmbientGain() : 0, now + 0.15);
+  }
+  syncAudioBtn();
 }
 
 function toggleAudio() {
-  const btn = document.getElementById('audio-btn');
   if(!audioCtx) {
     initAudio();
     audioCtx.resume();
+    startPlanetariumBGM();
     if(ambientMaster) {
       ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime+2);
+      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime+1.5);
     }
-    btn.innerHTML = '&#128266;'; btn.classList.add('active'); return;
+    syncAudioBtn();
+    return;
   }
   audioEnabled = !audioEnabled;
-  const bgm = null; // procedural BGM — no audio element needed
   if(audioEnabled) {
+    if (masterUserVolume <= 0.02) {
+      masterUserVolume = 0.75;
+      const slider = document.getElementById('audio-vol-slider');
+      if (slider) slider.value = '75';
+    }
     audioCtx.resume();
     if(ambientMaster) {
       ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime+1.5);
+      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime+1.2);
     }
-    startPlanetariumBGM();
-    btn.innerHTML = '&#128266;'; btn.classList.add('active');
+    if (!bgmMaster) startPlanetariumBGM();
+    else {
+      bgmMaster.gain.cancelScheduledValues(audioCtx.currentTime);
+      bgmMaster.gain.linearRampToValueAtTime(_effectiveBgmGain(), audioCtx.currentTime+1.2);
+    }
   } else {
     if(ambientMaster) {
       ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1.5);
+      ambientMaster.gain.linearRampToValueAtTime(0, audioCtx.currentTime+0.8);
     }
-    stopPlanetariumBGM(1.5);
-    btn.innerHTML = '&#128263;'; btn.classList.remove('active');
+    stopPlanetariumBGM(0.8);
   }
+  syncAudioBtn();
 }
 document.getElementById('audio-btn').addEventListener('click', toggleAudio);
+(function _wireAudioSlider() {
+  const slider = document.getElementById('audio-vol-slider');
+  if (!slider) return;
+  slider.addEventListener('input', (e) => {
+    setMasterVolume(parseFloat(e.target.value) / 100);
+  });
+})();
 
 // ─── GAMIFICATION ─────────────────────────────────────────────────────────────
 let explorerScore = 0;
@@ -4405,21 +5271,56 @@ function openMission(id) {
     `<div class="stat-box"><div class="stat-label">${k.charAt(0).toUpperCase()+k.slice(1).replace(/_/g,' ')}</div><div class="stat-value">${v}</div></div>`
   ).join('');
 
+  const gallerySlides = m.photos.map(p => ({
+    url: resolveMissionPhoto(p.src, p.caption),
+    title: m.name + ' — ' + p.caption,
+    caption: p.caption,
+    credit: m.agency + ' · Mission Schematic'
+  }));
+
   const photosHTML = m.photos.map((p, i) => {
     const cls = 'mission-photo' + (i===0 ? ' mission-photo-wide' : '');
     const dataUri = resolveMissionPhoto(p.src, p.caption);
-    return `<img class="${cls}" src="${dataUri}" alt="${p.caption}" title="${p.caption}"
-      onclick="window.openTourLightbox('${p.src}')">`;
+    return `<img class="${cls}" src="${dataUri}" alt="${p.caption}" title="${p.caption}" data-slide-idx="${i}">`;
   }).join('');
 
   const factsHTML = m.facts.map(f => `<li>${f}</li>`).join('');
+  const voiceKey = 'mission_' + m.id;
 
-  document.getElementById('mission-scroll').innerHTML = `
+  const liveISSHTML = id === 'iss' ? `
+    <div class="iss-live-box">
+      <div class="iss-live-header">
+        <span>● LIVE ORBITAL TELEMETRY (NORAD #25544)</span>
+        <span>${_issLiveTelemetry.live ? 'ONLINE' : 'ORBITAL MODEL'}</span>
+      </div>
+      <div class="iss-live-coords" id="iss-live-telemetry-readout">
+        <div>LAT: <strong>${_issLiveTelemetry.lat.toFixed(4)}°</strong></div>
+        <div>LON: <strong>${_issLiveTelemetry.lon.toFixed(4)}°</strong></div>
+        <div>ALT: <strong>${_issLiveTelemetry.alt.toFixed(1)} km</strong></div>
+        <div>VEL: <strong>${Math.round(_issLiveTelemetry.vel).toLocaleString()} km/h</strong></div>
+      </div>
+    </div>` : '';
+
+  const scrollEl = document.getElementById('mission-scroll');
+  scrollEl.innerHTML = `
     <div class="mission-badge">&#9672; ${m.type} &mdash; ${m.agency.split('/')[0].trim()}</div>
     <div id="mission-panel-name">${m.name}</div>
     <div id="mission-panel-tagline">${m.tagline}</div>
     <div class="mission-status-badge ${statusClass}">${statusLabel}</div>
+    <div class="panel-speak-row">
+      <button id="mission-speak-btn" class="speak-btn-shared" data-body="${voiceKey}">
+        <span>&#128266;</span>
+        <span id="mission-speak-label">Hear Spacecraft Speak</span>
+        <span class="speak-wave"><i></i><i></i><i></i><i></i></span>
+      </button>
+      <button id="mission-speak-more-btn" class="speak-more-shared" data-body="${voiceKey}">
+        <span>Tell Me More &#8635;</span>
+      </button>
+    </div>
+    <div id="mission-voice-transcript" class="voice-transcript-box"></div>
+    ${liveISSHTML}
     <div class="mission-photo-grid">${photosHTML}</div>
+    <div id="mission-nasa-gallery" class="nasa-gallery-section"></div>
     <div class="mission-desc">${m.desc}</div>
     <div class="panel-section">
       <h3>Mission Data</h3>
@@ -4430,6 +5331,20 @@ function openMission(id) {
       <ul class="fact-list">${factsHTML}</ul>
     </div>`;
 
+  scrollEl.querySelectorAll('.mission-photo').forEach(img => {
+    img.addEventListener('click', () => {
+      openLightboxCarousel(gallerySlides, parseInt(img.dataset.slideIdx || '0', 10));
+    });
+  });
+
+  const spkBtn = document.getElementById('mission-speak-btn');
+  const moreBtn = document.getElementById('mission-speak-more-btn');
+  if (spkBtn) spkBtn.addEventListener('click', () => speakAsPlanet(voiceKey, false));
+  if (moreBtn) moreBtn.addEventListener('click', () => speakAsPlanet(voiceKey, true));
+
+  const fbSpecs = m.photos.map(p => ({ src: p.src, title: p.caption }));
+  fetchNasaGallery(`${m.name} NASA spacecraft`, document.getElementById('mission-nasa-gallery'), fbSpecs);
+
   document.getElementById('location-label').textContent = m.short || m.name;
   closeAllPanels({keepTour:true});
   document.getElementById('mission-panel').classList.add('open');
@@ -4437,13 +5352,17 @@ function openMission(id) {
 
 function closeMissionPanel() {
   document.getElementById('mission-panel').classList.remove('open');
+  if (_speakingPlanet && (_speakingPlanet.startsWith('mission_') || _speakingPlanet.startsWith('frontier_'))) {
+    stopNarration();
+    _speakingPlanet = null;
+    _syncSpeakBtn();
+  }
 }
 
 document.getElementById('mission-panel-close').addEventListener('click', closeMissionPanel);
 
 function buildMissionsDropdown() {
   const container = document.getElementById('missions-dropdown');
-  // Clear previous items (keep the title)
   const title = document.getElementById('missions-dropdown-title');
   container.innerHTML = '';
   container.appendChild(title);
@@ -4489,16 +5408,12 @@ document.getElementById('missions-btn').addEventListener('click', () => {
   }
 });
 
-// startRocketFlightToMission is now handled through launchRocket(missionId)
-
-// Replay actions for both cinematics. Neither is on the critical launch path
-// any more, so they need a way back in.
+// Replay actions for both cinematics.
 document.getElementById('replay-intro-btn').addEventListener('click', () => {
   closeSideMenu();
   closeAllPanels({keepMenu:false});
   stopNarration();
   _forceIntroReplay = true;
-  // Reset the canvas the warp draws on; it was faded out and hidden on exit.
   const cd = document.getElementById('cinematic');
   cd.style.display = ''; cd.style.opacity = ''; cd.style.transition = '';
   runCinematic();
@@ -4510,18 +5425,10 @@ document.getElementById('replay-premiere-btn').addEventListener('click', () => {
   startCinematicPremiere();
 });
 
-// ─── CINEMATIC INTRO SEQUENCE ────────────────────────────────────────────────
+// ─── REAL 3D CAMERA FLY-IN & CARL SAGAN "PALE BLUE DOT" INTRO ────────────────
+let _saganAudioEl = null;
+
 function runCinematic() {
-  // The warp-tunnel intro: a 62-second flight through interstellar space that
-  // decelerates into the solar system, scored in three acts.
-  //
-  // This entire sequence was previously unreachable — an early `return` right
-  // here sent the user to a plain welcome screen instead, leaving ~470 lines
-  // below as dead code. The tunnel is the intro; it is back on the launch path.
-  //
-  // It only plays in full on a first visit. Sixty-two seconds is a great
-  // cinematic once and an obstacle on the fifth run, so returning visitors drop
-  // straight into the game and can replay it from the menu whenever they like.
   let seenIntro = false;
   try { seenIntro = localStorage.getItem('ue_seen_intro') === '1'; } catch (e) {}
   if (seenIntro && !_forceIntroReplay) { _enterAfterIntro(); return; }
@@ -4534,45 +5441,135 @@ function runCinematic() {
   const textDiv= document.getElementById('cine-text');
   const progEl = document.getElementById('cine-progress-legacy');
   const ctx    = canvas.getContext('2d');
+  div.style.display = '';
+  div.style.opacity = '1';
   div.classList.add('active');
 
+  // Lock user orbit controls and freeze orbital drift so our 3D camera spline
+  // sweeps cleanly past Saturn's rings, Jupiter, and the Pale Blue Dot of Earth
+  const _wasPaused = paused;
+  paused = true;
+  controls.enabled = false;
+
   let W, H, dead = false;
-  // Assigned further down, once endCinematic exists to tear it down again.
   let _cineSkipKeys = null;
   function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
   resize();
   window.addEventListener('resize', resize);
 
-  // 3D perspective star field
-  const stars = Array.from({length:700}, () => ({
-    x: (Math.random()-0.5)*2000,
-    y: (Math.random()-0.5)*2000,
+  // Subtle warp starlight particles overlaid transparently on the real 3D scene
+  const stars = Array.from({length: 180}, () => ({
+    x: (Math.random()-0.5)*1600,
+    y: (Math.random()-0.5)*1600,
     z: Math.random()*1000 + 1,
     pz: 1000,
-    r: Math.random()*1.2+0.3
+    r: Math.random()*1.1+0.3
   }));
 
-  // The monologue script: [appearAt seconds, HTML text]
+  // Exact Carl Sagan "Pale Blue Dot" monologue synced line-by-line to the 3D fly-in:
+  // [appearAtSeconds, HTML subtitle, spokenText]
   const SCRIPT = [
-    [ 2.5, "Somewhere in an unremarkable arm of the Milky Way..."],
-    [10.0, "...a star has burned for four and a half billion years."],
-    [18.0, "Around it, eight worlds drift in endless silence."],
-    [25.5, "On one small, pale blue world —<br><em>life stirred.</em>"],
-    [33.0, "It gazed up at the darkness<br>and asked: <em>what is out there?</em>"],
-    [41.0, "You are made of this.<br>Every atom in you, forged inside a dying star."],
-    [49.5, "You are the universe — experiencing itself."],
-    [55.0, "Welcome home."],
+    [ 0.8, "From this distant vantage point,<br>the Earth might not seem of any particular interest.",
+           "From this distant vantage point, the Earth might not seem of any particular interest." ],
+    [ 7.5, "But for us, it's different.<br><em>Look again at that dot.</em>",
+           "But for us, it's different. Look again at that dot." ],
+    [13.2, "That's here. That's home. <em>That's us.</em>",
+           "That's here. That's home. That's us." ],
+    [18.8, "On it everyone you love, everyone you know,<br>every human being who ever was, lived out their lives.",
+           "On it everyone you love, everyone you know, every human being who ever was, lived out their lives." ],
+    [26.5, "On a mote of dust — <em>suspended in a sunbeam.</em>",
+           "On a mote of dust, suspended in a sunbeam." ],
+    [32.5, "To me, it underscores our responsibility to preserve and cherish<br><em>the pale blue dot, the only home we've ever known.</em>",
+           "To me, it underscores our responsibility to preserve and cherish the pale blue dot, the only home we've ever known." ],
   ];
-  const TOTAL = 62;
+  const TOTAL = 40.0;
+
+  // Attempt to play real Carl Sagan Pale Blue Dot audio clip if present or reachable,
+  // with automatic seamless fallback to English Web Speech narration synced per line.
+  let _usingExternalSaganAudio = false;
+  try {
+    const audioCandidates = [
+      'audio/sagan_pale_blue_dot.mp3',
+      'https://upload.wikimedia.org/wikipedia/commons/e/e5/Carl_Sagan_-_Pale_Blue_Dot.ogg'
+    ];
+    const probeAudio = new Audio();
+    probeAudio.crossOrigin = 'anonymous';
+    probeAudio.preload = 'auto';
+    probeAudio.volume = 0.95;
+    let candIdx = 0;
+    const tryNextSource = () => {
+      if (dead || candIdx >= audioCandidates.length) return;
+      probeAudio.src = audioCandidates[candIdx++];
+      const playPromise = probeAudio.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(() => {
+          if (dead) { probeAudio.pause(); return; }
+          _usingExternalSaganAudio = true;
+          _saganAudioEl = probeAudio;
+          stopNarration(); // cancel TTS fallback if real audio succeeded
+          setMusicDuck(true);
+        }).catch(() => {
+          tryNextSource();
+        });
+      }
+    };
+    probeAudio.addEventListener('ended', () => setMusicDuck(false));
+    tryNextSource();
+  } catch (e) {
+    _usingExternalSaganAudio = false;
+  }
+
+  // Helper to get world position of a planet for our 3D camera keyframes
+  function getPlanetWorldPos(id, fallbackVec) {
+    const pm = planetMeshes.find(p => p.pdata.id === id);
+    if (!pm) return fallbackVec.clone();
+    const v = new THREE.Vector3();
+    pm.group.getWorldPosition(v);
+    return v;
+  }
+
+  const saturnPos  = getPlanetWorldPos('saturn',  new THREE.Vector3(30, 0, 12));
+  const jupiterPos = getPlanetWorldPos('jupiter', new THREE.Vector3(-22, 0, 15));
+  const earthPos   = getPlanetWorldPos('earth',   new THREE.Vector3(12, 0, 6));
+  const sunPos     = new THREE.Vector3(0, 0, 0);
+
+  // 6-keyframe 3D camera spline through the live Solar System:
+  // 0: Deep interstellar space looking toward the distant Sun
+  // 1: Sweeping inward past the outer ice giants toward Saturn
+  // 2: Close dramatic pass right over Saturn's illuminated ring plane
+  // 3: Banking past Jupiter's churning cloud bands & Great Red Spot
+  // 4: Poignant close approach to the Pale Blue Dot of Earth
+  // 5: Ascending smoothly into the grand Solar System cockpit overview
+  const CAM_KEYFRAMES = [
+    { t: 0.0,  pos: new THREE.Vector3(saturnPos.x * 2.8, 52, saturnPos.z * 2.8 + 135), look: sunPos.clone() },
+    { t: 6.5,  pos: saturnPos.clone().add(new THREE.Vector3(14, 7.5, 16)),             look: saturnPos.clone() },
+    { t: 13.0, pos: saturnPos.clone().add(new THREE.Vector3(-5.5, 2.6, 6.2)),          look: saturnPos.clone() },
+    { t: 20.0, pos: jupiterPos.clone().add(new THREE.Vector3(6.8, 2.8, 7.2)),          look: jupiterPos.clone() },
+    { t: 27.5, pos: earthPos.clone().add(new THREE.Vector3(2.8, 1.1, 3.1)),            look: earthPos.clone() },
+    { t: 34.5, pos: earthPos.clone().add(new THREE.Vector3(4.2, 2.2, 4.8)),            look: earthPos.clone() },
+    { t: 40.0, pos: new THREE.Vector3(0, 28, 55),                                      look: sunPos.clone() },
+  ];
+
+  function update3DFlyInCamera(sec) {
+    let k0 = CAM_KEYFRAMES[0], k1 = CAM_KEYFRAMES[CAM_KEYFRAMES.length - 1];
+    for (let i = 0; i < CAM_KEYFRAMES.length - 1; i++) {
+      if (sec >= CAM_KEYFRAMES[i].t && sec <= CAM_KEYFRAMES[i + 1].t) {
+        k0 = CAM_KEYFRAMES[i];
+        k1 = CAM_KEYFRAMES[i + 1];
+        break;
+      }
+    }
+    const span = Math.max(0.001, k1.t - k0.t);
+    const raw = Math.max(0, Math.min(1, (sec - k0.t) / span));
+    // Smooth cosine ease between waypoints
+    const ease = 0.5 - 0.5 * Math.cos(raw * Math.PI);
+    camera.position.lerpVectors(k0.pos, k1.pos, ease);
+    controls.target.lerpVectors(k0.look, k1.look, ease);
+    controls.update();
+  }
 
   let elapsed = 0, lastTs = null;
   let curLineIdx = -1, lineEl = null;
-
-  function getSpeed(s) {
-    if(s <  5) return 1 + s * 1.8;        // ramp up 1→10
-    if(s < 28) return 10;                  // full warp
-    return Math.max(0.5, 10-(s-28)*0.53); // slow into the solar system
-  }
 
   function endCinematic() {
     if(dead) return;
@@ -4583,20 +5580,24 @@ function runCinematic() {
       document.removeEventListener('keydown', _cineSkipKeys);
       _cineSkipKeys = null;
     }
+    if (_saganAudioEl) {
+      try { _saganAudioEl.pause(); _saganAudioEl.currentTime = 0; } catch(e){}
+      _saganAudioEl = null;
+    }
+    stopNarration();
+    setMusicDuck(false);
+    paused = _wasPaused;
+    controls.enabled = true;
     if(lineEl) lineEl.style.opacity = '0';
-    div.style.transition = 'opacity 2s ease';
+    div.style.transition = 'opacity 1.4s ease';
     div.style.opacity = '0';
-    setTimeout(() => { div.style.display = 'none'; }, 2200);
+    setTimeout(() => { div.classList.remove('active'); div.style.display = 'none'; }, 1500);
     stopCinematicScore();
-    // Land straight in the solar system after the Carl Sagan warp intro.
-    setTimeout(_enterAfterIntro, 1800);
+    setTimeout(_enterAfterIntro, 900);
   }
 
   document.getElementById('cine-skip').addEventListener('click', endCinematic, {once:true});
 
-  // A 62-second cinematic needs an unmissable exit. Escape, Space and Enter all
-  // skip it. endCinematic() detaches this itself, so it cannot leak into
-  // gameplay — Escape is the app's normal "close panel" key.
   _cineSkipKeys = (e) => {
     if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
@@ -4611,140 +5612,58 @@ function runCinematic() {
     elapsed += (ts - lastTs) / 1000;
     lastTs = ts;
 
-    const speed = getSpeed(elapsed);
+    // Move the real 3D Three.js camera along the interstellar-to-Earth spline
+    update3DFlyInCamera(elapsed);
 
-    // Trail — thicker at high speed for streak effect
-    ctx.fillStyle = `rgba(0,1,6,${Math.min(0.92, 0.14 + speed*0.075)})`;
+    // Clear 2D overlay canvas so the live 3D solar system shines through crystal clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Subtle cinematic letterbox vignette around edges for subtitle legibility
+    const vg = ctx.createRadialGradient(W*0.5, H*0.5, Math.min(W,H)*0.28, W*0.5, H*0.5, Math.max(W,H)*0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,3,14,0.58)');
+    ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
 
-    const cx = W*0.5, cy = H*0.5;
-
-    // Nebula glow during warp
-    if(speed > 3) {
-      const p = Math.min(1, (speed-3)/7);
-      const nb = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.min(W,H)*0.55);
-      nb.addColorStop(0, `rgba(8,24,72,${p*0.2})`);
-      nb.addColorStop(0.6,`rgba(4,10,30,${p*0.07})`);
-      nb.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = nb; ctx.fillRect(0,0,W,H);
-    }
-
-    // Stars with perspective projection → streaks at high speed
-    stars.forEach(s => {
-      s.pz = s.z;
-      s.z -= speed * 4.8;
-      if(s.z <= 1) {
-        s.x=(Math.random()-0.5)*2000; s.y=(Math.random()-0.5)*2000;
-        s.z=1000; s.pz=1000;
-      }
-      const sx=(s.x/s.z)*W*0.5+cx, sy=(s.y/s.z)*H*0.5+cy;
-      const px=(s.x/s.pz)*W*0.5+cx, py=(s.y/s.pz)*H*0.5+cy;
-      const bright = Math.min(1, (1000-s.z)/940 + 0.08);
-
-      if(speed > 2.5) {
-        const alpha = Math.min(0.95, bright*(speed/13));
-        // Slight blue tint at full warp → warm as slowing
-        const rb = Math.round(185 + Math.min(40, speed*2));
-        const gb = Math.round(208 + Math.min(28, speed));
-        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(sx,sy);
-        ctx.strokeStyle = `rgba(${rb},${gb},255,${alpha})`;
-        ctx.lineWidth = s.r * 0.65; ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(sx, sy, Math.max(0.3, s.r*bright), 0, Math.PI*2);
-        ctx.fillStyle = `rgba(210,228,255,${bright*0.88})`;
-        ctx.fill();
-      }
-    });
-
-    // Dust particles during warp — adds sense of passing through clouds
-    if(speed > 4 && elapsed < 50) {
-      const pCount = Math.floor(speed * 1.5);
-      for(let i = 0; i < pCount; i++) {
-        const px = Math.random() * W, py = Math.random() * H;
-        const dist = Math.hypot(px - cx, py - cy) / Math.max(W, H);
-        const alpha = (1 - dist) * 0.08 * Math.random();
-        ctx.beginPath();
-        ctx.arc(px, py, Math.random() * 1.5 + 0.3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(140,180,255,${alpha})`;
-        ctx.fill();
-      }
-    }
-
-    // Sun materialises as we slow into the solar system (t > 36)
-    if(elapsed > 36) {
-      const prog = Math.min(1, (elapsed-36)/18);
-      const sr = Math.min(W,H)*0.05*prog;
-      if(sr > 0) {
-        // Outer corona — huge soft glow
-        const corona = ctx.createRadialGradient(cx,cy,0,cx,cy,sr*10);
-        corona.addColorStop(0, `rgba(255,220,120,${prog*0.15})`);
-        corona.addColorStop(0.2,`rgba(255,160,40,${prog*0.08})`);
-        corona.addColorStop(0.5,`rgba(255,80,20,${prog*0.03})`);
-        corona.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = corona; ctx.fillRect(0,0,W,H);
-
-        // Inner glow
-        const glow = ctx.createRadialGradient(cx,cy,0,cx,cy,sr*6);
-        glow.addColorStop(0, `rgba(255,240,140,${prog*0.5})`);
-        glow.addColorStop(0.3,`rgba(255,140,30,${prog*0.15})`);
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = glow; ctx.fillRect(0,0,W,H);
-
-        // Sun body
-        const sg = ctx.createRadialGradient(cx-sr*.22,cy-sr*.22,0,cx,cy,sr);
-        sg.addColorStop(0,'#fffde8'); sg.addColorStop(0.4,'#ffdd60');
-        sg.addColorStop(0.8,'#ff8800'); sg.addColorStop(1,'rgba(160,40,0,0)');
-        ctx.beginPath(); ctx.arc(cx,cy,sr*(1+Math.sin(elapsed*1.8)*0.018),0,Math.PI*2);
-        ctx.fillStyle = sg; ctx.fill();
-
-        // Lens flare rays
-        if(prog > 0.3) {
-          const rayAlpha = (prog - 0.3) * 0.3;
-          ctx.save();
-          ctx.translate(cx, cy);
-          for(let r = 0; r < 6; r++) {
-            ctx.rotate(Math.PI / 3);
-            const rayGrad = ctx.createLinearGradient(0, 0, sr * 4, 0);
-            rayGrad.addColorStop(0, `rgba(255,240,180,${rayAlpha})`);
-            rayGrad.addColorStop(0.5, `rgba(255,200,100,${rayAlpha * 0.3})`);
-            rayGrad.addColorStop(1, 'rgba(255,180,80,0)');
-            ctx.beginPath();
-            ctx.moveTo(0, -sr * 0.08);
-            ctx.lineTo(sr * 4 * prog, 0);
-            ctx.lineTo(0, sr * 0.08);
-            ctx.fillStyle = rayGrad;
-            ctx.fill();
-          }
-          ctx.restore();
+    // Subtle interstellar warp streaks during the initial high-speed approach (0-12s)
+    if (elapsed < 14) {
+      const warpIntensity = Math.max(0, 1 - elapsed / 14);
+      const speed = 1.5 + warpIntensity * 7.5;
+      const cx = W * 0.5, cy = H * 0.5;
+      stars.forEach(s => {
+        s.pz = s.z;
+        s.z -= speed * 4.2;
+        if (s.z <= 1) {
+          s.x = (Math.random()-0.5)*1600;
+          s.y = (Math.random()-0.5)*1600;
+          s.z = 1000; s.pz = 1000;
         }
-
-        // Chromatic ring
-        if(prog > 0.5) {
-          const ringAlpha = (prog - 0.5) * 0.2;
-          ctx.beginPath();
-          ctx.arc(cx, cy, sr * 1.5, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(100,200,255,${ringAlpha})`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
+        const sx = (s.x/s.z)*W*0.5+cx, sy = (s.y/s.z)*H*0.5+cy;
+        const px = (s.x/s.pz)*W*0.5+cx, py = (s.y/s.pz)*H*0.5+cy;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
+        ctx.strokeStyle = `rgba(185,225,255,${(warpIntensity * 0.45).toFixed(3)})`;
+        ctx.lineWidth = s.r * 0.6;
+        ctx.stroke();
+      });
     }
 
     // Progress bar
-    if(progEl) progEl.style.width = (elapsed/TOTAL*100).toFixed(1)+'%';
+    if(progEl) progEl.style.width = Math.min(100, (elapsed/TOTAL*100)).toFixed(1)+'%';
 
-    // Manage text lines
+    // Manage Pale Blue Dot subtitle lines + English voice sync
     for(let i=0; i<SCRIPT.length; i++) {
-      const [startAt, text] = SCRIPT[i];
-      const hideAt = (i < SCRIPT.length-1) ? SCRIPT[i+1][0]-1.2 : startAt+7.0;
+      const [startAt, htmlText, spokenText] = SCRIPT[i];
+      const hideAt = (i < SCRIPT.length-1) ? SCRIPT[i+1][0]-0.45 : TOTAL - 0.5;
 
       if(elapsed >= startAt && elapsed < hideAt) {
         if(curLineIdx !== i) {
           curLineIdx = i;
-          textDiv.innerHTML = `<div class="cine-line">${text}</div>`;
+          textDiv.innerHTML = `<div class="cine-line">${htmlText}<div style="font-size:11px;letter-spacing:.22em;color:rgba(0,212,255,.65);margin-top:10px;font-family:Orbitron,sans-serif">— CARL SAGAN · PALE BLUE DOT</div></div>`;
           lineEl = textDiv.querySelector('.cine-line');
           requestAnimationFrame(() => lineEl && lineEl.classList.add('show'));
+          if (!_usingExternalSaganAudio && spokenText) {
+            speakNarration(spokenText, { rate: 0.86, pitch: 0.88 });
+          }
         }
       } else if(curLineIdx === i && elapsed >= hideAt) {
         if(lineEl) lineEl.classList.remove('show');
@@ -4767,196 +5686,71 @@ function runCinematic() {
     if(ambientMaster) {
       ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
       ambientMaster.gain.setValueAtTime(0, audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime+5);
+      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime+4);
     }
-    const btn = document.getElementById('audio-btn');
-    btn.innerHTML = '&#128266;'; btn.classList.add('active');
-    // Start the cinematic score
     playCinematicScore();
   }
 }
 
-// ─── CINEMATIC SCORE — Epic & Mysterious ─────────────────────────────────────
-// Design: "The Adventure Begins" — opens in vast silence then builds through
-// a heroic Em minor journey. Act I (0-20s): cosmic mystery. Act II (20-42s):
-// rising excitement — you feel the scale of the universe. Act III (42-62s):
-// triumphant wonder, like launching into the stars for the first time.
-// Key: E minor. Uses brass-like sawtooth pads, deep sub-bass, bell overtones.
+// ─── CINEMATIC SCORE — Warm Orchestral Swell (Zero Static Noise) ──────────────
 let cinematicScoreNodes = [];
 function playCinematicScore() {
   if(!audioCtx) return;
   const t = audioCtx.currentTime;
   const nodes = [];
 
-  // Master — fades in over 6s, peaks at 0.32, holds then fades out at 58s
   const scoreMaster = audioCtx.createGain();
+  const peakGain = 0.24 * masterUserVolume;
   scoreMaster.gain.setValueAtTime(0, t);
-  scoreMaster.gain.linearRampToValueAtTime(0.32, t + 12);
-  scoreMaster.gain.setValueAtTime(0.32, t + 54);
-  scoreMaster.gain.linearRampToValueAtTime(0, t + 63);
+  scoreMaster.gain.linearRampToValueAtTime(peakGain, t + 6);
+  scoreMaster.gain.setValueAtTime(peakGain, t + 33);
+  scoreMaster.gain.linearRampToValueAtTime(0, t + 41);
   scoreMaster.connect(audioCtx.destination);
 
-  // Grand cathedral reverb — vast, cathedral-of-space scale
-  const cineReverb = createReverb(audioCtx, 12, 3.2);
-  const revG = audioCtx.createGain(); revG.gain.value = 0.78;
+  const cineReverb = createReverb(audioCtx, 9, 2.8);
+  const revG = audioCtx.createGain(); revG.gain.value = 0.72;
   cineReverb.connect(revG); revG.connect(scoreMaster);
-  const dry = audioCtx.createGain(); dry.gain.value = 0.36; dry.connect(scoreMaster);
+  const dry = audioCtx.createGain(); dry.gain.value = 0.30; dry.connect(scoreMaster);
 
-  // ── ACT I: COSMIC MYSTERY (0-20s) ─────────────────────────────────────────
-  // Sub-bass pedal on E1 (41.2 Hz) — the weight of the cosmos felt in your chest
-  [41.2, 82.4].forEach((freq, i) => {
+  // Deep warm sub-bass pedal (C1 / G1)
+  [32.70, 65.41].forEach((freq, i) => {
     const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
     const filt = audioCtx.createBiquadFilter();
     osc.type = 'sine'; osc.frequency.value = freq;
-    filt.type = 'lowpass'; filt.frequency.value = 100; filt.Q.value = 0.4;
+    filt.type = 'lowpass'; filt.frequency.value = 110; filt.Q.value = 0.4;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(i===0 ? 0.22 : 0.12, t + 9);
-    g.gain.setValueAtTime(i===0 ? 0.22 : 0.12, t + 52);
-    g.gain.linearRampToValueAtTime(0, t + 63);
+    g.gain.linearRampToValueAtTime(i===0 ? 0.18 : 0.10, t + 5);
+    g.gain.setValueAtTime(i===0 ? 0.18 : 0.10, t + 34);
+    g.gain.linearRampToValueAtTime(0, t + 41);
     osc.connect(filt); filt.connect(g); g.connect(dry);
-    osc.start(t); osc.stop(t + 64); nodes.push(osc);
+    osc.start(t); osc.stop(t + 42); nodes.push(osc);
   });
 
-  // Mystery shimmer: very high filtered noise texture — "deep space static"
-  {
-    const noiseLen = Math.ceil(audioCtx.sampleRate * 63);
-    const nbuf = audioCtx.createBuffer(1, noiseLen, audioCtx.sampleRate);
-    const nd = nbuf.getChannelData(0);
-    for(let i=0; i<noiseLen; i++) nd[i] = Math.random()*2-1;
-    const nSrc = audioCtx.createBufferSource(); nSrc.buffer = nbuf;
-    const nHp = audioCtx.createBiquadFilter(); nHp.type='highpass'; nHp.frequency.value=3000;
-    const nLp = audioCtx.createBiquadFilter(); nLp.type='lowpass'; nLp.frequency.value=8000;
-    const nG = audioCtx.createGain();
-    nG.gain.setValueAtTime(0, t); nG.gain.linearRampToValueAtTime(0.009, t+8);
-    nG.gain.setValueAtTime(0.009, t+56); nG.gain.linearRampToValueAtTime(0,t+62);
-    nSrc.connect(nHp); nHp.connect(nLp); nLp.connect(nG); nG.connect(cineReverb);
-    nSrc.start(t); nSrc.stop(t+63); nodes.push(nSrc);
-  }
-
-  // Opening string swell: slow Em chord (E2-G2-B2) bowing in from silence
-  // Sawtooth + heavy lowpass = cello/viola warmth
-  [[82.4,'E2',0.5],[98.0,'G2',1.2],[123.47,'B2',2.1]].forEach(([freq,,delay]) => {
-    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-    const filt = audioCtx.createBiquadFilter();
-    osc.type = 'sawtooth'; osc.frequency.value = freq;
-    osc.detune.value = (Math.random()-0.5)*8;
-    filt.type = 'lowpass';
-    filt.frequency.setValueAtTime(120, t+delay);
-    filt.frequency.linearRampToValueAtTime(480, t+delay+7);
-    filt.Q.value = 0.6;
-    g.gain.setValueAtTime(0, t+delay);
-    g.gain.linearRampToValueAtTime(0.04, t+delay+4);
-    g.gain.setValueAtTime(0.04, t+18); g.gain.linearRampToValueAtTime(0,t+26);
-    osc.connect(filt); filt.connect(g); g.connect(cineReverb); g.connect(dry);
-    osc.start(t+delay); osc.stop(t+27); nodes.push(osc);
-  });
-
-  // ── Mystery motif — four notes, like asking "what's out there?"
-  // E3(164.81) → G3(196) → B3(246.94) → D4(293.66) — ascending Em arpeggio
-  [{freq:164.81,s:5,v:0.055},{freq:196,s:10,v:0.06},{freq:246.94,s:15,v:0.065},{freq:293.66,s:20,v:0.06}]
-  .forEach(note => {
-    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-    const filt = audioCtx.createBiquadFilter();
-    osc.type = 'triangle'; osc.frequency.value = note.freq;
-    osc.detune.value = (Math.random()-0.5)*5;
-    filt.type='lowpass'; filt.frequency.value=900; filt.Q.value=0.8;
-    g.gain.setValueAtTime(0, t+note.s);
-    g.gain.linearRampToValueAtTime(note.v, t+note.s+2.2);
-    g.gain.linearRampToValueAtTime(0, t+note.s+9);
-    osc.connect(filt); filt.connect(g); g.connect(cineReverb); g.connect(dry);
-    osc.start(t+note.s); osc.stop(t+note.s+10); nodes.push(osc);
-  });
-
-  // ── ACT II: BUILDING ADVENTURE (20-42s) ────────────────────────────────────
-  // Brass-like pad swells — sawtooth with steep filter envelope opening up
-  // Em → C → G → D progression (classic epic cinematic)
-  const BRASS_CHORDS = [
-    // Em: E2 G2 B2 E3
-    {freqs:[82.4,98.0,123.47,164.81], start:20, dur:10},
-    // C maj: C2 E2 G2 C3
-    {freqs:[65.41,82.4,98.0,130.81], start:30, dur:7},
-    // G maj: G2 B2 D3 G3
-    {freqs:[98.0,123.47,146.83,196], start:37, dur:6},
+  // Warm evolving string/pad chords: Cmaj9 → Em7 → Fmaj9 → G6
+  const CINE_CHORDS = [
+    { freqs: [130.81, 164.81, 196.00, 246.94, 293.66], start: 0,  dur: 11 },
+    { freqs: [164.81, 196.00, 246.94, 293.66, 329.63], start: 10, dur: 11 },
+    { freqs: [174.61, 220.00, 261.63, 329.63, 392.00], start: 20, dur: 11 },
+    { freqs: [130.81, 196.00, 261.63, 329.63, 493.88], start: 30, dur: 11 },
   ];
-  BRASS_CHORDS.forEach(({freqs, start, dur}) => {
+  CINE_CHORDS.forEach(({ freqs, start, dur }) => {
     freqs.forEach((freq, vi) => {
       const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
       const filt = audioCtx.createBiquadFilter();
-      osc.type = 'sawtooth'; osc.frequency.value = freq;
-      osc.detune.value = (Math.random()-0.5)*10;
+      osc.type = vi < 2 ? 'sine' : 'triangle';
+      osc.frequency.value = freq;
+      osc.detune.value = (vi - 2) * 3.5;
       filt.type = 'lowpass';
-      filt.frequency.setValueAtTime(180, t+start+vi*0.3);
-      filt.frequency.linearRampToValueAtTime(900+vi*120, t+start+dur*0.6);
-      filt.frequency.linearRampToValueAtTime(400, t+start+dur);
-      filt.Q.value = 0.5;
-      g.gain.setValueAtTime(0, t+start+vi*0.3);
-      g.gain.linearRampToValueAtTime(0.028+vi*0.004, t+start+2.5);
-      g.gain.setValueAtTime(0.028+vi*0.004, t+start+dur-1.5);
-      g.gain.linearRampToValueAtTime(0, t+start+dur);
+      filt.frequency.setValueAtTime(240, t + start);
+      filt.frequency.linearRampToValueAtTime(580 + vi * 70, t + start + dur * 0.5);
+      filt.Q.value = 0.45;
+      g.gain.setValueAtTime(0, t + start);
+      g.gain.linearRampToValueAtTime(0.026, t + start + 2.5);
+      g.gain.setValueAtTime(0.026, t + start + dur - 2.0);
+      g.gain.linearRampToValueAtTime(0, t + start + dur);
       osc.connect(filt); filt.connect(g); g.connect(cineReverb); g.connect(dry);
-      osc.start(t+start); osc.stop(t+start+dur+0.5); nodes.push(osc);
+      osc.start(t + start); osc.stop(t + start + dur + 0.5); nodes.push(osc);
     });
-  });
-
-  // Rising excitement arpeggio — faster than Act I, light and sparkling
-  // Em pentatonic: E4(329.63) G4(392) B4(493.88) E5(659.26) B4 G4
-  const arpPhrase = [329.63, 392, 493.88, 659.26, 493.88, 392, 329.63, 392, 493.88];
-  arpPhrase.forEach((freq, i) => {
-    const delay = 21 + i * 1.8;
-    if(delay > 40) return;
-    [1, 2].forEach(cycle => {
-      const d = delay + (cycle-1) * (arpPhrase.length * 1.8);
-      if(d > 42) return;
-      const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-      osc.type='sine'; osc.frequency.value=freq;
-      g.gain.setValueAtTime(0, t+d);
-      g.gain.linearRampToValueAtTime(0.028, t+d+0.6);
-      g.gain.exponentialRampToValueAtTime(0.001, t+d+3.2);
-      osc.connect(g); g.connect(cineReverb);
-      osc.start(t+d); osc.stop(t+d+3.5); nodes.push(osc);
-    });
-  });
-
-  // ── ACT III: TRIUMPHANT WONDER (42-62s) ────────────────────────────────────
-  // Full Em → G → C → D heroic swell — this is "you are about to launch into space"
-  [[82.4,0],[123.47,0.6],[164.81,1.2],[196,1.8],[246.94,2.4],[329.63,3.0]].forEach(([freq,d]) => {
-    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-    const filt = audioCtx.createBiquadFilter();
-    osc.type = freq < 200 ? 'sawtooth' : 'triangle';
-    osc.frequency.value = freq;
-    osc.detune.value = (Math.random()-0.5)*8;
-    filt.type='lowpass';
-    filt.frequency.setValueAtTime(200, t+42+d);
-    filt.frequency.linearRampToValueAtTime(2200, t+52+d);
-    filt.Q.value = 0.45;
-    g.gain.setValueAtTime(0, t+42+d);
-    g.gain.linearRampToValueAtTime(0.035, t+46+d);
-    g.gain.setValueAtTime(0.035, t+56); g.gain.linearRampToValueAtTime(0, t+63);
-    osc.connect(filt); filt.connect(g); g.connect(cineReverb); g.connect(dry);
-    osc.start(t+42+d); osc.stop(t+64); nodes.push(osc);
-  });
-
-  // Bell shimmer finale — celestial, hopeful, like starlight
-  [659.26, 880, 1046.5, 1318.5, 1760].forEach((freq, i) => {
-    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
-    osc.type='sine'; osc.frequency.value=freq;
-    const at = t + 44 + i * 1.4;
-    g.gain.setValueAtTime(0, at);
-    g.gain.linearRampToValueAtTime(0.028/(i+1), at+0.08);
-    g.gain.exponentialRampToValueAtTime(0.001, at+5.5);
-    osc.connect(g); g.connect(cineReverb);
-    osc.start(at); osc.stop(at+6); nodes.push(osc);
-    // Echo repeat
-    if(at + 8 < t + 62) {
-      const osc2=audioCtx.createOscillator(), g2=audioCtx.createGain();
-      osc2.type='sine'; osc2.frequency.value=freq;
-      const at2=at+8;
-      g2.gain.setValueAtTime(0,at2);
-      g2.gain.linearRampToValueAtTime(0.016/(i+1), at2+0.08);
-      g2.gain.exponentialRampToValueAtTime(0.001, at2+4.5);
-      osc2.connect(g2); g2.connect(cineReverb);
-      osc2.start(at2); osc2.stop(at2+5); nodes.push(osc2);
-    }
   });
 
   cinematicScoreNodes = nodes;
@@ -4964,14 +5758,15 @@ function playCinematicScore() {
 }
 
 function stopCinematicScore() {
-  if(cinematicScoreNodes._master) {
+  if(cinematicScoreNodes._master && audioCtx) {
     const t = audioCtx.currentTime;
-    cinematicScoreNodes._master.gain.linearRampToValueAtTime(0, t + 2.5);
+    cinematicScoreNodes._master.gain.cancelScheduledValues(t);
+    cinematicScoreNodes._master.gain.linearRampToValueAtTime(0, t + 1.8);
   }
   setTimeout(() => {
     cinematicScoreNodes.forEach(n => { try { n.stop(); } catch(e){} });
     cinematicScoreNodes = [];
-  }, 3000);
+  }, 2000);
 }
 
 // ─── GUIDED TOUR: COSMOS-STYLE NARRATION ─────────────────────────────────────
@@ -5526,10 +6321,13 @@ function stopTourAudio() {
   }, 2500);
 }
 
-window.openTourLightbox = function(src) {
-  const lb = document.getElementById('tour-lightbox');
-  document.getElementById('tour-lightbox-img').src = resolveMissionPhoto(src);
-  lb.classList.add('show');
+window.openTourLightbox = function(src, caption='') {
+  openLightboxCarousel([{
+    url: resolveMissionPhoto(src, caption),
+    title: caption || 'Solar System Reconnaissance',
+    caption: caption || 'High-resolution planetary & mission imagery',
+    credit: 'NASA / JPL-Caltech / Solar Explorer'
+  }], 0);
 };
 
 // Tour event listeners
@@ -5550,9 +6348,6 @@ document.getElementById('tour-prev').addEventListener('click', () => {
   if(tourStopIdx > 0) showTourStop(tourStopIdx - 1);
 });
 document.getElementById('tour-exit').addEventListener('click', endTour);
-document.getElementById('tour-lightbox').addEventListener('click', () => {
-  document.getElementById('tour-lightbox').classList.remove('show');
-});
 
 // ─── FLOATING SPACE QUOTES ───────────────────────────────────────────────────
 const SPACE_QUOTES = [
@@ -5690,8 +6485,8 @@ setTimeout(createComet, 15000);
     '5':'jupiter','6':'saturn','7':'uranus','8':'neptune','9':'pluto','0':'sun'
   };
   document.addEventListener('keydown', e => {
-    // Don't fire when typing in an input/textarea
-    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    // Don't fire when typing in an input/textarea/select
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     // Skip if quiz modal is open
     if(document.getElementById('quiz-modal').classList.contains('open')) return;
     // Skip while the warp intro or cinematic premiere is playing.
@@ -5709,10 +6504,6 @@ setTimeout(createComet, 15000);
         }
         closePanel(); break;
       case 't': case 'T':
-        // Toggle, matching #tour-btn. Calling startTour() unconditionally
-        // re-ran playTourAmbience(), which reassigns tourScoreGain and pushes a
-        // second bank of ~12 oscillators — the orphaned gain node stays wired to
-        // the destination at full level, so ambience volume stacked per keypress.
         closeSideMenu(); if(tourActive) endTour(); else startTour(); break;
       case 'r': case 'R':
         document.getElementById('rocket-mode-btn').click(); break;
@@ -5724,6 +6515,8 @@ setTimeout(createComet, 15000);
         document.getElementById('scale-toggle').click(); break;
       case 'g': case 'G':
         toggleGravityWell(false); break;
+      case 'f': case 'F':
+        toggleHumanFrontier(); break;
       case 'p': case 'P':
         document.getElementById('tc-play').click();
         showToast(paused ? 'ORBITS PAUSED' : 'ORBITS RESUMED', paused ? 'Press P to resume orbital motion' : 'Simulating planetary orbits', paused ? '⏸' : '▶');
@@ -5759,7 +6552,6 @@ function surpriseMe() {
 document.getElementById('surprise-btn').addEventListener('click', ()=>{ surpriseMe(); });
 
 // ─── AMBIENT SOUND INDICATOR ──────────────────────────────────────────────────
-
 function showAmbientIndicator(label) {
   const ind = document.getElementById('ambient-indicator');
   const lbl = document.getElementById('ambient-label');
@@ -5770,10 +6562,6 @@ function showAmbientIndicator(label) {
   ind._hideTimer = setTimeout(()=>ind.classList.remove('show'), 3500);
 }
 
-// Hook into openPlanet to show ambient indicator
-const _origOpenPlanet = window.openPlanet || openPlanet;
-// We patch at source instead — call showAmbientIndicator from openPlanet directly
-// Patch: trigger ambient indicator when panel opens
 const _panelObserver = new MutationObserver(() => {
   const panel = document.getElementById('info-panel');
   if(panel.classList.contains('open') && currentPlanet) {
@@ -5791,7 +6579,6 @@ animate();
   const TOTAL_STEPS = 4;
   let hintStep = 0;
 
-  // Build progress dots (clickable so users can jump between steps)
   const dotsEl = document.getElementById('hint-dots');
   for(let i = 0; i < TOTAL_STEPS; i++) {
     const d = document.createElement('div');
@@ -5840,9 +6627,8 @@ animate();
     el.classList.add('show');
   };
 
-  // Also allow re-triggering from keyboard (H key)
   document.addEventListener('keydown', e => {
-    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     if(document.getElementById('quiz-modal').classList.contains('open')) return;
     if(_introActive || _cinActive) return;
     if(e.key === 'h' || e.key === 'H') {
@@ -5858,29 +6644,110 @@ animate();
   });
 })();
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// VOICE NARRATION — Web Speech API (free, no hosting, runs in browser)
+// VOICE NARRATION — STRICT ENGLISH-ONLY VOICE FILTER + HUD SELECTOR + DUCKING
 // ═══════════════════════════════════════════════════════════════════════════════
 let _voiceEnabled = true;
 let _bestVoice = null;
+let _englishVoices = [];
 
 function _initVoices() {
   if (!window.speechSynthesis) return;
+  const selectEl = document.getElementById('voice-select');
+
   const load = () => {
-    const voices = window.speechSynthesis.getVoices();
-    // Prefer deeper/male voices for a space-documentary narrator feel.
-    // Falls back to any English voice if none of these are available.
-    const prefs = ['Google UK English Male','Microsoft David','Daniel','Alex','Fred',
-                   'Google US English','Google UK English Female','Samantha','Karen'];
-    for (const p of prefs) {
-      const v = voices.find(v => v.name.includes(p));
-      if (v) { _bestVoice = v; break; }
+    const allVoices = window.speechSynthesis.getVoices() || [];
+    // STRICT ENGLISH FILTER: Only allow voices whose lang starts with 'en' (en-US, en-GB, en-AU, etc.)
+    // and explicitly exclude any voice whose name/lang references Spanish or non-English locales.
+    _englishVoices = allVoices.filter(v => {
+      if (!v || !v.lang) return false;
+      const langNorm = v.lang.replace('_', '-').toLowerCase();
+      if (!langNorm.startsWith('en-') && langNorm !== 'en') return false;
+      const nameLower = (v.name || '').toLowerCase();
+      if (nameLower.includes('spanish') || nameLower.includes('español') || nameLower.includes('helena') || nameLower.includes('sabina') || nameLower.includes('pablo')) return false;
+      return true;
+    });
+
+    // Priority ranking for natural, expressive English narrator voices
+    const prefs = [
+      'Microsoft Aria Online (Natural)',
+      'Microsoft Sonia Online (Natural)',
+      'Microsoft Guy Online (Natural)',
+      'Microsoft Jenny Online (Natural)',
+      'Microsoft Ryan Online (Natural)',
+      'Microsoft Brian Online (Natural)',
+      'Microsoft Andrew Online (Natural)',
+      'Google UK English Male',
+      'Google UK English Female',
+      'Google US English',
+      'Samantha',
+      'Daniel',
+      'Alex',
+      'Microsoft Zira',
+      'Microsoft Mark',
+      'Microsoft David'
+    ];
+
+    let savedVoiceName = '';
+    try { savedVoiceName = localStorage.getItem('ue_voice_name') || ''; } catch(e){}
+
+    let chosen = null;
+    if (savedVoiceName) {
+      chosen = _englishVoices.find(v => v.name === savedVoiceName) || null;
     }
-    if (!_bestVoice) _bestVoice = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0] || null;
+    if (!chosen) {
+      for (const p of prefs) {
+        const match = _englishVoices.find(v => v.name.includes(p));
+        if (match) { chosen = match; break; }
+      }
+    }
+    // Fallback ONLY within _englishVoices — never fall back to allVoices[0] (which can be Spanish!)
+    if (!chosen && _englishVoices.length > 0) {
+      chosen = _englishVoices[0];
+    }
+    _bestVoice = chosen;
+
+    if (selectEl) {
+      selectEl.innerHTML = '';
+      if (_englishVoices.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '🗣 English AI Voice (Default)';
+        selectEl.appendChild(opt);
+      } else {
+        // Sort natural/online voices to top of dropdown
+        const sorted = [..._englishVoices].sort((a, b) => {
+          const aNat = /natural|online|google|samantha|daniel/i.test(a.name) ? 0 : 1;
+          const bNat = /natural|online|google|samantha|daniel/i.test(b.name) ? 0 : 1;
+          if (aNat !== bNat) return aNat - bNat;
+          return a.name.localeCompare(b.name);
+        });
+        sorted.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.name;
+          const cleanName = v.name.replace(/^Microsoft\s+/i, '').replace(/\s+Online\s+\(Natural\)/i, ' ★').replace(/\s*-\s*English.*$/i, '');
+          opt.textContent = `🗣 ${cleanName} (${v.lang})`;
+          if (_bestVoice && v.name === _bestVoice.name) opt.selected = true;
+          selectEl.appendChild(opt);
+        });
+      }
+    }
   };
+
+  if (selectEl) {
+    selectEl.addEventListener('change', (e) => {
+      const picked = _englishVoices.find(v => v.name === e.target.value);
+      if (picked) {
+        _bestVoice = picked;
+        try { localStorage.setItem('ue_voice_name', picked.name); } catch(err){}
+        showToast('Narrator Voice Updated', picked.name, '🗣');
+        speakNarration(`Ship AI voice calibrated. Ready to explore the cosmos.`, { rate: 0.96, pitch: 1.0 });
+      }
+    });
+  }
+
   if (window.speechSynthesis.getVoices().length) load();
-  else window.speechSynthesis.addEventListener('voiceschanged', load, {once:true});
+  window.speechSynthesis.addEventListener('voiceschanged', load);
 }
 _initVoices();
 
@@ -5892,120 +6759,565 @@ function speakNarration(text, opts) {
   const o = opts || {};
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
-  if (_bestVoice) utt.voice = _bestVoice;
-  utt.rate   = o.rate   !== undefined ? o.rate   : 0.87;
-  utt.pitch  = o.pitch  !== undefined ? o.pitch  : 0.9;
-  utt.volume = o.volume !== undefined ? o.volume : 0.9;
-  if (o.onend)  utt.onend  = o.onend;
-  if (o.onerror) utt.onerror = o.onerror;
+  // Always enforce English locale so browser never synthesizes with a Spanish accent
+  if (_bestVoice) {
+    utt.voice = _bestVoice;
+    utt.lang = _bestVoice.lang || 'en-US';
+  } else {
+    utt.lang = 'en-US';
+  }
+  utt.rate   = o.rate   !== undefined ? o.rate   : 0.92;
+  utt.pitch  = o.pitch  !== undefined ? o.pitch  : 0.96;
+  utt.volume = o.volume !== undefined ? o.volume : 0.95;
+
+  // Duck background music by 80% while voiceover speaks
+  setMusicDuck(true);
+
+  utt.onend = () => {
+    setMusicDuck(false);
+    if (o.onend) o.onend();
+  };
+  utt.onerror = () => {
+    setMusicDuck(false);
+    if (o.onerror) o.onerror();
+  };
   window.speechSynthesis.speak(utt);
   return utt;
 }
 
 function stopNarration() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
+  setMusicDuck(false);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TALKING PLANETS
+// FIRST-PERSON "HEAR ME SPEAK" PLANETS, MOONS, MISSIONS & HUMAN FRONTIER
+// Tailored dynamically to the selected Explorer Tier (kids / cadet / director)
 // ═══════════════════════════════════════════════════════════════════════════════
-// Each body speaks for itself, in its own voice. The only thing separating
-// Jupiter from Mercury is a rate/pitch pair on the same Web Speech voice — no
-// extra assets, no downloads, but it reads as genuinely different characters:
-// Jupiter slow and booming, Mercury quick and bright, Pluto small and hopeful.
-//
-// First person matters here. "Jupiter has 95 moons" is a fact to memorise;
-// "I have ninety-five moons, and I'm still finding new ones" is a character
-// telling you something. That difference is the whole point.
 const PLANET_VOICES = {
-  sun:     { rate:0.72, pitch:0.45, lines:[
-    "I am the Sun. I have been burning for four and a half billion years, and I am only halfway through my life.",
-    "Every second, I turn six hundred and twenty million tonnes of hydrogen into helium. You feel that as warmth on your face.",
-    "One point three million Earths would fit inside me. And yet I am an ordinary star. There are billions like me in this galaxy alone.",
-    "The light landing in your eyes right now left me eight minutes ago. You are always seeing me slightly in the past." ]},
-  mercury: { rate:1.18, pitch:1.30, lines:[
-    "I'm Mercury, the smallest planet and the closest to the Sun. I race around it in just eighty-eight days.",
-    "You would think I'd be the hottest, but I'm not. I have almost no atmosphere to hold heat, so my nights fall to minus one hundred and eighty degrees.",
-    "One of my days lasts fifty-nine Earth days. Sunrise here takes its time.",
-    "I'm covered in craters because I have no air to burn up incoming rocks. Every scar I've ever taken is still visible." ]},
-  venus:   { rate:0.92, pitch:1.12, lines:[
-    "I'm Venus. People call me Earth's twin, but I am nothing like your home.",
-    "My air is thick carbon dioxide and my clouds are sulphuric acid. The pressure at my surface would crush a submarine.",
-    "I am the hottest planet — four hundred and sixty-five degrees, everywhere, all the time. Hotter than Mercury, though I'm further away.",
-    "I spin backwards, and so slowly that my day is longer than my year. My sunrise comes in the west." ]},
-  earth:   { rate:0.95, pitch:1.0,  lines:[
-    "I'm Earth. I'm the only place in the universe where anyone is known to be listening.",
-    "Seventy-one percent of me is ocean, and I'm the only world where water sits stable as liquid, ice and vapour all at once.",
-    "My atmosphere is a fifth oxygen — made almost entirely by living things. Life did not just appear on me. Life rebuilt me.",
-    "I have one Moon, and it's enormous for my size. It steadies my tilt, and without it your seasons would wander." ]},
-  mars:    { rate:0.94, pitch:0.86, lines:[
-    "I'm Mars. I'm cold, dry and rust-red — my soil is full of iron oxide.",
-    "I have the tallest volcano in the solar system. Olympus Mons is twenty-two kilometres high, nearly three times your Everest.",
-    "I once had rivers, lakes and possibly an ocean. You can still read the channels they cut into me.",
-    "There are working robots on my surface right now. I am the only planet besides Earth that is currently inhabited — by machines." ]},
-  jupiter: { rate:0.70, pitch:0.42, lines:[
-    "I am Jupiter. I am more massive than every other planet combined, twice over.",
-    "My Great Red Spot is a storm wider than the whole Earth, and it has been turning for at least three hundred and fifty years.",
-    "I have ninety-five known moons, and we keep finding more. Ganymede is larger than the planet Mercury.",
-    "I am mostly hydrogen and helium, with no solid surface to land on. Fall into me and you would simply keep falling, until the pressure crushed you.",
-    "I shield you. My gravity catches comets that might otherwise have struck the inner planets." ]},
-  saturn:  { rate:0.80, pitch:0.62, lines:[
-    "I am Saturn, and my rings are made of billions of pieces of ice and rock, most no bigger than your hand.",
-    "My rings stretch two hundred and eighty thousand kilometres across, yet they are often only about ten metres thick. Impossibly thin.",
-    "I am the least dense planet. If you could find an ocean vast enough, I would float on it.",
-    "My moon Titan has rivers, lakes and rain — but they are liquid methane, not water. It is the only other world with weather like yours.",
-    "At my north pole there is a spinning hexagon of cloud, thirty thousand kilometres wide. Nobody is entirely sure why it is a hexagon." ]},
-  uranus:  { rate:0.86, pitch:0.72, lines:[
-    "I am Uranus, and I am tipped completely on my side. I roll around the Sun instead of spinning upright.",
-    "Something enormous struck me long ago and knocked me over. My poles now take turns facing the Sun for forty-two years at a time.",
-    "I am the coldest planet — minus two hundred and twenty-four degrees — even though Neptune sits further out.",
-    "Only one spacecraft has ever visited me. Voyager 2 passed by in 1986, and no one has been back since." ]},
-  neptune: { rate:0.84, pitch:0.66, lines:[
-    "I am Neptune, the farthest planet from the Sun. Sunlight reaches me nine hundred times fainter than it reaches Earth.",
-    "My winds are the fastest in the solar system — over two thousand kilometres an hour, faster than the speed of sound on Earth.",
-    "I was found by mathematics before anyone saw me. Astronomers predicted exactly where to point the telescope, and there I was.",
-    "One of my years lasts one hundred and sixty-five Earth years. I have completed only one orbit since humans discovered me." ]},
-  pluto:   { rate:1.02, pitch:1.22, lines:[
-    "I'm Pluto. I was called the ninth planet for seventy-six years, and now I'm a dwarf planet. I don't mind — there are others like me out here.",
-    "I have a frozen heart. It's a plain of nitrogen ice called Tombaugh Regio, and it's the size of Texas.",
-    "My moon Charon is half my width. We're so close in size that we orbit each other, like a pair spinning while holding hands.",
-    "I'm so far away that one of my years is two hundred and forty-eight Earth years. I haven't finished a single orbit since I was discovered.",
-    "In 2015, New Horizons flew past me after nine and a half years of travel. For one day, somebody finally saw my face." ]},
+  sun: {
+    rate: 0.86, pitch: 0.78,
+    tiers: {
+      kids: [
+        "Hi there, young explorer! I am the Sun, the giant glowing star right in the middle of our solar system! I'm so huge that one point three million planet Earths could fit inside my belly. Every single second, I squeeze hydrogen gas together in my core to make the warm sunshine that lights up your day, grows every tree and flower on Earth, and keeps all the planets cozy in my gravity hug!",
+        "Want to hear a cool secret about me? The sunlight tickling your face right now actually left my surface eight minutes and twenty seconds ago! That means whenever you look at daylight, you are literally looking back in time. And look closely at the glowing magnetic loops dancing around my surface—each one of those fiery arches is taller than ten Earths stacked on top of each other!",
+        "Even though I look like a ball of fire, I'm actually made of super-heated glowing plasma, and my outer crown—called my corona—is mysteriously hundreds of times hotter than my surface! NASA even built a super-brave spacecraft called the Parker Solar Probe with a special carbon-armor shield that dives right through my glowing crown at six hundred and ninety thousand kilometers an hour!"
+      ],
+      cadet: [
+        "Greetings, Space Cadet. I am the Sun—a G-type main-sequence yellow dwarf star containing ninety-nine point eight-six percent of all the mass in the entire solar system. Deep inside my fifteen-million-degree core, I fuse six hundred and twenty million metric tons of hydrogen into helium every single second, converting four million tons of pure matter directly into radiant energy via Einstein's E equals M C squared.",
+        "Notice those silent, glowing arches of plasma looping across my surface? Those are magnetic coronal loops. Because I am a spinning sphere of ionized plasma rather than solid rock, my equator rotates faster than my poles—once every twenty-five days versus thirty-five days near the poles. That differential rotation twists my magnetic field lines until they snap and arch hundreds of thousands of kilometers into space.",
+        "Here is a puzzle that still challenges solar physicists: my visible surface, the photosphere, is about five thousand five hundred degrees Celsius, yet my outer atmosphere—the corona—soars past two million degrees! NASA's Parker Solar Probe and ESA's Solar Orbiter are diving right through my corona to discover how magnetic waves and nanoflares superheat my outer crown."
+      ],
+      director: [
+        "Welcome, Mission Director. I am Sol, a Population I G2V main-sequence star at the gravitational barycenter of this planetary system. My core operates at a hydrostatic equilibrium pressure of two hundred and fifty billion atmospheres and a temperature of fifteen point seven million Kelvin, driving the proton-proton fusion chain at a luminosity of three point eight-two-eight times ten to the twenty-sixth watts.",
+        "A photon generated in my core undergoes a random walk through my radiative zone—scattering off free electrons and protons for roughly one hundred and seventy thousand years—before reaching my convective zone, surfacing at the photosphere, and crossing one Astronomical Unit to Earth in just four hundred and ninety-nine seconds.",
+        "My heliosphere extends well beyond a hundred Astronomical Units, inflated by a supersonic magnetohydrodynamic solar wind streaming at four hundred to eight hundred kilometers per second. Studying my eleven-year magnetic polarity cycle and Alfven-wave coronal heating is critical for protecting humanity's deep-space astronauts and orbital infrastructure."
+      ]
+    }
+  },
+  mercury: {
+    rate: 1.04, pitch: 1.12,
+    tiers: {
+      kids: [
+        "Hey! Down here! I'm Mercury, the smallest planet and the fastest runner in the whole solar system! Because I orbit right next to the giant Sun, I zoom all the way around it in just eighty-eight Earth days. If you lived on me, you'd get to celebrate your birthday four times for every single year on Earth!",
+        "You might think I'm the hottest planet since I'm closest to the Sun, but Venus actually beats me! That's because I don't have a fluffy blanket of air to trap the heat. During the day my rocks bake at four hundred and thirty degrees, and at night I freeze at minus one hundred and eighty degrees—the biggest temperature roller-coaster in the solar system!",
+        "Want to know my coolest surprise? Even though I sit right next to the blazing Sun, I have real water ice hiding at my north and south poles! Deep inside shadowy craters where sunlight never ever touches, ancient comets left behind billions of tons of frozen ice!"
+      ],
+      cadet: [
+        "Hi there, Cadet! I'm Mercury, the innermost terrestrial planet. With an average orbital velocity of forty-seven kilometers per second, I whip around the Sun in eighty-eight days. Curiously, I'm locked in a three-to-two spin-orbit resonance: I rotate on my axis exactly three times for every two orbits around the Sun, so a single sunrise-to-sunrise solar day on my surface lasts one hundred and seventy-six Earth days!",
+        "If you sliced me open, you'd find a massive surprise: my metallic iron-nickel core makes up eighty-five percent of my entire radius! Planetary scientists believe a giant protoplanet slammed into me billions of years ago, stripping away most of my rocky mantle and leaving behind an exposed iron powerhouse that still generates a magnetic field.",
+        "Look at my giant Caloris Basin—an impact crater one thousand five hundred and fifty kilometers wide. The asteroid that carved it hit me so hard that the seismic shockwaves focused on the exact opposite side of my globe, jumbling the crust into a wild mountain maze called the Weird Terrain!"
+      ],
+      director: [
+        "Greetings, Director. I am Mercury, an anomalous high-density silicate-iron world with an uncompressed density of five point three grams per cubic centimeter. My core-to-mantle ratio is the highest of any planet in the system; my partially molten iron-sulfide core spans roughly two thousand and twenty kilometers of my two thousand four hundred and forty kilometer radius, sustaining a dipolar magnetosphere about one percent as strong as Earth's.",
+        "As my interior secularly cooled over the past four billion years, my global radius contracted by up to seven kilometers, buckling my single-plate lithosphere into lobate thrust scarps over three kilometers high. Meanwhile, radar telemetry from MESSENGER confirmed thick deposits of water ice and dark organic volatiles cold-trapped in permanently shadowed polar craters.",
+        "Because of my deep position in the Sun's gravitational well and forty-sevenpoint-four kilometer-per-second orbital velocity, reaching low Mercury orbit requires more delta-v than reaching Pluto—demanding multiple gravity assists across Earth, Venus, and Mercury itself, as executed by MESSENGER and ESA/JAXA's BepiColombo."
+      ]
+    }
+  },
+  venus: {
+    rate: 0.92, pitch: 1.02,
+    tiers: {
+      kids: [
+        "Hello, explorer! I'm Venus! From Earth's backyard, I shine like the brightest, prettiest jewel in the evening sky. People call me Earth's twin sister because we're almost the exact same size—but under my golden clouds, I am a wild, super-hot volcano world!",
+        "My thick blanket of carbon dioxide gas traps so much heat that my surface is four hundred and sixty-five degrees Celsius, day and night—hot enough to melt lead! And my clouds don't rain water; they rain drops of sulfuric acid that sizzle and evaporate before they even touch my rocky ground!",
+        "Even funnier, I spin completely backwards compared to almost every other planet, and I spin so slowly that my day is actually longer than my whole year! If you stood on my surface, you would watch the Sun rise in the west and set in the east!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Venus, Earth's sister planet in size and mass, but a dramatic lesson in runaway greenhouse physics. My atmosphere is ninety-six point five percent carbon dioxide, creating a surface pressure of ninety-two atmospheres—the exact crushing pressure you'd feel nine hundred meters deep in Earth's oceans.",
+        "Because of that super-dense greenhouse blanket, I am hotter than Mercury at four hundred and sixty-five degrees Celsius across my entire globe, poles included. Even though my retrograde rotation takes two hundred and forty-three Earth days, my upper cloud deck races around the planet in just four days, driven by three-hundred-and-sixty kilometer-per-hour super-rotating winds.",
+        "Soviet Venera landers braved my furnace in the nineteen-seventies and eighties, surviving just long enough to photograph flat basaltic rock slabs under an eerie orange sky. Soon, NASA's DAVINCI and VERITAS missions will plunge through my clouds to see if my giant shield volcanoes, like Maat Mons, are still erupting today!"
+      ],
+      director: [
+        "Welcome, Director. I am Venus—a terrestrial world with a radius of six thousand and fifty-two kilometers and a surface governed by a supercritical carbon dioxide atmosphere at ninety-two bar and seven hundred and thirty-seven Kelvin. Early in solar system history, solar irradiance likely evaporated my primordial oceans; photolysis stripped the hydrogen via hydrodynamic escape, leaving a desiccated lithosphere and locking carbon dioxide in the atmosphere rather than carbonate rock.",
+        "Lacking plate tectonics, my mantle heat appears to escape through episodic global resurfacing events and massive shield volcanism. Re-analysis of Magellan synthetic aperture radar data recently revealed morphological changes in a volcanic vent on Maat Mons over an eight-month window—the strongest evidence yet of active present-day volcanism.",
+        "While my surface is hostile to silicon electronics, the atmospheric layer between fifty and sixty kilometers altitude enjoys approximately one bar pressure and temperatures of twenty to thirty degrees Celsius, making high-altitude aerostats a compelling architecture for future exploration."
+      ]
+    }
+  },
+  earth: {
+    rate: 0.95, pitch: 1.0,
+    tiers: {
+      kids: [
+        "Hi there! I'm Earth—your home, and the most special world we know of in the whole universe! Out of all the planets and moons circling the Sun, I'm the only one with splashing blue oceans, green forests, fluffy white water clouds, and billions of living creatures—including you!",
+        "Seventy-one percent of my surface is covered in liquid water, which makes me glow like a bright blue marble from space. And deep inside my belly, a spinning ball of liquid iron creates an invisible magnetic superhero shield that bounces away dangerous solar storms and paints glowing green auroras across my polar skies!",
+        "Look right beside me at my partner, the Moon! It's huge compared to me, and its gentle gravity pulls on my oceans to make the tides go in and out every day, while keeping my spin steady so you get nice, gentle seasons!"
+      ],
+      cadet: [
+        "Welcome home, Space Cadet. I am Earth, orbiting right inside the Sun's habitable Goldilocks Zone at one Astronomical Unit—one hundred and fifty million kilometers out—where water can exist simultaneously as liquid oceans, polar ice caps, and atmospheric vapor.",
+        "Unlike every other rocky planet in our solar system, my outer crust is broken into giant tectonic plates that float and recycle on my hot mantle. Plate tectonics acts as a planetary thermostat, cycling carbon over millions of years, while photosynthetic life transformed my atmosphere into twenty-one percent breathable oxygen.",
+        "Right now, human civilization is expanding from my surface into low Earth orbit and beyond. Look closely at my orbital neighborhood—you can spot the International Space Station streaking overhead at twenty-eight thousand kilometers per hour!"
+      ],
+      director: [
+        "Greetings, Mission Director. I am Terra—the largest and densest of the inner terrestrial planets, with a mean density of five point five-one grams per cubic centimeter. My geodynamo, driven by Coriolis-organized convection in my liquid iron-nickel outer core, sustains a magnetosphere that deflects the solar wind at a magnetopause standoff distance of roughly ten Earth radii.",
+        "My biosphere and geosphere form a tightly coupled disequilibrium system: the carbonate-silicate geochemical cycle and plate subduction regulate atmospheric carbon dioxide over geological timescales, while oxygenic photosynthesis maintains a twenty-one percent dioxygen atmosphere and a stratospheric ozone layer that screens ultraviolet radiation.",
+        "My anomalously large Moon—formed via the Theia giant impact four point five billion years ago—stabilizes my axial obliquity between twenty-two point one and twenty-four point five degrees, preventing the chaotic climate swings experienced by Mars."
+      ]
+    }
+  },
+  mars: {
+    rate: 0.93, pitch: 0.90,
+    tiers: {
+      kids: [
+        "Greetings, explorer! I'm Mars, the famous Red Planet! My dirt and rocks are covered in rusty iron dust, which makes my whole world glow red and orange—and even makes my daytime sky look butterscotch pink and my sunsets glow bright blue!",
+        "I may be half the size of Earth, but I have the biggest volcano in the entire solar system! It's called Olympus Mons, and it's three times taller than Mount Everest! I also have a canyon called Valles Marineris that is so long it would stretch all the way across the United States from New York to California!",
+        "Right now, I am the only planet in the solar system inhabited entirely by robots! NASA's Perseverance and Curiosity rovers are rolling across my ancient dried-up lakebeds looking for clues of tiny Martian microbes that might have lived in my rivers billions of years ago!"
+      ],
+      cadet: [
+        "Hey there, Cadet! I am Mars, the fourth planet from the Sun. A day on my surface—called a Sol—lasts twenty-four hours and thirty-nine minutes, almost identical to Earth's! Even my axial tilt is twenty-five degrees, giving me four distinct seasons, though my year is nearly twice as long at six hundred and eighty-seven Earth days.",
+        "Three and a half billion years ago, I had a thicker atmosphere, rushing rivers, crater lakes, and likely a northern ocean. Because I'm smaller than Earth, my interior cooled faster, my magnetic dynamo shut down, and the solar wind stripped away ninety-nine percent of my air—leaving a thin carbon dioxide atmosphere and freezing my water underground.",
+        "In Jezero Crater, NASA's Perseverance rover and the Ingenuity Mars Helicopter—which completed seventy-two powered flights in air just one percent as thick as Earth's—have been exploring an ancient river delta and sealing rock cores for future return to Earth!"
+      ],
+      director: [
+        "Welcome, Mission Director. I am Mars, a differentiated terrestrial world with a surface gravity of zero point three-eight G and a mean surface atmospheric pressure of six point one millibars—right near the triple point of water. Without active plate tectonics to drift my crust over mantle plumes, basaltic hotspot volcanism built the Tharsis Rise and Olympus Mons, a twenty-one point nine kilometer shield volcano.",
+        "Orbital spectroscopy and rover geochemistry confirm a Noachian epoch rich in phyllosilicates, sulfates, and fluvial deltaic stratigraphy, followed by a transition to arid Amazonian conditions as my core dynamo ceased roughly four billion years ago and sputtering by the solar wind eroded my volatile inventory.",
+        "With abundant subsurface water ice and atmospheric carbon dioxide available for Sabatier in-situ propellant production of liquid methane and oxygen, I am the primary interplanetary target for human surface architectures."
+      ]
+    }
+  },
+  jupiter: {
+    rate: 0.80, pitch: 0.65,
+    tiers: {
+      kids: [
+        "BOOM! Hello, little explorer! I am Jupiter, the king of the planets! I am so gigantic that you could take every single other planet in the solar system, squish them all together into one ball, and I would still be more than twice as big as all of them combined!",
+        "I don't have any solid ground to stand on—I'm a giant swirling ball of hydrogen and helium gas! Look at that giant red oval on my belly: that's the Great Red Spot, a super-hurricane bigger than the entire planet Earth that has been spinning non-stop for over three hundred and fifty years!",
+        "I'm also the big brother who protects Earth! My superpower gravity acts like a cosmic vacuum cleaner, catching or flinging away dangerous comets and asteroids before they can bonk into the inner planets. Plus, I have ninety-five moons—including Europa, which hides a giant salty ocean under its icy shell!"
+      ],
+      cadet: [
+        "Greetings, Space Cadet. I am Jupiter, the largest gas giant in the solar system, with three hundred and eighteen times the mass of Earth and eleven times its diameter. Even though I'm enormous, I spin faster than any other planet—completing a full rotation in just nine hours and fifty-five minutes, which flattens my poles and stretches my clouds into高速 jet-stream bands.",
+        "Deep beneath my ammonia cloud tops, the weight of my atmosphere crushes hydrogen gas until it turns into liquid metallic hydrogen—an exotic electrically conducting fluid that generates a magnetosphere twenty thousand times stronger than Earth's, stretching all the way past Saturn's orbit!",
+        "My four Galilean moons—Io, Europa, Ganymede, and Callisto—are like a miniature solar system of their own. Io is covered in four hundred erupting volcanoes, Ganymede is larger than the planet Mercury, and Europa hides a global liquid ocean containing twice as much water as all of Earth's oceans combined!"
+      ],
+      director: [
+        "Welcome, Director. I am Jupiter, a gas giant comprising seventy-five percent hydrogen and twenty-four percent helium by mass, totaling one point eight-nine-eight times ten to the twenty-seventh kilograms—roughly one-thousandth of a solar mass. My rapid nine-hour-fifty-five-minute rotation drives banded zonal jets and anticyclonic vortices like the Great Red Spot, while Kelvin-Helmholtz contraction causes me to radiate nearly twice as much infrared energy as I receive from the Sun.",
+        "At pressures exceeding two megabars inside my interior, molecular hydrogen undergoes a phase transition into liquid metallic hydrogen, powering a dynamo with an equatorial magnetic field of four point two Gauss and trapping relativistic electrons in lethal radiation belts.",
+        "Meanwhile, Laplace orbital resonance among Io, Europa, and Ganymede—locked in a four-to-two-to-one period ratio—pumps tidal dissipation into their interiors, driving Io's silicate volcanism and maintaining Europa's subsurface ocean."
+      ]
+    }
+  },
+  saturn: {
+    rate: 0.86, pitch: 0.78,
+    tiers: {
+      kids: [
+        "Greetings, star traveler! I am Saturn, the jewel of the solar system! Everyone knows me for my dazzling rings, which stretch almost as far as the distance from Earth to the Moon—but did you know they are made of billions of sparkling chunks of pure water ice and frosty rock, spinning around me like a giant cosmic skating rink?",
+        "Here's a silly fact about me: even though I'm the second-biggest planet and could hold seven hundred and sixty-four Earths inside me, I'm made of such light, fluffy gases that I'm lighter than water! If you could build a bathtub big enough to hold me, I would float right on top like a giant rubber ducky!",
+        "I also have a hundred and forty-six moons! My giant moon Titan has yellow clouds, rain, rivers, and lakes made of liquid methane, and my little icy moon Enceladus shoots giant fountains of ocean water straight into space from cracks at its south pole!"
+      ],
+      cadet: [
+        "Hello, Cadet! I am Saturn. My ring system spans two hundred and eighty-two thousand kilometers across, yet in most places it is only ten meters thick—thinner than a three-story building! If you made a scale model of my rings out of paper, the paper would have to be ten thousand times thinner than a razor blade.",
+        "At my north pole sits one of the weirdest sights in the solar system: a six-sided jet stream called the Hexagon, thirty thousand kilometers wide—wider than two Earths—spinning steadily with a massive hurricane eye right at its center!",
+        "For thirteen years, the Cassini spacecraft orbited through my system and dropped the Huygens probe onto my moon Titan. Cassini also flew directly through the icy geyser plumes erupting from my moon Enceladus, detecting water, salt, organic molecules, and molecular hydrogen—all the key ingredients for microbial life!"
+      ],
+      director: [
+        "Welcome, Mission Director. I am Saturn, an oblate gas giant with a mean density of zero point six-eight-seven grams per cubic centimeter—the lowest of any planet in the solar system. My main ring system, extending from seven thousand to eighty thousand kilometers above my equatorial cloud deck, consists of ninety-nine percent pure water-ice particles ranging from microns to meters, sculpted by Lindblad resonances and shepherd satellites.",
+        "Cassini Grand Finale gravity measurements revealed that my rings have a mass equivalent to roughly forty percent of Mimas and likely formed just one hundred to four hundred million years ago when aicy progenitor satellite wandered inside my Roche limit and was tidally disrupted.",
+        "In my satellite system, Titan hosts a one point five bar nitrogen-methane atmosphere with a full cryogenic hydrocarbon hydrological cycle, while Enceladus vents alkaline hydrothermal plumes from a global subsurface ocean, making both worlds premier astrobiological targets."
+      ]
+    }
+  },
+  uranus: {
+    rate: 0.89, pitch: 0.85,
+    tiers: {
+      kids: [
+        "Whoa—hello there! I'm Uranus, the sideways ice giant! While all the other planets spin like tops, something gigantic bumped into me billions of years ago and knocked me completely onto my side! So I roll around the Sun like a giant blue-green bowling ball!",
+        "Because I'm tilted on my side, my seasons are totally wacky: my north pole gets forty-two years of non-stop summer sunshine while my south pole gets forty-two years of freezing winter night! Even my thirteen faint rings and my twenty-seven moons orbit me up-and-down like a Ferris wheel!",
+        "Even though Neptune is farther from the Sun than I am, I hold the record for the coldest temperatures on any planet—minus two hundred and twenty-four degrees Celsius! And deep inside my icy belly, the squeezing pressure is so strong that it literally rains real sparkling diamonds!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Uranus, the seventh planet from the Sun and the first of the two Ice Giants. Unlike Jupiter and Saturn, which are mostly hydrogen and helium, most of my mass is a hot, dense fluid mantle of water, ammonia, and methane ices—and it's that methane gas in my upper atmosphere absorbing red light that gives me my pale cyan color.",
+        "My axial tilt is a staggering ninety-seven point eight degrees, meaning my rotational axis lies almost flat in my orbital plane. Even stranger, my magnetic field is tilted fifty-nine degrees away from my spin axis and doesn't even pass through my center, making my magnetosphere wobble like a corkscrew every seventeen hours!",
+        "All twenty-seven of my moons are named after characters from William Shakespeare and Alexander Pope. My moon Miranda looks like a jigsaw puzzle—with Verona Rupes, an ice cliff twenty kilometers high where a falling rock would take twelve minutes to hit the bottom!"
+      ],
+      director: [
+        "Greetings, Director. I am Uranus, an ice giant of fourteen point five Earth masses whose interior is dominated by a supercritical ionic water-ammonia-methane mantle surrounding a rocky core. Uniquely among the giant planets, I exhibit virtually zero internal heat flux in thermal infrared—making my tropopause the coldest planetary atmosphere in the solar system at forty-nine Kelvin.",
+        "My extreme ninety-seven point七-seven degree obliquity—likely the result of one or more giant impacts during late accretion—produces an extreme seasonal insolation cycle across my eighty-four-year orbit, while my non-dipolar, offset magnetosphere (tilted fifty-nine degrees and shifted by a third of my radius) indicates dynamo generation in a thin, convecting ionic-water shell.",
+        "Only Voyager 2 has ever visited me during its January nineteen-eighty-six flyby; a flagship Uranus Orbiter and Probe has now been designated the highest-priority planetary science mission for the coming decade."
+      ]
+    }
+  },
+  neptune: {
+    rate: 0.87, pitch: 0.80,
+    tiers: {
+      kids: [
+        "Hello from the deep blue outer solar system! I am Neptune, the eighth and farthest major planet from the Sun! Out here, the Sun looks like a tiny, super-bright star, and it takes me one hundred and sixty-five Earth years just to make one single trip around it!",
+        "Don't let my calm ocean-blue color fool you—I have the wildest weather and the fastest winds in the whole solar system! My winds scream at over two thousand one hundred kilometers an hour, which is faster than a supersonic jet plane!",
+        "Do you know how humans discovered me? With math! Before anyone ever saw me in a telescope, mathematicians noticed my neighbor Uranus was wobbling, calculated that an invisible planet's gravity was tugging on it, and pointed a telescope right at the exact spot where I was hiding!"
+      ],
+      cadet: [
+        "Welcome to the outer frontier, Cadet. I am Neptune, orbiting thirty times farther from the Sun than Earth—four point five billion kilometers out! Sunlight takes over four hours to reach me, and it's nine hundred times dimmer here than on Earth, yet my internal heat powers supersonic methane storms and giant dark vortices.",
+        "In eighteen forty-six, mathematician Urbain Le Verrier predicted my exact position using only pencil, paper, and Newton's laws of gravity to explain perturbations in Uranus's orbit. When astronomers in Berlin pointed their telescope where his equations said to look, they found me on the very first night—less than one degree away!",
+        "Look at my largest moon, Triton: it orbits me backwards in a retrograde path! That proves Triton was once a free-roaming dwarf planet from the Kuiper Belt—a cousin of Pluto—that my gravity captured billions of years ago. Voyager 2 even spotted nitrogen ice geysers erupting eight kilometers high on Triton's freezing surface!"
+      ],
+      director: [
+        "Welcome, Mission Director. I am Neptune, the outermost ice giant at thirty point one Astronomical Units, with a mass of seventeen point one-five Earths and a density of one point six-four grams per cubic centimeter. Unlike Uranus, I radiate two point six-one times more thermal energy than I receive from solar insolation, driving supersonic zonal winds that reach two thousand one hundred kilometers per hour.",
+        "High-pressure diamond-anvil cell experiments indicate that within my mantle—at pressures of ten to fifty gigapascals and temperatures of several thousand Kelvin—methane dissociates into diamond crystals that precipitate downward as diamond rain, releasing gravitational potential energy that helps power my atmospheric dynamics.",
+        "My largest satellite, Triton, occupies a decaying retrograde, highly inclined orbit—clear dynamical evidence of gravitational capture from the Kuiper Belt—and exhibits active cryovolcanic nitrogen plumes above a likely subsurface ammonia-water ocean."
+      ]
+    }
+  },
+  pluto: {
+    rate: 1.0, pitch: 1.14,
+    tiers: {
+      kids: [
+        "Hi! Don't forget about me! I'm Pluto, the king of the Kuiper Belt at the icy edge of our solar system! For seventy-six years people called me the ninth planet, and now I'm the most famous dwarf planet—and when NASA's New Horizons spacecraft flew past me in twenty-fifteen, I surprised the whole world!",
+        "Right on my chest, I have a giant, bright, heart-shaped glacier made of frozen nitrogen ice called Tombaugh Regio—wider than the state of Texas! And right next to my heart are mountains made of rock-hard frozen water ice as tall as the Rocky Mountains, all under a real, glowing blue sky!",
+        "My best friend is my big moon Charon! Charon is half as wide as I am, so instead of Charon just circling me, we hold hands with gravity and spin around each other like figure skaters, always facing each other!"
+      ],
+      cadet: [
+        "Hey there, Cadet! I'm Pluto, orbiting in the Kuiper Belt between thirty and forty-nine Astronomical Units from the Sun. For eighty-five years after Clyde Tombaugh discovered me in nineteen-thirty, I was just a blurry pixel even in the Hubble Space Telescope—until NASA's New Horizons probe raced across five billion kilometers to fly past me in July twenty-fifteen!",
+        "Everyone expected a cold, dead, cratered iceball. Instead, New Horizons revealed a geologically alive world! The left lobe of my giant heart—Sputnik Planitia—is a four-kilometer-deep basin of convecting nitrogen ice that slowly bubbles and renews its surface like a cosmic lava lamp, with zero impact craters!",
+        "My largest moon Charon is so massive relative to me—one-eighth of my mass—that our center of gravity, the barycenter, actually sits in empty space outside my surface! We are a true binary dwarf planet system, tidally locked face-to-face forever."
+      ],
+      director: [
+        "Greetings, Mission Director. I am Pluto, the largest known trans-Neptunian object by volume in the Kuiper Belt, locked in a stable two-to-three mean-motion orbital resonance with Neptune across a two-hundred-and-forty-eight-year elliptical orbit. New Horizons telemetry revolutionized outer-system planetology by demonstrating active endogenic geology on a body just two thousand three hundred and seventy-seven kilometers in diameter.",
+        "Sputnik Planitia is a volatile reservoir of solid nitrogen, carbon monoxide, and methane ices undergoing Rayleigh-Benard thermal convection on timescales of five hundred thousand years, bounded by three-point-five-kilometer water-ice massifs and possible cryovolcanic edifices such as Wright and Piccard Mons.",
+        "Thermal evolution models and extensional tectonic graben across my lithosphere strongly indicate that a liquid water ocean, stabilized by ammonia antifreeze and radiogenic heating, still persists beneath my icy shell today."
+      ]
+    }
+  },
+  // ─── MAJOR MOONS ───
+  moon_themoon: {
+    rate: 0.94, pitch: 0.95,
+    tiers: {
+      kids: [
+        "Hi there! I'm Earth's Moon—your closest neighbor in space! I'm the only other world in the universe where human beings have actually walked, driven moon buggies, and left footprints in my gray dust! Because I have no wind or rain, the footprints Neil Armstrong and Buzz Aldrin made in nineteen sixty-nine are still sitting there today!",
+        "Have you ever noticed you always see the exact same face of me from your bedroom window? That's because I spin once in the exact same time it takes me to circle Earth—about twenty-seven days—so I'm always looking right back at you!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Luna, Earth's natural satellite, orbiting three hundred and eighty-four thousand kilometers away. Four point five billion years ago, a Mars-sized protoplanet named Theia slammed into the young Earth, blasting a ring of molten rock into orbit that coalesced to form me!",
+        "Between nineteen sixty-nine and nineteen seventy-two, twelve Apollo astronauts explored my basaltic maria and highlands, bringing back three hundred and eighty-two kilograms of lunar rock. Soon, NASA's Artemis astronauts will land near my south pole, where permanently shadowed craters hold millions of tons of water ice!"
+      ],
+      director: [
+        "Welcome, Director. I am Luna—an anomalously large satellite at one-quarter Earth's diameter and one-eightieth its mass. Oxygen isotope ratios in Apollo regolith samples are virtually indistinguishable from Earth's mantle, confirming our shared origin in the giant Theia impact.",
+        "Through tidal dissipation, I am receding from Earth at three point eight centimeters per year while lengthening Earth's day. My south polar Shackleton and Faustini rims offer near-continuous solar illumination adjacent to cold-trapped water ice, forming the cornerstone of cislunar logistics."
+      ]
+    }
+  },
+  moon_io: {
+    rate: 0.98, pitch: 1.05,
+    tiers: {
+      kids: [
+        "Watch your step! I'm Io, Jupiter's pizza-colored volcano moon! Jupiter's giant gravity and my sister moons pull and squeeze my insides like a rubber ball until I melt inside—giving me over four hundred active volcanoes shooting fountains of lava hundreds of kilometers into space!"
+      ],
+      cadet: [
+        "Hi Cadet! I'm Io, the most volcanically active body in the solar system. Caught in a gravitational tug-of-war between massive Jupiter and my neighboring moons Europa and Ganymede, my solid rock surface flexes up and down by one hundred meters every orbit, pumping tidal heat into my magma ocean!"
+      ],
+      director: [
+        "Greetings, Director. I am Io. Laplace orbital resonance with Europa and Ganymede maintains my orbital eccentricity at zero point zero-zero-four-one, generatingnearly one hundred terawatts of tidal dissipation and driving high-temperature silicate volcanism and sulfur dioxide plumes across my surface."
+      ]
+    }
+  },
+  moon_europa: {
+    rate: 0.92, pitch: 1.04,
+    tiers: {
+      kids: [
+        "Hello, explorer! I'm Europa, Jupiter's icy ocean moon! My outside is a smooth shell of frozen ice crisscrossed with reddish cracks, but underneath my ice I hide a giant, dark, salty liquid water ocean with twice as much water as all of Earth's oceans put together! Could alien fish or glowing microbes be swimming inside me right now?"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Europa. Beneath my fifteen-to-twenty-five-kilometer ice crust lies a global liquid saltwater ocean a hundred kilometers deep, kept warm by Jupiter's tidal flexing. NASA's Europa Clipper spacecraft is on its way to scan my ice shell and check if my ocean has everything life needs!"
+      ],
+      director: [
+        "Welcome, Director. I am Europa. Induced magnetic field measurements from the Galileo spacecraft confirmed a globally conductive subsurface saltwater ocean beneath my fractured cryosphere, making me one of the highest-priority astrobiological targets in the solar system."
+      ]
+    }
+  },
+  moon_ganymede: {
+    rate: 0.86, pitch: 0.84,
+    tiers: {
+      kids: [
+        "Hello! I'm Ganymede, the biggest moon in the entire solar system! I'm so huge that I'm actually bigger than the planet Mercury—and I'm the only moon with my very own magnetic shield that makes glowing auroras dance at my poles!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Ganymede, Jupiter's largest moon at five thousand two hundred and sixty-eight kilometers across. I have a liquid iron core that generates my own magnetosphere, and Hubble observations of my auroras revealed a massive underground saltwater ocean sandwiched between layers of ice!"
+      ],
+      director: [
+        "Greetings, Director. I am Ganymede—a fully differentiated satellite with an iron-sulfide core, silicate mantle, and multi-phase ice-ocean hydrosphere, currently targeted for orbital insertion by ESA's JUICE mission."
+      ]
+    }
+  },
+  moon_callisto: {
+    rate: 0.88, pitch: 0.88,
+    tiers: {
+      kids: [
+        "Hi there! I'm Callisto, Jupiter's outermost giant moon! My icy surface is covered in billions of sparkling craters like a cosmicdisco ball, and because I orbit safely outside Jupiter's strongest radiation, astronauts might build a future space base right on my surface!"
+      ],
+      cadet: [
+        "Hello Cadet. I am Callisto, holding the oldest, most heavily cratered surface in the solar system—including Valhalla, a multi-ring impact basin four thousand kilometers wide. Because I sit outside Jupiter's main radiation belt, I'm the safest basecamp for future human missions to the Jovian system!"
+      ],
+      director: [
+        "Welcome, Director. I am Callisto—a partially differentiated ice-rock world in a low-radiation environment at twenty-six Jovian radii, harboring a potential electrolyte-rich subsurface ocean."
+      ]
+    }
+  },
+  moon_titan: {
+    rate: 0.88, pitch: 0.90,
+    tiers: {
+      kids: [
+        "Hello through the golden mist! I'm Titan, Saturn's giant moon! I'm the only moon in the solar system with thick, fluffy clouds and real rain, rivers, and lakes—except it's so freezing cold here that my lakes aren't made of water, they're made of liquid methane and ethane gas! And NASA is building a nuclear-powered flying drone called Dragonfly to hop across my dunes!"
+      ],
+      cadet: [
+        "Greetings, Cadet! I am Titan, larger than the planet Mercury and wrapped in a golden nitrogen atmosphere fifty percent denser than Earth's! In two thousand and five, the Huygens probe parachuted through my haze and landed on a floodplain littered with rounded water-ice pebbles, right beside seas of liquid methane like Kraken Mare."
+      ],
+      director: [
+        "Welcome, Director. I am Titan—the only satellite with a dense nitrogen-methane atmosphere (one point four-five bar at ninety-four Kelvin) and an active surface hydrocarbon hydrological cycle, soon to be explored by NASA's rotorcraftlander Dragonfly."
+      ]
+    }
+  },
+  moon_enceladus: {
+    rate: 0.98, pitch: 1.12,
+    tiers: {
+      kids: [
+        "Wheee! Hi explorer! I'm Enceladus, Saturn's shiny snowball moon! My icy surface reflects almost all the sunlight like fresh snow, and from warm Tiger Stripe cracks at my south pole, I shoot giant geysers of salty ocean water and ice crystals hundreds of kilometers into space—building Saturn's outer E-ring!"
+      ],
+      cadet: [
+        "Hi Cadet! I'm Enceladus. Even though I'm only five hundred kilometers wide—small enough to fit inside the United Kingdom—I hide a warm, global subsurface ocean with hydrothermal vents on my seafloor! When Cassini flew right through my south-polar water plumes, it tasted water, salts, silica nanograins, and organic molecules!"
+      ],
+      director: [
+        "Greetings, Director. I am Enceladus. Cryovolcanic jets erupting from my south polar terrain vent subsurface ocean material directly into space, containing molecular hydrogen, complex macromolecular organics, and nanometer-sized silica particles indicative of alkaline hydrothermal activity above ninety degrees Celsius."
+      ]
+    }
+  },
+  moon_triton: {
+    rate: 0.90, pitch: 0.92,
+    tiers: {
+      kids: [
+        "Brrr! Hi there, I'm Triton, Neptune's biggest moon! I'm a rebel—I orbit Neptune completely backwards compared to how Neptune spins! That's because I used to be a free dwarf planet out near Pluto until Neptune's gravity caught me, and I have dark geysers that shoot freezing nitrogen gas eight kilometers into my sky!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am Triton, a captured Kuiper Belt object orbiting Neptune in a retrograde path. At minus two hundred and thirty-five degrees Celsius, my surface of frozen nitrogen and cantaloupe-textured water ice erupts with solar-driven nitrogen geysers!"
+      ],
+      director: [
+        "Welcome, Director. I am Triton—the only large moon in the solar system in a retrograde orbit. Tidal decay is steadily drawing me toward Neptune's Roche limit, where in roughly three point six billion years I will be tidally disrupted into a massive planetary ring system."
+      ]
+    }
+  },
+  moon_charon: {
+    rate: 0.96, pitch: 1.06,
+    tiers: {
+      kids: [
+        "Hi! I'm Charon, Pluto's giant moon partner! I have a gigantic canyon four times longer than the Grand Canyon and a cool reddish-brown north pole cap made of gases that drifted over from Pluto!"
+      ],
+      cadet: [
+        "Hello Cadet! I'm Charon. At twelve hundred and twelve kilometers across, I'm half the diameter of Pluto, and my north pole—Mordor Macula—is stained crimson by tholins, complex organic molecules formed from methane escaping Pluto's atmosphere!"
+      ],
+      director: [
+        "Greetings, Director. I am Charon—forming a mutually tidally locked binary system with Pluto around an external barycenter, scarred by a thousand-kilometer equatorial extensional tectonic belt formed when an ancient subsurface ocean froze and expanded."
+      ]
+    }
+  },
+  // ─── SPACECRAFT & HUMAN FRONTIER FIRST-PERSON BRIEFINGS ───
+  frontier_iss: {
+    rate: 0.95, pitch: 0.98,
+    tiers: {
+      kids: [
+        "Hello down on Earth! I am the International Space Station, humanity's home in the sky! I'm as big as a football field, and I zoom around the Earth at twenty-eight thousand kilometers an hour—so fast that astronauts living inside me get to watch sixteen sunrises and sixteen sunsets every single day!"
+      ],
+      cadet: [
+        "Station Houston, we read you loud and clear! I am the International Space Station, orbiting four hundred and eight kilometers above Earth at seven point six-six kilometers per second. Since November two thousand, astronauts from over twenty countries have lived and conducted microgravity science aboard my sixteen pressurized modules!"
+      ],
+      director: [
+        "Greetings, Director. I am the International Space Station (NORAD ID 25544), operating in a fifty-one point six degree inclination low Earth orbit. My four hundred and twenty metric ton truss and module architecture serves as humanity's primary microgravity research laboratory and closed-loop environmental control testbed."
+      ]
+    }
+  },
+  frontier_starship: {
+    rate: 0.92, pitch: 0.88,
+    tiers: {
+      kids: [
+        "3, 2, 1—LIFTOFF! I am SpaceX Starship, the tallest, most powerful rocket human beings have ever built! Made of shiny stainless steel and powered by fiery Raptor engines, I'm designed to refuel right in orbit and carry astronauts and cargo all the way to the Moon and Mars!"
+      ],
+      cadet: [
+        "Greetings, Cadet! I am SpaceX Starship, flying along an interplanetary Hohmann transfer trajectory between Earth and Mars. Standing one hundred and twenty-one meters tall with Super Heavy, I am the first fully reusable super-heavy-lift vehicle—using orbital propellant transfer and a ceramic hex-tile heatshield to aerobrake into the Martian atmosphere!"
+      ],
+      director: [
+        "Welcome, Director. I am the Starship interplanetary transport system, powered by full-flow staged-combustion methalox Raptor engines. By replenishing my twelve-hundred-ton propellant tanks in low Earth orbit, I can inject over one hundred metric tons of payload onto a trans-Mars trajectory and execute supersonic retropropulsion landing on Mars."
+      ]
+    }
+  },
+  frontier_datacenter: {
+    rate: 0.94, pitch: 0.94,
+    tiers: {
+      kids: [
+        "Beep-boop! Hello, explorer! I am an Orbital AI Data Center—a giant solar-powered supercomputer floating in space! Up here above the clouds, the Sun shines on my solar wings twenty-four hours a day, and my giant glowing radiator panels beam computer heat straight out into freezing deep space without using a single drop of Earth's water!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am an Orbital AI Compute Cluster in sun-synchronous orbit. On Earth, massive AI data centers consume gigawatts of grid electricity and billions of liters of cooling water. In orbit, my solar arrays harvest continuous, unfiltered solar energy while my deep-space infrared radiators reject waste heat into the three-Kelvin cosmic background!"
+      ],
+      director: [
+        "Greetings, Director. I am an Orbital Exascale Compute Node, interconnected via terabit optical laser crosslinks. Operating in a dawn-dusk sun-synchronous orbit, I achieve near-hundred-percent solar capacity factor at one thousand three hundred and sixty-one watts per square meter while utilizing Stefan-Boltzmann radiative heat rejection to deep space."
+      ]
+    }
+  },
+  frontier_jwst: {
+    rate: 0.90, pitch: 0.90,
+    tiers: {
+      kids: [
+        "Hello from deep space! I am the James Webb Space Telescope! I float one and a half million kilometers away from Earth with a giant golden honeycomb mirror and a five-layer sunshield as big as a tennis court that keeps me super cold so I can see baby stars being born and galaxies from the dawn of time!"
+      ],
+      cadet: [
+        "Greetings, Cadet. I am the James Webb Space Telescope, orbiting the Sun-Earth L2 Lagrange point one point five million kilometers from Earth. My six-point-five-meter beryllium-gold mirror collects faint infrared light that has been traveling across the expanding universe for over thirteen point five billion years!"
+      ],
+      director: [
+        "Welcome, Director. I am the James Webb Space Telescope at the Sun-Earth L2 halo orbit. Passively cooled to forty Kelvin behind my five-layer Kapton sunshield, with my Mid-Infrared Instrument actively cryocooled to six point seven Kelvin, I perform high-redshift spectroscopy of the first galaxies and transmission spectroscopy of exoplanet atmospheres."
+      ]
+    }
+  },
+  frontier_voyager: {
+    rate: 0.88, pitch: 0.85,
+    tiers: {
+      kids: [
+        "Hello from the stars! I am Voyager 1, the farthest spacecraft humans have ever sent into the universe! I launched in nineteen seventy-seven, visited Jupiter and Saturn, took the famous Pale Blue Dot photo of Earth, and now I'm flying through interstellar space carrying a Golden Record of Earth's music and greetings!"
+      ],
+      cadet: [
+        "Greetings across twenty-four billion kilometers of space, Cadet! I am Voyager 1. Travelling at seventeen kilometers per second, my radio signals—moving at the speed of light—take over twenty-two hours just to reach NASA's Deep Space Network antennas on Earth!"
+      ],
+      director: [
+        "Greetings, Director. I am Voyager 1, operating in the interstellar medium beyond the heliopause at over one hundred and sixty-three Astronomical Units. Powered by three plutonium-238 radioisotope thermoelectric generators and communicating at twenty-two watts via X-band with the Deep Space Network, I carry the Golden Record as humanity's time capsule."
+      ]
+    }
+  }
 };
 
-// Which line each body is on, so repeated presses continue the conversation
-// instead of replaying the same greeting.
+// Alias mission_* keys and remaining moons so every spacecraft & moon has rich tiered monologues
+PLANET_VOICES.mission_iss = PLANET_VOICES.frontier_iss;
+PLANET_VOICES.mission_jwst = PLANET_VOICES.frontier_jwst;
+PLANET_VOICES.mission_voyager = PLANET_VOICES.frontier_voyager;
+PLANET_VOICES.mission_hubble = {
+  rate: 0.92, pitch: 0.94,
+  tiers: {
+    kids: ["Hi explorer! I'm the Hubble Space Telescope! Floating high above Earth's blurry air for over thirty years, I've taken more than one and a half million crystal-clear photos of colorful nebulae, spiral galaxies, and shining star clusters!"],
+    cadet: ["Greetings, Cadet! I am the Hubble Space Telescope, orbiting five hundred and forty-seven kilometers above Earth. From imaging the Pillars of Creation to capturing the Ultra Deep Field—ten thousand galaxies in a patch of sky the size of a grain of sand—I helped measure the age and expansion of the universe!"],
+    director: ["Welcome, Director. I am the Hubble Space Telescope—a two-point-four-meter Ritchey-Chretien reflector operating from near-ultraviolet to near-infrared in low Earth orbit, serviced across five Space Shuttle missions."]
+  }
+};
+PLANET_VOICES.mission_perseverance = {
+  rate: 0.94, pitch: 0.92,
+  tiers: {
+    kids: ["BEEP-ZAP! Hi from Mars! I'm the Perseverance rover! I landed in Jezero Crater with a rocket sky-crane, I shoot a laser beam from my head to test Martian rocks, and I brought along my little helicopter buddy Ingenuity!"],
+    cadet: ["Greetings from Jezero Crater, Cadet! I am NASA's Perseverance rover. Powered by a plutonium nuclear battery, I'm exploring an ancient Martian river delta, zapping rocks with SuperCam, making breathable oxygen from Martian CO2 with MOXIE, and sealing rock cores for future return to Earth!"],
+    director: ["Welcome, Director. I am the Mars 2020 Perseverance rover, conducting astrobiological stratigraphy, PIXL/SHERLOC micro-spectroscopy, and sample caching across the Jezero deltaic-lacustrine system."]
+  }
+};
+PLANET_VOICES.mission_juno = {
+  rate: 0.90, pitch: 0.88,
+  tiers: {
+    kids: ["Hello from giant Jupiter! I'm the Juno spacecraft, spinning like a three-bladed windmill with giant solar wings as I dive right over Jupiter's colorful north and south poles!"],
+    cadet: ["Greetings, Cadet! I am NASA's Juno orbiter. Protected by a titanium radiation vault, I dive within four thousand kilometers of Jupiter's cloud tops at over two hundred and fifty thousand kilometers per hour to map its gravity, magnetic field, and polar cyclones!"],
+    director: ["Welcome, Director. I am the Juno polar orbiter, utilizing microwave radiometry and high-precision gravity Doppler tracking in highly elliptical perijove passes to probe Jupiter's deep zonal flows and diluted core."]
+  }
+};
+PLANET_VOICES.mission_new_horizons = {
+  rate: 0.96, pitch: 0.98,
+  tiers: {
+    kids: ["Hi from the icy Kuiper Belt! I'm New Horizons, the fastest spacecraft ever launched from Earth! I zoomed past Jupiter and flew right past Pluto in twenty-fifteen to show everyone Pluto's giant icy heart!"],
+    cadet: ["Greetings, Cadet! I am New Horizons. Launched at fifty-eight thousand kilometers per hour, I traveled nine and a half years across five billion kilometers to capture humanity's first close-up images of Pluto, Charon, and the primordial Kuiper Belt object Arrokoth!"],
+    director: ["Welcome, Director. I am New Horizons, executing reconnaissance of the Pluto-Charon binary system and cold classical Kuiper Belt planetesimals at forty-plus Astronomical Units."]
+  }
+};
+PLANET_VOICES.mission_cassini = {
+  rate: 0.90, pitch: 0.90,
+  tiers: {
+    kids: ["Hello, star traveler! I am the Cassini spacecraft! For thirteen magical years I orbited Saturn, flew through the icy water geysers of Enceladus, dropped my little Huygens lander onto Titan, and dove right between Saturn and its rings!"],
+    cadet: ["Greetings, Cadet. I am the Cassini-Huygens flagship orbiter. Across two hundred and ninety-four orbits of Saturn, I discovered seven moons, sampled the hydrothermal plumes of Enceladus, mapped Titan's methane seas, and completed my Grand Finale in twenty-seventeen to protect Saturn's ocean moons!"],
+    director: ["Welcome, Director. I am Cassini—a joint NASA-ESA-ASI flagship orbiter that revolutionized outer-planet science across thirteen years in the Kronian system before executing atmospheric entry at the conclusion of my twenty-two proximal Grand Finale orbits."]
+  }
+};
+
 const _planetVoiceIdx = {};
 let _speakingPlanet = null;
-// Bodies already heard from, so the curiosity bonus is awarded only once each.
 const _voicedBodies = new Set();
 
-function speakAsPlanet(id) {
+function _getLinesForBody(id) {
   const v = PLANET_VOICES[id];
-  if (!v) return;
+  if (!v) {
+    // Dynamic fallback for minor moons if not explicitly in PLANET_VOICES
+    if (id && id.startsWith('moon_')) {
+      const mName = document.getElementById('moon-name')?.textContent || 'this moon';
+      const mDesc = document.getElementById('moon-desc')?.textContent || '';
+      const mTag  = document.getElementById('moon-tagline')?.textContent || '';
+      return {
+        rate: 0.95, pitch: 1.0,
+        lines: [
+          `Hello, explorer! I am ${mName}—${mTag}. ${mDesc}`,
+          `Keep exploring my craters, orbit, and secrets—every moon in the solar system holds clues to how our cosmic neighborhood was born four and a half billion years ago!`
+        ]
+      };
+    }
+    return null;
+  }
+  const tierLines = (v.tiers && (v.tiers[explorerTier] || v.tiers.cadet)) || v.lines || [];
+  return { rate: v.rate || 0.92, pitch: v.pitch || 0.95, lines: tierLines };
+}
 
-  // Pressing again while a body is mid-sentence stops it, so the button also
-  // works as "be quiet".
-  if (_speakingPlanet === id && window.speechSynthesis && window.speechSynthesis.speaking) {
+function _updateTranscriptBoxes(id, text) {
+  const tierLabel = (EXPLORER_TIERS[explorerTier] || EXPLORER_TIERS.cadet).badge;
+  const boxes = [
+    document.getElementById('panel-voice-transcript'),
+    document.getElementById('moon-voice-transcript'),
+    document.getElementById('mission-voice-transcript'),
+    document.getElementById('frontier-voice-transcript')
+  ];
+  boxes.forEach(box => {
+    if (!box) return;
+    if (!text) {
+      box.classList.remove('show');
+    } else {
+      box.innerHTML = `<div style="font-family:Orbitron,sans-serif;font-size:8px;letter-spacing:.16em;color:var(--cyan);margin-bottom:4px;text-transform:uppercase">${tierLabel} · FIRST-PERSON AUDIO TRANSMISSION</div>“${text}”`;
+      box.classList.add('show');
+    }
+  });
+}
+
+function speakAsPlanet(id, advance=false) {
+  const profile = _getLinesForBody(id);
+  if (!profile || !profile.lines.length) return;
+
+  // If clicking main button while already speaking this body (and not clicking "Tell Me More"), stop speech
+  if (!advance && _speakingPlanet === id && window.speechSynthesis && window.speechSynthesis.speaking) {
     stopNarration();
     _speakingPlanet = null;
     _syncSpeakBtn();
     return;
   }
 
-  const i = _planetVoiceIdx[id] || 0;
-  _planetVoiceIdx[id] = (i + 1) % v.lines.length;
+  let i = _planetVoiceIdx[id] || 0;
+  if (advance) {
+    i = (i + 1) % profile.lines.length;
+  }
+  _planetVoiceIdx[id] = (i + 1) % profile.lines.length;
+  const textToSpeak = profile.lines[i % profile.lines.length];
+
   _speakingPlanet = id;
   _syncSpeakBtn();
+  _updateTranscriptBoxes(id, textToSpeak);
 
-  speakNarration(v.lines[i], {
-    rate: v.rate,
-    pitch: v.pitch,
+  speakNarration(textToSpeak, {
+    rate: profile.rate,
+    pitch: profile.pitch,
     onend:   () => { if (_speakingPlanet === id) { _speakingPlanet = null; _syncSpeakBtn(); } },
     onerror: () => { if (_speakingPlanet === id) { _speakingPlanet = null; _syncSpeakBtn(); } },
   });
 
-  // Speaking is a discovery too — reward curiosity, once per body.
   if (typeof awardPoints === 'function' && !_voicedBodies.has(id)) {
     _voicedBodies.add(id);
     awardPoints(25);
@@ -6013,33 +7325,54 @@ function speakAsPlanet(id) {
 }
 
 function _syncSpeakBtn() {
-  const btn = document.getElementById('panel-speak');
-  if (!btn) return;
   const talking = !!_speakingPlanet;
-  btn.classList.toggle('speaking', talking);
-  const label = document.getElementById('panel-speak-label');
-  if (label) label.textContent = talking ? 'Stop' : 'Hear it speak';
+  const pairs = [
+    ['panel-speak', 'panel-speak-label', 'Hear Me Speak'],
+    ['moon-speak', 'moon-speak-label', 'Hear Moon Speak'],
+    ['mission-speak-btn', 'mission-speak-label', 'Hear Spacecraft Speak'],
+    ['frontier-speak-btn', 'frontier-speak-label', 'Hear First-Person Briefing']
+  ];
+  pairs.forEach(([btnId, lblId, defaultText]) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const isThisTalking = talking && btn.dataset.body === _speakingPlanet;
+    btn.classList.toggle('speaking', isThisTalking);
+    const lbl = document.getElementById(lblId);
+    if (lbl) lbl.textContent = isThisTalking ? 'Stop Speaking' : defaultText;
+  });
 }
 
 document.getElementById('panel-speak').addEventListener('click', (e) => {
   e.stopPropagation();
   const id = e.currentTarget.dataset.body;
-  if (id) speakAsPlanet(id);
+  if (id) speakAsPlanet(id, false);
 });
+const _panelSpeakMoreBtn = document.getElementById('panel-speak-more');
+if (_panelSpeakMoreBtn) {
+  _panelSpeakMoreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = e.currentTarget.dataset.body || document.getElementById('panel-speak')?.dataset.body;
+    if (id) speakAsPlanet(id, true);
+  });
+}
 
-// Closing the panel must silence whoever was mid-sentence, otherwise a planet
-// keeps talking about itself over an empty screen.
 document.getElementById('panel-close').addEventListener('click', () => {
   if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
 });
 
-// Keep the button's name in step with whichever body the panel is showing.
 function _setSpeakBtnTarget(id) {
   const btn = document.getElementById('panel-speak');
+  const moreBtn = document.getElementById('panel-speak-more');
+  const transBox = document.getElementById('panel-voice-transcript');
+  if (transBox) { transBox.classList.remove('show'); transBox.innerHTML = ''; }
   if (!btn) return;
-  const has = !!PLANET_VOICES[id];
+  const has = !!_getLinesForBody(id);
   btn.style.display = has ? '' : 'none';
   btn.dataset.body = id || '';
+  if (moreBtn) {
+    moreBtn.style.display = has ? '' : 'none';
+    moreBtn.dataset.body = id || '';
+  }
   _syncSpeakBtn();
 }
 
@@ -6350,9 +7683,9 @@ const MISSION_CHAIN = [
     trigger:'quiz_completed', triggerData:{planetId:'saturn'},
     reward:{medal:'💫', name:'Ring Diver', xp:250} },
 
-  { id:'solar_rider', ch:6, title:'Solar Storm Alert', icon:'☀️', planet:'sun',
-    briefing:"WARNING — Elevated solar activity detected. The Sun is showing signs of increased plasma discharge. Navigate to our star — but stay alert. If a solar flare erupts while you are there, click the Sun immediately to earn the Solar Storm Rider bonus. Only the boldest explorers survive a solar event.",
-    task:'Navigate to the Sun', taskShort:'Reach the Sun',
+  { id:'solar_rider', ch:6, title:'Solar Corona Survey', icon:'☀️', planet:'sun',
+    briefing:"Elevated magnetic loop activity detected in the inner solar system. The Sun is arching colossal plasma prominences and magnetic coronal loops across its photosphere. Navigate directly to our star, observe the 3D coronal loops up close, and listen to the Sun tell its story.",
+    task:'Navigate to the Sun and inspect its 3D coronal loops', taskShort:'Reach the Sun',
     trigger:'planet_visited', triggerData:{id:'sun'},
     reward:{medal:'☀️', name:'Solar Rider', xp:300} },
 
@@ -6414,17 +7747,25 @@ function showMissionBriefing(idx) {
   if (idx >= MISSION_CHAIN.length) { _triggerAllComplete(); return; }
   const m = MISSION_CHAIN[idx];
   const pname = m.planet==='sun' ? 'The Sun' : (PLANETS.find(p=>p.id===m.planet)||{name:m.planet}).name;
-  document.getElementById('mbrief-chapter').textContent = `Mission ${m.ch} of ${MISSION_CHAIN.length}`;
+  const tierInfo = EXPLORER_TIERS[explorerTier] || EXPLORER_TIERS.cadet;
+  const aiGreeting = idx === 0
+    ? (explorerTier === 'kids'
+        ? `Welcome aboard the Odyssey cockpit, Young Explorer! I am your Ship AI. Drag to spin around space, scroll to zoom, click any glowing planet to hear it speak in first person, and press F to explore the Human Frontier! `
+        : explorerTier === 'director'
+        ? `Ship AI online. Welcome, Mission Director. Deep telemetry, Live ISS orbital tracking, Human Frontier nodes, and NASA archive feeds are active. Use orbital camera controls to inspect any body or press F to toggle the Human Frontier layer. `
+        : `Welcome to the Odyssey cockpit, Space Cadet! Ship AI online. Click any world to scan its NASA photo gallery and hear its first-person story, or toggle the Human Frontier bar to track the Live ISS, SpaceX Starship, and JWST. `)
+    : '';
+  document.getElementById('mbrief-chapter').textContent = `${tierInfo.icon} ${tierInfo.label.toUpperCase()} · Mission ${m.ch} of ${MISSION_CHAIN.length}`;
   document.getElementById('mbrief-icon').textContent = m.icon;
   document.getElementById('mbrief-title').textContent = m.title;
   document.getElementById('mbrief-target').textContent = 'Target: '+pname;
-  document.getElementById('mbrief-text').textContent = m.briefing;
+  document.getElementById('mbrief-text').textContent = aiGreeting + m.briefing;
   document.getElementById('mbrief-task-text').textContent = m.task;
   document.getElementById('mbrief-reward').textContent =
     m.reward.medal+' Reward: "'+m.reward.name+'" Medal · +'+m.reward.xp+' XP';
   document.getElementById('mission-briefing').classList.add('open');
   _playMissionSFX('briefing');
-  setTimeout(() => speakNarration('Mission '+m.ch+'. '+m.title+'. '+m.briefing, {rate:0.84, pitch:0.88}), 400);
+  setTimeout(() => speakNarration(aiGreeting + 'Mission '+m.ch+'. '+m.title+'. '+m.briefing, {rate:0.94, pitch:0.98}), 400);
 }
 
 document.getElementById('mbrief-start').addEventListener('click', () => {
