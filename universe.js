@@ -1573,9 +1573,18 @@ let _introActive = false;
 // own "begin" button, before the user could touch a planet. The warp tunnel now
 // lands directly on the mission briefing. The premiere is still good material,
 // so it stays reachable from the menu rather than being deleted.
+let _titleScreenOpen = false;
+let _titleCamAngle = 0.42;
+let _userVoiceVolume = 0.95;
+try {
+  const savedVVol = parseFloat(localStorage.getItem('ue_voice_vol'));
+  if (!isNaN(savedVVol)) _userVoiceVolume = Math.max(0, Math.min(1, savedVVol));
+} catch(e) {}
+
 function _enterAfterIntro() {
   paused = false;
   controls.enabled = true;
+  camera.up.set(0, 1, 0);
   // Match the standard overview framing so we never land zoomed or rolled.
   camera.position.set(0, 28, 55);
   controls.target.set(0, 0, 0);
@@ -1583,13 +1592,11 @@ function _enterAfterIntro() {
 
   if (!audioCtx) initAudio();
   if (audioCtx) {
-    // The warp score is in E minor and ends on a resolve; cross into the
-    // ambient planetarium bed rather than cutting to silence.
     audioCtx.resume().then(startPlanetariumBGM).catch(startPlanetariumBGM);
     audioEnabled = true;
     syncAudioBtn();
   }
-  setTimeout(() => showMissionBriefing(_completedMissions.size), 500);
+  openMainTitleScreen();
 }
 
 function pushHistory(entry) {
@@ -3112,8 +3119,19 @@ function animate() {
     }
   }
 
+  // Gentle live 3D orbital camera drift while the Main Title Screen is open
+  if (_titleScreenOpen && !camTarget && !_introActive && !_cinActive && !rocketFlight && !tourActive) {
+    _titleCamAngle += delta * 0.045;
+    camera.position.set(
+      Math.sin(_titleCamAngle) * 56,
+      24 + Math.sin(_titleCamAngle * 0.7) * 3.5,
+      Math.cos(_titleCamAngle) * 56
+    );
+    controls.target.set(0, 0, 0);
+  }
+
   // Update info panel planet position if open
-  if(currentPlanet && !camTarget) {
+  if(currentPlanet && !camTarget && !_titleScreenOpen) {
     const entry = planetMeshes.find(p=>p.pdata.id===currentPlanet);
     if(entry) {
       entry.group.getWorldPosition(_wposTmp);
@@ -3236,107 +3254,80 @@ window.addEventListener('resize', () => {
   }
   draw();
 
-  // ── Warp trigger on START ──
-  document.getElementById('start-btn').addEventListener('click', ()=>{
-    warping=true; stopped=false;
-  }, {once:true});
-
-  // ── Loading progress bar ──────────────────────────────────────────────────
+  // ── Immediate Boot Gate Launch ──
   const fill  = document.getElementById('intro-loader-fill');
   const label = document.getElementById('intro-loader-label');
   const btn   = document.getElementById('start-btn');
-  let prog = 0;
-  const LABELS = ['Scanning Solar System','Loading Textures','Building Orbits','Placing Planets','Lighting Stars'];
-  let labelIdx = 0;
-  const rampId = setInterval(() => {
-    if(prog >= 88) { clearInterval(rampId); return; }
-    prog = Math.min(88, prog + (88 - prog) * 0.055 + 0.4);
-    fill.style.width = prog.toFixed(1) + '%';
-    const newIdx = Math.min(LABELS.length-1, Math.floor(prog / 20));
-    if(newIdx !== labelIdx) { labelIdx = newIdx; label.textContent = LABELS[labelIdx]; }
-  }, 80);
+  if (fill) fill.style.width = '100%';
+  if (label) label.textContent = 'Ship Systems Standby';
+  if (btn) btn.disabled = false;
 
   window.addEventListener('solar-system-ready', () => {
-    clearInterval(rampId); prog = 100;
-    fill.style.width = '100%'; label.textContent = 'Ready';
-    setTimeout(() => {
-      document.getElementById('intro-loader').style.opacity = '0';
-      document.getElementById('intro-loader').style.transition = 'opacity .4s';
-      btn.disabled = false; btn.style.animation = 'wc-btn-pulse 2s ease-in-out infinite';
-    }, 320);
+    const loader = document.getElementById('intro-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      loader.style.transition = 'opacity .35s';
+    }
+    if (btn) btn.disabled = false;
   }, {once: true});
+
+  let _bootTriggered = false;
+  function triggerBootSequence() {
+    if (_bootTriggered) return;
+    _bootTriggered = true;
+    stopped = true;
+    if (!audioCtx) initAudio();
+    if (audioCtx) {
+      audioCtx.resume();
+      playOpeningFanfare();
+    }
+    const introEl = document.getElementById('intro');
+    if (introEl) {
+      introEl.classList.add('hide');
+      setTimeout(() => { introEl.style.display = 'none'; }, 680);
+    }
+    runCinematic();
+  }
+
+  if (btn) {
+    btn.addEventListener('click', triggerBootSequence, {once: true});
+  }
+  document.addEventListener('keydown', function _bootKeyHandler(e) {
+    const introEl = document.getElementById('intro');
+    if (!introEl || introEl.classList.contains('hide') || _bootTriggered) {
+      document.removeEventListener('keydown', _bootKeyHandler);
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      document.removeEventListener('keydown', _bootKeyHandler);
+      triggerBootSequence();
+    }
+  });
 })();
 
-// ─── OPENING FANFARE ─────────────────────────────────────────────────────────
+// ─── BOOT POWER-UP CHIME (CRISP LOW-END PULSE, DOES NOT DROWN NARRATION) ────
 function playOpeningFanfare() {
   if(!audioCtx) return;
   const ctx = audioCtx, now = ctx.currentTime;
-  const master = ctx.createGain(); master.gain.setValueAtTime(0.001,now); master.connect(ctx.destination);
-  master.gain.linearRampToValueAtTime(0.85,now+0.05);
-  master.gain.setValueAtTime(0.85,now+0.6);
-  master.gain.linearRampToValueAtTime(0,now+4.5);
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.001, now);
+  master.gain.linearRampToValueAtTime(0.28 * masterUserVolume, now + 0.04);
+  master.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+  master.connect(ctx.destination);
 
-  // Sub-bass impact boom
-  [55,55,110].forEach((freq,i)=>{
-    const osc=ctx.createOscillator(), g=ctx.createGain();
-    osc.type='sine'; osc.frequency.setValueAtTime(freq,now+i*0.02);
-    g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime(0.5,now+0.04+i*.015);
-    g.gain.exponentialRampToValueAtTime(0.001,now+1.4+i*.1);
-    osc.connect(g); g.connect(master); osc.start(now); osc.stop(now+1.6);
+  // Sub-bass warm power-on thrum + sci-fi harmonic Fifth
+  [[55, 'sine', 0.45], [110, 'triangle', 0.25], [329.63, 'sine', 0.14], [493.88, 'sine', 0.10]].forEach(([freq, type, pk], i) => {
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now + i * 0.03);
+    g.gain.setValueAtTime(0, now + i * 0.03);
+    g.gain.linearRampToValueAtTime(pk, now + i * 0.03 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    osc.connect(g); g.connect(master);
+    osc.start(now + i * 0.03); osc.stop(now + 1.3);
   });
-
-  // Orchestral string swell — stacked saw oscillators detuned for richness
-  const STRING_FREQS = [130.8,164.8,196,220,261.6,329.6,392,440,523];
-  STRING_FREQS.forEach((freq,i)=>{
-    [0,-8,8].forEach(detune=>{
-      const osc=ctx.createOscillator(), g=ctx.createGain(), filt=ctx.createBiquadFilter();
-      osc.type='sawtooth'; osc.frequency.value=freq; osc.detune.value=detune;
-      filt.type='lowpass'; filt.frequency.setValueAtTime(800+i*100,now); filt.Q.value=0.5;
-      const start=now+0.08+i*0.04, peak=start+0.3;
-      g.gain.setValueAtTime(0,start); g.gain.linearRampToValueAtTime(0.09,peak);
-      g.gain.exponentialRampToValueAtTime(0.04,now+2.5); g.gain.linearRampToValueAtTime(0,now+4.2);
-      osc.connect(filt); filt.connect(g); g.connect(master);
-      osc.start(start); osc.stop(now+4.4);
-    });
-  });
-
-  // High shimmer bells
-  [1046,1318,1568,2093].forEach((freq,i)=>{
-    const osc=ctx.createOscillator(), g=ctx.createGain();
-    osc.type='sine'; osc.frequency.setValueAtTime(freq,now);
-    const t0=now+0.5+i*0.18;
-    g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.12,t0+0.02);
-    g.gain.exponentialRampToValueAtTime(0.001,t0+2.2);
-    osc.connect(g); g.connect(master); osc.start(t0); osc.stop(t0+2.4);
-  });
-
-  // Percussion hit — filtered noise burst
-  const nBuf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*.18),ctx.sampleRate);
-  const nd=nBuf.getChannelData(0); for(let i=0;i<nd.length;i++) nd[i]=(Math.random()*2-1);
-  const nSrc=ctx.createBufferSource(), nFilt=ctx.createBiquadFilter(), nGain=ctx.createGain();
-  nSrc.buffer=nBuf; nFilt.type='bandpass'; nFilt.frequency.value=180; nFilt.Q.value=0.8;
-  nGain.gain.setValueAtTime(1.2,now); nGain.gain.exponentialRampToValueAtTime(0.001,now+0.22);
-  nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(master); nSrc.start(now);
 }
-
-document.getElementById('start-btn').addEventListener('click', () => {
-  if(!audioCtx) initAudio();
-  if(audioCtx) { audioCtx.resume(); playOpeningFanfare(); }
-
-  // Short delay to let warp animation peak, then flash and enter
-  setTimeout(()=>{
-    const warp = document.getElementById('warp-overlay');
-    warp.classList.add('flash');
-    setTimeout(()=>{
-      document.getElementById('intro').classList.add('hide');
-      setTimeout(()=>{
-        document.getElementById('intro').style.display='none';
-        warp.classList.remove('flash');
-        runCinematic();
-      }, 500);
-    }, 350);
-  }, 1800);
-});
 
 // ─── ROCKET MODE ─────────────────────────────────────────────────────────────
 let rocketModeActive = false;
@@ -5546,25 +5537,84 @@ document.getElementById('replay-premiere-btn').addEventListener('click', () => {
   startCinematicPremiere();
 });
 
-// ─── REAL 3D CAMERA FLY-IN & CARL SAGAN "PALE BLUE DOT" INTRO ────────────────
+// ─── 35-SECOND COLD-OPEN WARP FLYBY & REAL AUDIO PIPELINE ────────────────────
 let _saganAudioEl = null;
+let _customIntroAudioEl = null;
+
+function playFlybyWhoosh(panVal = 0, intensity = 1.0) {
+  if (!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
+  try {
+    const ctx = audioCtx, now = ctx.currentTime;
+    const dur = 2.4;
+    // Deep spatial low-end Doppler pass (warm filtered sine + sub-harmonic sweep, zero harsh hiss)
+    const oscLow = ctx.createOscillator();
+    const oscSub = ctx.createOscillator();
+    const filt   = ctx.createBiquadFilter();
+    const gain   = ctx.createGain();
+
+    oscLow.type = 'sawtooth';
+    oscSub.type = 'sine';
+    // Doppler pitch drop as we skim past the planet
+    oscLow.frequency.setValueAtTime(115 * (0.9 + intensity * 0.2), now);
+    oscLow.frequency.exponentialRampToValueAtTime(38, now + dur);
+    oscSub.frequency.setValueAtTime(68, now);
+    oscSub.frequency.exponentialRampToValueAtTime(28, now + dur);
+
+    filt.type = 'bandpass';
+    filt.frequency.setValueAtTime(90, now);
+    filt.frequency.exponentialRampToValueAtTime(260 * intensity, now + 0.85);
+    filt.frequency.exponentialRampToValueAtTime(65, now + dur);
+    filt.Q.value = 1.2;
+
+    const peak = Math.min(0.26, 0.16 * intensity * masterUserVolume);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(peak, now + 0.85);
+    gain.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+
+    oscLow.connect(filt);
+    oscSub.connect(gain);
+    filt.connect(gain);
+
+    if (typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, panVal)), now);
+      panner.pan.linearRampToValueAtTime(Math.max(-1, Math.min(1, -panVal * 0.7)), now + dur);
+      gain.connect(panner);
+      panner.connect(ctx.destination);
+    } else {
+      gain.connect(ctx.destination);
+    }
+
+    oscLow.start(now); oscSub.start(now);
+    oscLow.stop(now + dur + 0.05); oscSub.stop(now + dur + 0.05);
+  } catch (e) {}
+}
 
 function runCinematic() {
   _forceIntroReplay = false;
   try { localStorage.setItem('ue_seen_intro', '1'); } catch (e) {}
 
+  if (_titleScreenOpen) {
+    const mts = document.getElementById('main-title-screen');
+    if (mts) mts.classList.remove('open');
+    _titleScreenOpen = false;
+  }
+
   _introActive = true;
-  const div    = document.getElementById('cinematic');
-  const canvas = document.getElementById('cine-canvas');
-  const textDiv= document.getElementById('cine-text');
-  const progEl = document.getElementById('cine-progress-legacy');
-  const ctx    = canvas.getContext('2d');
+  const div      = document.getElementById('cinematic');
+  const canvas   = document.getElementById('cine-canvas');
+  const textDiv  = document.getElementById('cine-text');
+  const progEl   = document.getElementById('cine-progress-legacy');
+  const phaseTag = document.getElementById('cine-phase-tag');
+  const skipBtn  = document.getElementById('cine-skip');
+  const ctx      = canvas.getContext('2d');
   div.style.display = '';
   div.style.opacity = '1';
+  div.style.transition = '';
   div.classList.add('active');
 
-  // Lock user orbit controls and freeze orbital drift so our 3D camera spline
-  // sweeps cleanly past Saturn's rings, Jupiter, and the Pale Blue Dot of Earth
+  // Freeze orbital drift during the 35-second choreographed flyby so planetary
+  // skim positions (Neptune -> Saturn's rings -> Jupiter -> Earth crescent) are 100% locked
   const _wasPaused = paused;
   paused = true;
   controls.enabled = false;
@@ -5575,69 +5625,67 @@ function runCinematic() {
   resize();
   window.addEventListener('resize', resize);
 
-  // Subtle warp starlight particles overlaid transparently on the real 3D scene
-  const stars = Array.from({length: 180}, () => ({
-    x: (Math.random()-0.5)*1600,
-    y: (Math.random()-0.5)*1600,
-    z: Math.random()*1000 + 1,
+  // High-energy warp star-streak tunnel particles (0s-7s interstellar arrival)
+  const stars = Array.from({length: 260}, () => ({
+    x: (Math.random() - 0.5) * 1800,
+    y: (Math.random() - 0.5) * 1800,
+    z: Math.random() * 1000 + 1,
     pz: 1000,
-    r: Math.random()*1.1+0.3
+    r: Math.random() * 1.3 + 0.4
   }));
 
-  // Exact Carl Sagan "Pale Blue Dot" monologue synced line-by-line to the 3D fly-in:
-  // [appearAtSeconds, HTML subtitle, spokenText]
+  // 35-Second Cold-Open Script synced to ./audio/intro-narration.mp3
+  // [audioStartSec, elapseStartSec, HTML subtitle, spokenText]
   const SCRIPT = [
-    [ 0.8, "From this distant vantage point,<br>the Earth might not seem of any particular interest.",
-           "From this distant vantage point, the Earth might not seem of any particular interest." ],
-    [ 7.5, "But for us, it's different.<br><em>Look again at that dot.</em>",
-           "But for us, it's different. Look again at that dot." ],
-    [13.2, "That's here. That's home. <em>That's us.</em>",
-           "That's here. That's home. That's us." ],
-    [18.8, "On it everyone you love, everyone you know,<br>every human being who ever was, lived out their lives.",
-           "On it everyone you love, everyone you know, every human being who ever was, lived out their lives." ],
-    [26.5, "On a mote of dust — <em>suspended in a sunbeam.</em>",
-           "On a mote of dust, suspended in a sunbeam." ],
-    [32.5, "To me, it underscores our responsibility to preserve and cherish<br><em>the pale blue dot, the only home we've ever known.</em>",
-           "To me, it underscores our responsibility to preserve and cherish the pale blue dot, the only home we've ever known." ],
+    [ 0.40,  0.40, "From this distant vantage point,<br>the Earth might not seem of any particular interest.",
+                   "From this distant vantage point, the Earth might not seem of any particular interest." ],
+    [ 7.10,  7.00, "But for us, it's different.<br><em>Look again at that dot.</em>",
+                   "But for us, it's different. Look again at that dot." ],
+    [12.30, 11.80, "On it everyone you love, everyone you know,<br>every human being who ever was, lived out their lives.",
+                   "On it everyone you love, everyone you know, every human being who ever was, lived out their lives." ],
+    [21.00, 20.00, "That's here. That's home. <em>That's us.</em>",
+                   "That's here. That's home. That's us." ],
+    [24.85, 23.80, "On a mote of dust — <em>suspended in a sunbeam.</em>",
+                   "On a mote of dust, suspended in a sunbeam." ],
+    [29.05, 27.60, "To me, it underscores our responsibility to preserve and cherish<br><em>the pale blue dot, the only home we have ever known.</em>",
+                   "To me, it underscores our responsibility to preserve and cherish the pale blue dot, the only home we have ever known." ],
   ];
-  const TOTAL = 40.0;
+  const TOTAL = 35.0;
 
-  // Attempt to play real Carl Sagan Pale Blue Dot audio clip if present or reachable,
-  // with automatic seamless fallback to English Web Speech narration synced per line.
-  let _usingExternalSaganAudio = false;
+  // Play real local ./audio/intro-narration.mp3 via <audio> element with tight cinematic pacing
+  // (keeping speechSynthesis strictly as an emergency fallback if <audio> fails to play).
+  let _usingExternalSaganAudio = true;
   try {
-    const audioCandidates = [
-      'audio/sagan_pale_blue_dot.mp3',
-      'https://upload.wikimedia.org/wikipedia/commons/e/e5/Carl_Sagan_-_Pale_Blue_Dot.ogg'
-    ];
-    const probeAudio = new Audio();
-    probeAudio.crossOrigin = 'anonymous';
+    if (_saganAudioEl) {
+      try { _saganAudioEl.pause(); } catch(e){}
+    }
+    const probeAudio = new Audio('audio/intro-narration.mp3');
     probeAudio.preload = 'auto';
-    probeAudio.volume = 0.95;
-    let candIdx = 0;
-    const tryNextSource = () => {
-      if (dead || candIdx >= audioCandidates.length) return;
-      probeAudio.src = audioCandidates[candIdx++];
-      const playPromise = probeAudio.play();
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise.then(() => {
-          if (dead) { probeAudio.pause(); return; }
-          _usingExternalSaganAudio = true;
-          _saganAudioEl = probeAudio;
-          stopNarration(); // cancel TTS fallback if real audio succeeded
-          setMusicDuck(true);
-        }).catch(() => {
-          tryNextSource();
-        });
-      }
-    };
+    probeAudio.playbackRate = 1.07; // 37.46s / 1.07 = 35.00s exact match to 35s flyby
+    probeAudio.volume = Math.max(0, Math.min(1, _userVoiceVolume * 0.96));
+    _saganAudioEl = probeAudio;
+
     probeAudio.addEventListener('ended', () => setMusicDuck(false));
-    tryNextSource();
+    probeAudio.addEventListener('error', () => {
+      _usingExternalSaganAudio = false;
+    });
+
+    const playPromise = probeAudio.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.then(() => {
+        if (dead) { probeAudio.pause(); return; }
+        _usingExternalSaganAudio = true;
+        stopNarration();
+        setMusicDuck(true);
+      }).catch(() => {
+        _usingExternalSaganAudio = false;
+      });
+    }
   } catch (e) {
     _usingExternalSaganAudio = false;
   }
 
-  // Helper to get world position of a planet for our 3D camera keyframes
+  // Helper to get world position of a planet for our 35-second camera choreography
   function getPlanetWorldPos(id, fallbackVec) {
     const pm = planetMeshes.find(p => p.pdata.id === id);
     if (!pm) return fallbackVec.clone();
@@ -5646,26 +5694,48 @@ function runCinematic() {
     return v;
   }
 
+  const neptunePos = getPlanetWorldPos('neptune', new THREE.Vector3(52, 0, -18));
   const saturnPos  = getPlanetWorldPos('saturn',  new THREE.Vector3(30, 0, 12));
   const jupiterPos = getPlanetWorldPos('jupiter', new THREE.Vector3(-22, 0, 15));
   const earthPos   = getPlanetWorldPos('earth',   new THREE.Vector3(12, 0, 6));
   const sunPos     = new THREE.Vector3(0, 0, 0);
 
-  // 6-keyframe 3D camera spline through the live Solar System:
-  // 0: Deep interstellar space looking toward the distant Sun
-  // 1: Sweeping inward past the outer ice giants toward Saturn
-  // 2: Close dramatic pass right over Saturn's illuminated ring plane
-  // 3: Banking past Jupiter's churning cloud bands & Great Red Spot
-  // 4: Poignant close approach to the Pale Blue Dot of Earth
-  // 5: Ascending smoothly into the grand Solar System cockpit overview
+  // Compute sunlit crescent offset for Earth (approaching from night/terminator side looking across sunlit crescent toward Sun)
+  const earthToSunDir = sunPos.clone().sub(earthPos).normalize();
+  const earthRightDir = new THREE.Vector3(-earthToSunDir.z, 0, earthToSunDir.x).normalize();
+  const earthCrescentApproach = earthPos.clone()
+    .add(earthToSunDir.clone().multiplyScalar(-3.2))
+    .add(earthRightDir.clone().multiplyScalar(1.85))
+    .add(new THREE.Vector3(0, 0.85, 0));
+  const earthCrescentClose = earthPos.clone()
+    .add(earthToSunDir.clone().multiplyScalar(-1.65))
+    .add(earthRightDir.clone().multiplyScalar(1.15))
+    .add(new THREE.Vector3(0, 0.42, 0));
+
+  // 35-Second High-Energy 3D Camera Choreography with Dynamic Banking Roll:
+  // a) 0s-7s:   Warp-speed star-streak tunnel arriving from deep interstellar space.
+  // b) 7s-20s:  Dynamic banking flybys skimming close past Neptune (7-11.5s),
+  //             sweeping right across Saturn's rings (11.5-16s), and banking past Jupiter (16-20s).
+  // c) 20s-35s: Smooth deceleration curving past the sunlit crescent of Earth (20-28s)
+  //             before settling into a majestic high orbital overview of the inner solar system (28-35s).
   const CAM_KEYFRAMES = [
-    { t: 0.0,  pos: new THREE.Vector3(saturnPos.x * 2.8, 52, saturnPos.z * 2.8 + 135), look: sunPos.clone() },
-    { t: 6.5,  pos: saturnPos.clone().add(new THREE.Vector3(14, 7.5, 16)),             look: saturnPos.clone() },
-    { t: 13.0, pos: saturnPos.clone().add(new THREE.Vector3(-5.5, 2.6, 6.2)),          look: saturnPos.clone() },
-    { t: 20.0, pos: jupiterPos.clone().add(new THREE.Vector3(6.8, 2.8, 7.2)),          look: jupiterPos.clone() },
-    { t: 27.5, pos: earthPos.clone().add(new THREE.Vector3(2.8, 1.1, 3.1)),            look: earthPos.clone() },
-    { t: 34.5, pos: earthPos.clone().add(new THREE.Vector3(4.2, 2.2, 4.8)),            look: earthPos.clone() },
-    { t: 40.0, pos: new THREE.Vector3(0, 28, 55),                                      look: sunPos.clone() },
+    { t:  0.0, pos: neptunePos.clone().multiplyScalar(2.65).add(new THREE.Vector3(0, 38, 95)), look: sunPos.clone(),     roll:  0.00 },
+    { t:  7.0, pos: neptunePos.clone().add(new THREE.Vector3(7.5, 2.2, 8.5)),                  look: neptunePos.clone(), roll:  0.18 },
+    { t: 10.8, pos: neptunePos.clone().add(new THREE.Vector3(-2.6, 0.75, 2.9)),                look: saturnPos.clone(),  roll:  0.26 },
+    { t: 13.5, pos: saturnPos.clone().add(new THREE.Vector3(8.2, 2.9, 6.4)),                   look: saturnPos.clone(),  roll: -0.28 },
+    { t: 16.2, pos: saturnPos.clone().add(new THREE.Vector3(-4.8, -0.65, 4.4)),                look: jupiterPos.clone(), roll: -0.18 },
+    { t: 19.8, pos: jupiterPos.clone().add(new THREE.Vector3(4.6, 1.35, 5.2)),                 look: jupiterPos.clone(), roll:  0.22 },
+    { t: 22.8, pos: earthCrescentApproach,                                                     look: earthPos.clone(),   roll:  0.08 },
+    { t: 27.6, pos: earthCrescentClose,                                                        look: earthPos.clone(),   roll:  0.00 },
+    { t: 35.0, pos: new THREE.Vector3(0, 28, 55),                                              look: sunPos.clone(),     roll:  0.00 },
+  ];
+
+  // Spatial low-end flyby whoosh triggers at Neptune, Saturn's rings, Jupiter, and Earth
+  const WHOOSH_CUES = [
+    { t:  8.4, pan: -0.45, intensity: 0.95, fired: false }, // Neptune skim
+    { t: 13.6, pan:  0.55, intensity: 1.25, fired: false }, // Saturn ring plane sweep
+    { t: 18.0, pan: -0.50, intensity: 1.35, fired: false }, // Jupiter gravity bank
+    { t: 21.4, pan:  0.25, intensity: 0.75, fired: false }, // Earth crescent deceleration
   ];
 
   function update3DFlyInCamera(sec) {
@@ -5679,21 +5749,41 @@ function runCinematic() {
     }
     const span = Math.max(0.001, k1.t - k0.t);
     const raw = Math.max(0, Math.min(1, (sec - k0.t) / span));
-    // Smooth cosine ease between waypoints
     const ease = 0.5 - 0.5 * Math.cos(raw * Math.PI);
     camera.position.lerpVectors(k0.pos, k1.pos, ease);
     controls.target.lerpVectors(k0.look, k1.look, ease);
-    controls.update();
+
+    // Apply smooth banking roll to camera.up
+    const bankAngle = (k0.roll || 0) + ((k1.roll || 0) - (k0.roll || 0)) * ease;
+    camera.up.set(Math.sin(bankAngle), Math.cos(bankAngle), 0).normalize();
+    camera.lookAt(controls.target);
+
+    if (phaseTag) {
+      if (sec < 7.0) {
+        phaseTag.textContent = 'PHASE I // INTERSTELLAR WARP ARRIVAL';
+      } else if (sec < 11.5) {
+        phaseTag.textContent = 'PHASE II // NEPTUNE OUTER RIM FLYBY';
+      } else if (sec < 16.2) {
+        phaseTag.textContent = 'PHASE II // SATURN RING PLANE SWEEP';
+      } else if (sec < 20.0) {
+        phaseTag.textContent = 'PHASE II // JUPITER GRAVITY BANK';
+      } else if (sec < 28.0) {
+        phaseTag.textContent = 'PHASE III // EARTH SUNLIT CRESCENT — PALE BLUE DOT';
+      } else {
+        phaseTag.textContent = 'PHASE III // INNER SYSTEM ORBITAL OVERVIEW';
+      }
+    }
   }
 
   let elapsed = 0, lastTs = null;
   let curLineIdx = -1, lineEl = null;
 
   function endCinematic() {
-    if(dead) return;
+    if (dead) return;
     dead = true;
     _introActive = false;
     window.removeEventListener('resize', resize);
+    if (skipBtn) skipBtn.removeEventListener('click', endCinematic);
     if (_cineSkipKeys) {
       document.removeEventListener('keydown', _cineSkipKeys);
       _cineSkipKeys = null;
@@ -5704,17 +5794,20 @@ function runCinematic() {
     }
     stopNarration();
     setMusicDuck(false);
+    camera.up.set(0, 1, 0);
     paused = _wasPaused;
     controls.enabled = true;
-    if(lineEl) lineEl.style.opacity = '0';
-    div.style.transition = 'opacity 1.4s ease';
+    if (lineEl) lineEl.style.opacity = '0';
+    div.style.transition = 'opacity 0.65s ease';
     div.style.opacity = '0';
-    setTimeout(() => { div.classList.remove('active'); div.style.display = 'none'; }, 1500);
+    setTimeout(() => { div.classList.remove('active'); div.style.display = 'none'; }, 680);
     stopCinematicScore();
-    setTimeout(_enterAfterIntro, 900);
+    _enterAfterIntro();
   }
 
-  document.getElementById('cine-skip').addEventListener('click', endCinematic, {once:true});
+  if (skipBtn) {
+    skipBtn.addEventListener('click', endCinematic);
+  }
 
   _cineSkipKeys = (e) => {
     if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
@@ -5725,13 +5818,21 @@ function runCinematic() {
   document.addEventListener('keydown', _cineSkipKeys);
 
   function frame(ts) {
-    if(dead) return;
-    if(!lastTs) lastTs = ts;
+    if (dead) return;
+    if (!lastTs) lastTs = ts;
     elapsed += (ts - lastTs) / 1000;
     lastTs = ts;
 
-    // Move the real 3D Three.js camera along the interstellar-to-Earth spline
+    // Move the real 3D Three.js camera along the 35-second choreographed spline
     update3DFlyInCamera(elapsed);
+
+    // Fire spatial low-end flyby whooshes as we skim past Neptune, Saturn, Jupiter & Earth
+    for (let w = 0; w < WHOOSH_CUES.length; w++) {
+      if (!WHOOSH_CUES[w].fired && elapsed >= WHOOSH_CUES[w].t) {
+        WHOOSH_CUES[w].fired = true;
+        playFlybyWhoosh(WHOOSH_CUES[w].pan, WHOOSH_CUES[w].intensity);
+      }
+    }
 
     // Clear 2D overlay canvas so the live 3D solar system shines through crystal clear
     ctx.clearRect(0, 0, W, H);
@@ -5743,131 +5844,185 @@ function runCinematic() {
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
 
-    // Subtle interstellar warp streaks during the initial high-speed approach (0-12s)
-    if (elapsed < 14) {
-      const warpIntensity = Math.max(0, 1 - elapsed / 14);
-      const speed = 1.5 + warpIntensity * 7.5;
+    // 0s-7s Warp-speed star-streak tunnel arriving from deep interstellar space (fading out smoothly by 9.5s)
+    if (elapsed < 9.5) {
+      const warpIntensity = elapsed < 6.2 ? 1.0 : Math.max(0, 1 - (elapsed - 6.2) / 3.3);
+      const speed = 3.5 + warpIntensity * 14.5;
       const cx = W * 0.5, cy = H * 0.5;
       stars.forEach(s => {
         s.pz = s.z;
-        s.z -= speed * 4.2;
+        s.z -= speed * 5.2;
         if (s.z <= 1) {
-          s.x = (Math.random()-0.5)*1600;
-          s.y = (Math.random()-0.5)*1600;
+          s.x = (Math.random() - 0.5) * 1800;
+          s.y = (Math.random() - 0.5) * 1800;
           s.z = 1000; s.pz = 1000;
         }
-        const sx = (s.x/s.z)*W*0.5+cx, sy = (s.y/s.z)*H*0.5+cy;
-        const px = (s.x/s.pz)*W*0.5+cx, py = (s.y/s.pz)*H*0.5+cy;
+        const sx = (s.x / s.z) * W * 0.5 + cx, sy = (s.y / s.z) * H * 0.5 + cy;
+        const px = (s.x / s.pz) * W * 0.5 + cx, py = (s.y / s.pz) * H * 0.5 + cy;
         ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
-        ctx.strokeStyle = `rgba(185,225,255,${(warpIntensity * 0.45).toFixed(3)})`;
-        ctx.lineWidth = s.r * 0.6;
+        ctx.strokeStyle = `rgba(190,235,255,${(warpIntensity * 0.72).toFixed(3)})`;
+        ctx.lineWidth = s.r * (0.65 + warpIntensity * 0.85);
         ctx.stroke();
       });
     }
 
-    // Progress bar
-    if(progEl) progEl.style.width = Math.min(100, (elapsed/TOTAL*100)).toFixed(1)+'%';
+    // Progress bar synced to 35.0s duration
+    if (progEl) progEl.style.width = Math.min(100, (elapsed / TOTAL * 100)).toFixed(1) + '%';
 
-    // Manage Pale Blue Dot subtitle lines + English voice sync
-    for(let i=0; i<SCRIPT.length; i++) {
-      const [startAt, htmlText, spokenText] = SCRIPT[i];
-      const hideAt = (i < SCRIPT.length-1) ? SCRIPT[i+1][0]-0.45 : TOTAL - 0.5;
+    // Sync subtitles directly to _saganAudioEl.currentTime when real audio is playing, or elapsed fallback
+    const useAudioClock = _usingExternalSaganAudio && _saganAudioEl && !_saganAudioEl.paused && _saganAudioEl.currentTime > 0.05;
+    const syncClock = useAudioClock ? _saganAudioEl.currentTime : elapsed;
 
-      if(elapsed >= startAt && elapsed < hideAt) {
-        if(curLineIdx !== i) {
+    for (let i = 0; i < SCRIPT.length; i++) {
+      const [audioAt, elapseAt, htmlText, spokenText] = SCRIPT[i];
+      const startAt = useAudioClock ? audioAt : elapseAt;
+      const nextAt  = (i < SCRIPT.length - 1)
+        ? (useAudioClock ? SCRIPT[i + 1][0] : SCRIPT[i + 1][1]) - 0.35
+        : (useAudioClock ? 37.3 : TOTAL - 0.3);
+
+      if (syncClock >= startAt && syncClock < nextAt) {
+        if (curLineIdx !== i) {
           curLineIdx = i;
           textDiv.innerHTML = `<div class="cine-line">${htmlText}<div style="font-size:11px;letter-spacing:.22em;color:rgba(0,212,255,.65);margin-top:10px;font-family:Orbitron,sans-serif">— CARL SAGAN · PALE BLUE DOT</div></div>`;
           lineEl = textDiv.querySelector('.cine-line');
           requestAnimationFrame(() => lineEl && lineEl.classList.add('show'));
           if (!_usingExternalSaganAudio && spokenText) {
-            speakNarration(spokenText, { rate: 0.86, pitch: 0.88 });
+            speakNarration(spokenText, { rate: 0.90, pitch: 0.88 });
           }
         }
-      } else if(curLineIdx === i && elapsed >= hideAt) {
-        if(lineEl) lineEl.classList.remove('show');
+      } else if (curLineIdx === i && syncClock >= nextAt) {
+        if (lineEl) lineEl.classList.remove('show');
         curLineIdx = -1; lineEl = null;
       }
     }
 
-    if(elapsed >= TOTAL) { endCinematic(); return; }
+    if (elapsed >= TOTAL) { endCinematic(); return; }
     requestAnimationFrame(frame);
   }
 
   requestAnimationFrame(frame);
 
-  // Initialise and fade in the space ambient soundtrack
-  if(!audioCtx) initAudio();
-  if(audioCtx) {
+  // Initialise and start the custom-intro track or upgraded eerie deep-space synthesizer
+  if (!audioCtx) initAudio();
+  if (audioCtx) {
     audioCtx.resume();
     audioEnabled = true;
     syncAudioBtn();
-    if(ambientMaster) {
+    if (ambientMaster) {
       ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
       ambientMaster.gain.setValueAtTime(0, audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime+4);
+      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime + 3.5);
     }
     playCinematicScore();
   }
 }
 
-// ─── CINEMATIC SCORE — Warm Orchestral Swell (Zero Static Noise) ──────────────
+// ─── CINEMATIC SCORE — Custom Track Check + Eerie Haunting Deep-Space Synth ───
 let cinematicScoreNodes = [];
 function playCinematicScore() {
-  if(!audioCtx) return;
+  if (!audioCtx) return;
   const t = audioCtx.currentTime;
   const nodes = [];
 
   const scoreMaster = audioCtx.createGain();
-  const peakGain = 0.24 * masterUserVolume;
-  scoreMaster.gain.setValueAtTime(0, t);
-  scoreMaster.gain.linearRampToValueAtTime(peakGain, t + 6);
-  scoreMaster.gain.setValueAtTime(peakGain, t + 33);
-  scoreMaster.gain.linearRampToValueAtTime(0, t + 41);
+  const peakGain = 0.28 * masterUserVolume;
+  scoreMaster.gain.setValueAtTime(0.001, t);
+  scoreMaster.gain.linearRampToValueAtTime(peakGain * 0.72, t + 4.0);
+  // Dynamic swell during the 7s-20s Outer Giants & Saturn Ring flyby
+  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.15, t + 14.5);
+  // Warm emotional swell at 20s-30s as we curve past the sunlit crescent of Earth
+  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.25, t + 23.0);
+  scoreMaster.gain.setValueAtTime(peakGain, t + 31.0);
+  scoreMaster.gain.linearRampToValueAtTime(0, t + 36.0);
   scoreMaster.connect(audioCtx.destination);
 
-  const cineReverb = createReverb(audioCtx, 9, 2.8);
-  const revG = audioCtx.createGain(); revG.gain.value = 0.72;
-  cineReverb.connect(revG); revG.connect(scoreMaster);
-  const dry = audioCtx.createGain(); dry.gain.value = 0.30; dry.connect(scoreMaster);
+  // 1) Check if user-supplied ./audio/custom-intro.mp3 exists; if so, play it and crossfade!
+  fetch('audio/custom-intro.mp3', { method: 'HEAD' })
+    .then(r => {
+      if (r && r.ok && _introActive) {
+        if (_customIntroAudioEl) { try { _customIntroAudioEl.pause(); } catch(e){} }
+        const customEl = new Audio('audio/custom-intro.mp3');
+        customEl.volume = Math.max(0, Math.min(1, 0.45 * masterUserVolume));
+        _customIntroAudioEl = customEl;
+        customEl.play().then(() => {
+          if (audioCtx && scoreMaster) {
+            const now = audioCtx.currentTime;
+            scoreMaster.gain.cancelScheduledValues(now);
+            scoreMaster.gain.setValueAtTime(scoreMaster.gain.value, now);
+            scoreMaster.gain.linearRampToValueAtTime(0.02 * masterUserVolume, now + 1.2);
+          }
+        }).catch(() => {});
+      }
+    })
+    .catch(() => {});
 
-  // Deep warm sub-bass pedal (C1 / G1)
-  [32.70, 65.41].forEach((freq, i) => {
+  const cineReverb = createReverb(audioCtx, 9.5, 2.6);
+  const revG = audioCtx.createGain(); revG.gain.value = 0.78;
+  cineReverb.connect(revG); revG.connect(scoreMaster);
+  const dry = audioCtx.createGain(); dry.gain.value = 0.28; dry.connect(scoreMaster);
+
+  // Deep haunting sub-bass drone (E1 41.20 Hz / B1 61.74 Hz -> C1 32.70 Hz)
+  [[41.20, 32.70, 0.20], [82.41, 65.41, 0.11]].forEach(([fStart, fEnd, gPeak]) => {
     const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
     const filt = audioCtx.createBiquadFilter();
-    osc.type = 'sine'; osc.frequency.value = freq;
-    filt.type = 'lowpass'; filt.frequency.value = 110; filt.Q.value = 0.4;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(fStart, t);
+    osc.frequency.linearRampToValueAtTime(fEnd, t + 20.0);
+    filt.type = 'lowpass'; filt.frequency.value = 115; filt.Q.value = 0.5;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(i===0 ? 0.18 : 0.10, t + 5);
-    g.gain.setValueAtTime(i===0 ? 0.18 : 0.10, t + 34);
-    g.gain.linearRampToValueAtTime(0, t + 41);
-    osc.connect(filt); filt.connect(g); g.connect(dry);
-    osc.start(t); osc.stop(t + 42); nodes.push(osc);
+    g.gain.linearRampToValueAtTime(gPeak, t + 3.5);
+    g.gain.setValueAtTime(gPeak, t + 31.0);
+    g.gain.linearRampToValueAtTime(0, t + 35.8);
+    osc.connect(filt); filt.connect(g); g.connect(dry); g.connect(cineReverb);
+    osc.start(t); osc.stop(t + 36.2); nodes.push(osc);
   });
 
-  // Warm evolving string/pad chords: Cmaj9 → Em7 → Fmaj9 → G6
+  // Eerie high glassy cosmic harmonic shimmer (slow LFO-modulated fifths in E minor / C Lydian)
+  [493.88, 739.99, 987.77].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    const lfo = audioCtx.createOscillator(), lfoG = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    lfo.type = 'sine'; lfo.frequency.value = 0.11 + i * 0.04;
+    lfoG.gain.value = 0.0045;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.0085, t + 4.0 + i * 1.5);
+    g.gain.setValueAtTime(0.0085, t + 29.0);
+    g.gain.linearRampToValueAtTime(0, t + 35.5);
+    lfo.connect(lfoG); lfoG.connect(g.gain);
+    osc.connect(g); g.connect(cineReverb);
+    osc.start(t); lfo.start(t);
+    osc.stop(t + 36.0); lfo.stop(t + 36.0);
+    nodes.push(osc, lfo);
+  });
+
+  // Evolving 4-Act Deep-Space Pad Chords synced to the 35s flyby:
+  // 0s-9s (Interstellar Void): Em9 -> 8s-18s (Neptune & Saturn Rings): Cmaj7(#11)
+  // -> 17s-26s (Jupiter & Pale Blue Dot Earth Crescent): Fmaj9(#11) -> 25s-35s (Solar Overview): Cmaj9
   const CINE_CHORDS = [
-    { freqs: [130.81, 164.81, 196.00, 246.94, 293.66], start: 0,  dur: 11 },
-    { freqs: [164.81, 196.00, 246.94, 293.66, 329.63], start: 10, dur: 11 },
-    { freqs: [174.61, 220.00, 261.63, 329.63, 392.00], start: 20, dur: 11 },
-    { freqs: [130.81, 196.00, 261.63, 329.63, 493.88], start: 30, dur: 11 },
+    { freqs: [82.41, 123.47, 164.81, 246.94, 329.63, 369.99], start:  0.0, dur: 9.5  },
+    { freqs: [65.41, 130.81, 196.00, 246.94, 293.66, 369.99], start:  8.0, dur: 10.5 },
+    { freqs: [87.31, 130.81, 174.61, 220.00, 261.63, 392.00], start: 17.0, dur: 10.0 },
+    { freqs: [65.41, 130.81, 164.81, 196.00, 246.94, 293.66], start: 25.5, dur: 10.5 },
   ];
   CINE_CHORDS.forEach(({ freqs, start, dur }) => {
     freqs.forEach((freq, vi) => {
       const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
       const filt = audioCtx.createBiquadFilter();
-      osc.type = vi < 2 ? 'sine' : 'triangle';
+      osc.type = vi < 2 ? 'sine' : (vi % 2 === 0 ? 'triangle' : 'sawtooth');
       osc.frequency.value = freq;
-      osc.detune.value = (vi - 2) * 3.5;
+      osc.detune.value = (vi - 2.5) * 4.2;
       filt.type = 'lowpass';
-      filt.frequency.setValueAtTime(240, t + start);
-      filt.frequency.linearRampToValueAtTime(580 + vi * 70, t + start + dur * 0.5);
-      filt.Q.value = 0.45;
+      filt.frequency.setValueAtTime(190, t + start);
+      filt.frequency.linearRampToValueAtTime(620 + vi * 85, t + start + dur * 0.55);
+      filt.frequency.linearRampToValueAtTime(260, t + start + dur);
+      filt.Q.value = 0.55;
+      const vGain = vi % 2 === 1 && vi >= 2 ? 0.016 : 0.026;
       g.gain.setValueAtTime(0, t + start);
-      g.gain.linearRampToValueAtTime(0.026, t + start + 2.5);
-      g.gain.setValueAtTime(0.026, t + start + dur - 2.0);
+      g.gain.linearRampToValueAtTime(vGain, t + start + 2.2);
+      g.gain.setValueAtTime(vGain, t + start + dur - 2.0);
       g.gain.linearRampToValueAtTime(0, t + start + dur);
       osc.connect(filt); filt.connect(g); g.connect(cineReverb); g.connect(dry);
-      osc.start(t + start); osc.stop(t + start + dur + 0.5); nodes.push(osc);
+      osc.start(t + start); osc.stop(t + start + dur + 0.4); nodes.push(osc);
     });
   });
 
@@ -5876,15 +6031,19 @@ function playCinematicScore() {
 }
 
 function stopCinematicScore() {
-  if(cinematicScoreNodes._master && audioCtx) {
+  if (_customIntroAudioEl) {
+    try { _customIntroAudioEl.pause(); _customIntroAudioEl.currentTime = 0; } catch(e){}
+    _customIntroAudioEl = null;
+  }
+  if (cinematicScoreNodes._master && audioCtx) {
     const t = audioCtx.currentTime;
     cinematicScoreNodes._master.gain.cancelScheduledValues(t);
-    cinematicScoreNodes._master.gain.linearRampToValueAtTime(0, t + 1.8);
+    cinematicScoreNodes._master.gain.linearRampToValueAtTime(0, t + 1.5);
   }
   setTimeout(() => {
     cinematicScoreNodes.forEach(n => { try { n.stop(); } catch(e){} });
     cinematicScoreNodes = [];
-  }, 2000);
+  }, 1600);
 }
 
 // ─── GUIDED TOUR: COSMOS-STYLE NARRATION ─────────────────────────────────────
@@ -6778,6 +6937,8 @@ let _englishVoices = [];
 function _initVoices() {
   if (!window.speechSynthesis) return;
   const selectEl = document.getElementById('voice-select');
+  const titleSelectEl = document.getElementById('title-voice-select');
+  const dropdowns = [selectEl, titleSelectEl].filter(Boolean);
 
   const load = () => {
     const allVoices = window.speechSynthesis.getVoices() || [];
@@ -6831,15 +6992,14 @@ function _initVoices() {
     }
     _bestVoice = chosen;
 
-    if (selectEl) {
-      selectEl.innerHTML = '';
+    dropdowns.forEach(dd => {
+      dd.innerHTML = '';
       if (_englishVoices.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
         opt.textContent = '🗣 English AI Voice (Default)';
-        selectEl.appendChild(opt);
+        dd.appendChild(opt);
       } else {
-        // Sort natural/online voices to top of dropdown
         const sorted = [..._englishVoices].sort((a, b) => {
           const aNat = /natural|online|google|samantha|daniel/i.test(a.name) ? 0 : 1;
           const bNat = /natural|online|google|samantha|daniel/i.test(b.name) ? 0 : 1;
@@ -6852,23 +7012,24 @@ function _initVoices() {
           const cleanName = v.name.replace(/^Microsoft\s+/i, '').replace(/\s+Online\s+\(Natural\)/i, ' ★').replace(/\s*-\s*English.*$/i, '');
           opt.textContent = `🗣 ${cleanName} (${v.lang})`;
           if (_bestVoice && v.name === _bestVoice.name) opt.selected = true;
-          selectEl.appendChild(opt);
+          dd.appendChild(opt);
         });
       }
-    }
+    });
   };
 
-  if (selectEl) {
-    selectEl.addEventListener('change', (e) => {
+  dropdowns.forEach(dd => {
+    dd.addEventListener('change', (e) => {
       const picked = _englishVoices.find(v => v.name === e.target.value);
       if (picked) {
         _bestVoice = picked;
+        dropdowns.forEach(other => { if (other !== dd) other.value = picked.name; });
         try { localStorage.setItem('ue_voice_name', picked.name); } catch(err){}
         showToast('Narrator Voice Updated', picked.name, '🗣');
         speakNarration(`Ship AI voice calibrated. Ready to explore the cosmos.`, { rate: 0.96, pitch: 1.0 });
       }
     });
-  }
+  });
 
   if (window.speechSynthesis.getVoices().length) load();
   window.speechSynthesis.addEventListener('voiceschanged', load);
@@ -6947,7 +7108,7 @@ function speakNarration(text, opts) {
   const baseRate = o.rate !== undefined ? o.rate : 0.92;
   const finalRate = Math.max(0.75, Math.min(1.18, baseRate * tierMod));
   const finalPitch = o.pitch !== undefined ? o.pitch : 0.96;
-  const finalVol = o.volume !== undefined ? o.volume : 0.95;
+  const finalVol = Math.max(0, Math.min(1, (o.volume !== undefined ? o.volume : 1.0) * _userVoiceVolume));
 
   // Wait 60ms after speechSynthesis.cancel() so Chrome/Edge async queue flush never swallows the new utterance
   _speechStartTimer = setTimeout(() => {
@@ -8241,3 +8402,332 @@ if (_resumeCampaignBtn) {
   _resumeCampaignBtn.addEventListener('click', () => window.resumeMissionCampaign());
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STAGE 1: VIDEO-GAME MAIN TITLE SCREEN & VOYAGE SAVE STATE (solarExplorerSave)
+// ═══════════════════════════════════════════════════════════════════════════════
+const VOYAGE_SAVE_KEY = 'solarExplorerSave';
+
+function loadVoyageSave() {
+  try {
+    const raw = localStorage.getItem(VOYAGE_SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveVoyageState() {
+  try {
+    const visitedArr = [...visitedPlanets].filter(id => id !== 'sun');
+    const rankObj = EXPLORER_LEVELS[explorerLevel] || EXPLORER_LEVELS[0];
+    const payload = {
+      version: 1,
+      rank: rankObj.name,
+      explorerLevel,
+      score: explorerScore,
+      track: interestTrack,
+      tier: explorerTier,
+      visitedPlanets: visitedArr,
+      completedMissions: [..._completedMissions],
+      completedQuizzes: [...completedQuizzes],
+      unlockedAchievements: [...unlockedAchievements],
+      activeMissionIdx: _activeMissionIdx,
+      missionFreeMode: _missionFreeMode,
+      updatedAt: Date.now()
+    };
+    localStorage.setItem(VOYAGE_SAVE_KEY, JSON.stringify(payload));
+    refreshMainTitleScreenUI();
+  } catch (e) {}
+}
+
+function applyVoyageSave(data) {
+  if (!data) return;
+  if (data.track && INTEREST_TRACKS[data.track]) {
+    setInterestTrack(data.track, false);
+  }
+  if (data.tier && EXPLORER_TIERS[data.tier]) {
+    setExplorerTier(data.tier, false);
+  }
+  explorerScore = typeof data.score === 'number' ? data.score : 0;
+  const sv = document.getElementById('score-value');
+  if (sv) sv.textContent = explorerScore;
+
+  visitedPlanets.clear();
+  if (Array.isArray(data.visitedPlanets)) {
+    data.visitedPlanets.forEach(id => { if (id && id !== 'sun') visitedPlanets.add(id); });
+  }
+  updatePlanetCounter();
+
+  completedQuizzes.clear();
+  if (Array.isArray(data.completedQuizzes)) {
+    data.completedQuizzes.forEach(id => completedQuizzes.add(id));
+  }
+
+  unlockedAchievements.clear();
+  if (Array.isArray(data.unlockedAchievements)) {
+    data.unlockedAchievements.forEach(id => unlockedAchievements.add(id));
+  }
+
+  _completedMissions.clear();
+  if (Array.isArray(data.completedMissions)) {
+    data.completedMissions.forEach(id => _completedMissions.add(id));
+  }
+
+  explorerLevel = 0;
+  for (let i = EXPLORER_LEVELS.length - 1; i >= 0; i--) {
+    if (explorerScore >= EXPLORER_LEVELS[i].threshold) { explorerLevel = i; break; }
+  }
+  updateRankBadge(explorerLevel);
+}
+
+function refreshMainTitleScreenUI() {
+  const contBtn  = document.getElementById('title-btn-continue');
+  const contMeta = document.getElementById('title-continue-meta');
+  if (!contBtn || !contMeta) return;
+
+  const saved = loadVoyageSave();
+  if (saved) {
+    contBtn.disabled = false;
+    const rankName = saved.rank || 'CADET';
+    const trkInfo  = INTEREST_TRACKS[saved.track] || INTEREST_TRACKS.worlds;
+    const vCount   = Array.isArray(saved.visitedPlanets) ? Math.min(8, saved.visitedPlanets.length) : 0;
+    contMeta.textContent = `${rankName} · ${trkInfo.short} Track · ${vCount}/8 Planets Visited`;
+  } else {
+    contBtn.disabled = true;
+    contMeta.textContent = 'No saved voyage detected in ship telemetry';
+  }
+}
+
+function _setTitleSubpanel(which) {
+  const newCard  = document.getElementById('title-new-voyage-card');
+  const setCard  = document.getElementById('title-settings-card');
+  const btnNew   = document.getElementById('title-btn-new');
+  const btnSet   = document.getElementById('title-btn-settings');
+
+  if (newCard) newCard.classList.toggle('open', which === 'new');
+  if (setCard) setCard.classList.toggle('open', which === 'settings');
+  if (btnNew)  btnNew.classList.toggle('active', which === 'new');
+  if (btnSet)  btnSet.classList.toggle('active', which === 'settings');
+}
+
+function openMainTitleScreen() {
+  closeAllPanels({keepTour: false, keepMenu: false});
+  closeSideMenu();
+  document.getElementById('mission-briefing')?.classList.remove('open');
+  document.getElementById('mission-complete')?.classList.remove('show');
+  document.getElementById('mission-hud')?.classList.remove('visible');
+
+  paused = false;
+  controls.enabled = true;
+  camera.up.set(0, 1, 0);
+
+  refreshMainTitleScreenUI();
+  const hasSaved = !!loadVoyageSave();
+  _setTitleSubpanel(hasSaved ? null : 'new');
+
+  const mts = document.getElementById('main-title-screen');
+  if (mts) {
+    mts.classList.add('open');
+  }
+  _titleScreenOpen = true;
+}
+
+function closeMainTitleScreen() {
+  const mts = document.getElementById('main-title-screen');
+  if (mts) {
+    mts.classList.remove('open');
+  }
+  _titleScreenOpen = false;
+}
+
+// Hook auto-save into planet visits, score updates, mission completions, and track/tier switches
+(function _wireStage1TitleAndSave() {
+  // Hydrate existing save on initial script load so Continue button reflects saved progress immediately
+  const initialSave = loadVoyageSave();
+  if (initialSave) {
+    applyVoyageSave(initialSave);
+  }
+  refreshMainTitleScreenUI();
+
+  // Wrap state mutators so solarExplorerSave stays synchronized automatically
+  const _origAwardPoints = awardPoints;
+  awardPoints = function(pts) {
+    _origAwardPoints(pts);
+    saveVoyageState();
+  };
+
+  const _origOnPlanetVisit = onPlanetVisit;
+  onPlanetVisit = function(id) {
+    _origOnPlanetVisit(id);
+    saveVoyageState();
+  };
+
+  const _origCompleteMission = _completeMission;
+  _completeMission = function(idx) {
+    _origCompleteMission(idx);
+    saveVoyageState();
+  };
+
+  const _origSetTrack = setInterestTrack;
+  setInterestTrack = function(track, announce=false) {
+    _origSetTrack(track, announce);
+    if (loadVoyageSave()) saveVoyageState();
+  };
+
+  const _origSetTier = setExplorerTier;
+  setExplorerTier = function(tier, announce=false) {
+    _origSetTier(tier, announce);
+    if (loadVoyageSave()) saveVoyageState();
+  };
+
+  const btnContinue = document.getElementById('title-btn-continue');
+  const btnNew      = document.getElementById('title-btn-new');
+  const btnConfirm  = document.getElementById('title-confirm-new-btn');
+  const btnFree     = document.getElementById('title-btn-free');
+  const btnSettings = document.getElementById('title-btn-settings');
+  const openTitleBtn= document.getElementById('open-title-screen-btn');
+
+  if (btnContinue) {
+    btnContinue.addEventListener('click', () => {
+      const saved = loadVoyageSave();
+      if (!saved) return;
+      if (typeof playUIClick === 'function') playUIClick();
+      applyVoyageSave(saved);
+      closeMainTitleScreen();
+
+      // Smoothly zoom camera into active HUD & resume current mission or free flight
+      animateCameraTo({x: 0, y: 24, z: 46}, {x: 0, y: 0, z: 0});
+      if (saved.missionFreeMode) {
+        _enterFreeExplore();
+      } else {
+        const nextIdx = Math.min(_completedMissions.size, MISSION_CHAIN.length - 1);
+        _setActiveMission(nextIdx);
+        setTimeout(() => showMissionBriefing(nextIdx), 550);
+      }
+    });
+  }
+
+  if (btnNew) {
+    btnNew.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      _setTitleSubpanel('new');
+    });
+  }
+
+  if (btnConfirm) {
+    btnConfirm.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      // Initialize fresh voyage state for the selected Track & Science Depth
+      explorerScore = 0;
+      explorerLevel = 0;
+      visitedPlanets.clear();
+      completedQuizzes.clear();
+      unlockedAchievements.clear();
+      _completedMissions.clear();
+      Object.keys(_missionPartial).forEach(k => delete _missionPartial[k]);
+      _activeMissionIdx = 0;
+      _missionFreeMode = false;
+
+      const sv = document.getElementById('score-value');
+      if (sv) sv.textContent = '0';
+      updatePlanetCounter();
+      updateRankBadge(0);
+      saveVoyageState();
+
+      closeMainTitleScreen();
+      // Smoothly zoom camera toward Earth / inner system and open first guided objective
+      const earthEntry = planetMeshes.find(p => p.pdata.id === 'earth');
+      if (earthEntry) {
+        const wpos = new THREE.Vector3();
+        earthEntry.group.getWorldPosition(wpos);
+        animateCameraTo({x: wpos.x + 8, y: wpos.y + 5, z: wpos.z + 10}, {x: 0, y: 0, z: 0});
+      } else {
+        animateCameraTo({x: 0, y: 24, z: 46}, {x: 0, y: 0, z: 0});
+      }
+      _setActiveMission(0);
+      setTimeout(() => showMissionBriefing(0), 600);
+    });
+  }
+
+  if (btnFree) {
+    btnFree.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      closeMainTitleScreen();
+      animateCameraTo({x: 0, y: 26, z: 50}, {x: 0, y: 0, z: 0});
+      _enterFreeExplore();
+      saveVoyageState();
+    });
+  }
+
+  if (btnSettings) {
+    btnSettings.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      _setTitleSubpanel('settings');
+    });
+  }
+
+  if (openTitleBtn) {
+    openTitleBtn.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      openMainTitleScreen();
+    });
+  }
+
+  // Audio & Voice Settings Controls on Main Title Screen
+  const musicSlider = document.getElementById('title-music-vol');
+  const musicValEl  = document.getElementById('title-music-vol-val');
+  const hudSlider   = document.getElementById('audio-vol-slider');
+  if (musicSlider) {
+    musicSlider.value = String(Math.round(masterUserVolume * 100));
+    if (musicValEl) musicValEl.textContent = `${Math.round(masterUserVolume * 100)}%`;
+    musicSlider.addEventListener('input', (e) => {
+      const pct = parseFloat(e.target.value) || 0;
+      if (musicValEl) musicValEl.textContent = `${Math.round(pct)}%`;
+      setMasterVolume(pct / 100);
+    });
+  }
+  if (hudSlider && musicSlider) {
+    hudSlider.addEventListener('input', (e) => {
+      const pct = parseFloat(e.target.value) || 0;
+      musicSlider.value = String(Math.round(pct));
+      if (musicValEl) musicValEl.textContent = `${Math.round(pct)}%`;
+    });
+  }
+
+  const voiceSlider = document.getElementById('title-voice-vol');
+  const voiceValEl  = document.getElementById('title-voice-vol-val');
+  if (voiceSlider) {
+    voiceSlider.value = String(Math.round(_userVoiceVolume * 100));
+    if (voiceValEl) voiceValEl.textContent = `${Math.round(_userVoiceVolume * 100)}%`;
+    voiceSlider.addEventListener('input', (e) => {
+      const pct = parseFloat(e.target.value) || 0;
+      _userVoiceVolume = Math.max(0, Math.min(1, pct / 100));
+      if (voiceValEl) voiceValEl.textContent = `${Math.round(pct)}%`;
+      try { localStorage.setItem('ue_voice_vol', String(_userVoiceVolume)); } catch(err){}
+      if (_saganAudioEl) _saganAudioEl.volume = Math.max(0, Math.min(1, _userVoiceVolume * 0.96));
+    });
+  }
+
+  const testVoiceBtn = document.getElementById('title-voice-test-btn');
+  if (testVoiceBtn) {
+    testVoiceBtn.addEventListener('click', () => {
+      const trk = INTEREST_TRACKS[interestTrack] || INTEREST_TRACKS.worlds;
+      const tier = EXPLORER_TIERS[explorerTier] || EXPLORER_TIERS.cadet;
+      speakNarration(`Odyssey Ship AI online. Calibrated for ${trk.name} at ${tier.label} science depth. All telemetry nominal.`, { rate: 0.95, pitch: 0.98 });
+    });
+  }
+
+  const replayIntroBtn = document.getElementById('title-replay-intro-btn');
+  if (replayIntroBtn) {
+    replayIntroBtn.addEventListener('click', () => {
+      closeMainTitleScreen();
+      stopNarration();
+      _forceIntroReplay = true;
+      runCinematic();
+    });
+  }
+})();

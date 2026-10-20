@@ -2,7 +2,7 @@
 
 > **Dual-Engine Continuity Protocol**: Both **Gemini (Antigravity)** and **Claude** share this file as the single source of truth for repository state. Every agent session **MUST** read `STATE.md` before making changes and update `STATE.md` before concluding work.
 
-**Last Updated**: 2026-10-19  
+**Last Updated**: 2026-10-20  
 **Branch**: `main`  
 **Working Tree**: Clean  
 **Deployment Target**: GitHub Pages (`main` branch, `/ (root)` directory, `.nojekyll` enabled)
@@ -106,18 +106,23 @@ C:\SolarExplorer\
   4. **Lush Stellardrone / Interstellar / Mass Effect Procedural Ambient Synth**: Replaced harsh vibraphone/noise drones with warm major/minor 7th & 9th polyphonic pads, gentle low-pass filter modulation, and `#audio-vol-slider` in the HUD.
   5. **Live NASA Image Galleries & Lightbox Carousel**: Integrated `images-api.nasa.gov` photo search into every planet, Sun, moon, mission, and Frontier panel with a full prev/next carousel lightbox and instant offline procedural SVG fallback.
   6. **The "Human Frontier" Layer (`F` / HUD / Quick-Jump Bar)**: Added clickable 3D markers, trajectories, live ISS telemetry (`api.wheretheiss.at`), SpaceX Starship Mars Transfer, Orbital AI Data Center, JWST at L2, and Voyager 1.
-- **Latest — 5 Focused UX & Functional Regression Fixes (`v=7`)**:
-  1. **Eliminated `favicon.ico` 404 Error**: Added an inline SVG data-URI `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,...">` directly in `index.html` `<head>` plus local `favicon.svg` and binary `favicon.ico` fallbacks at the repository root.
-  2. **Fixed Skipped Fly-Through Intro & Unguided Adult/Parental Drop-In**:
-     - Removed the `if (seenIntro && !_forceIntroReplay)` early bypass in `runCinematic()` so **every** launch from `#intro` runs the full 3D camera fly-through into the solar system with Carl Sagan quote narration.
-     - Fixed the `TypeError: Cannot read properties of undefined (reading 'toUpperCase')` crash in `showMissionBriefing()` where `tierInfo.label` (and `tierInfo.badge` in `_updateTranscriptBoxes()`) were missing on `EXPLORER_TIERS`, ensuring every track and depth mode lands in a guided interactive onboarding/mission briefing with an optional `'Skip Briefing ✕'` button (`#mbrief-skip`).
-  3. **Fixed Planet & Info Modals Overflowing 1080p Screens**:
-     - Constrained all side panels (`#info-panel`, `#mission-panel`, `#tour-panel`, `#rocket-launchpad`) and modal cards (`#mbriefing-card`, `#mcomplete-card`, `#moon-card`, `#quiz-card`, `#kb-card`, `#ach-card`, `#hint-card`) to `top: 60px; max-height: 82vh; overflow-y: auto;` with `position: sticky; top: 0; z-index: 20;` headers (`.panel-sticky-header`, `.modal-sticky-header`) and high-contrast `✕ Close` buttons (`.modal-close-pill`).
-     - Wired `Escape` and backdrop clicks (including clicking empty 3D canvas space outside open side panels without dragging) to always close active panels and modals cleanly.
-  4. **Fixed Silent / Failing Voiceovers (`speakNarration` / `stopNarration`)**:
-     - Kept `#voice-select` in the HUD and refactored `speakNarration()` to cancel active speech, wait **60ms via `setTimeout`** before calling `speechSynthesis.speak()`, split long monologues (`>185` chars) into sentence chunks queued sequentially, and pin the active utterance on `window._activeUtterance` (and queue on `window._activeUtteranceQueue`) so V8 garbage collection never kills speech mid-sentence.
-  5. **Replaced Age Labels with Interest Tracks + Science Depth**:
-     - Added `INTEREST_TRACKS` (`"Planets & Worlds"`, `"Rockets & Propulsion"`, `"Space Traveler Life"`) alongside the Science Depth toggle (`Kid` / `Teen` / `Adult`) on the entry screen (`#intro-track-grid`, `#intro-tier-grid`), topbar HUD (`#track-hud-btn`, `#depth-hud-group`), and Side Menu (`#smenu-track-row`, `#smenu-tier-row`), with track-specific bonus voiceover insights (`INTEREST_TRACK_INSIGHTS`).
+- **Latest — Stage 1 Outside-In UX Rebuild (`v=8`): Boot Gate, 35s Cold-Open Warp Flyby, Real Audio Pipeline & Video-Game Main Title Screen**:
+  1. **The "Initialize Systems" Boot Gate & Real Audio Pipeline**:
+     - Redesigned `#intro` into a sleek, dark deep-space Boot Gate featuring `[ INITIALIZE SHIP SYSTEMS ]` (`#start-btn.boot-init-btn`, also triggered via `Enter` / `Space`) with zero launch delay.
+     - Authored and ran `scripts/build-intro-audio.mjs` (using Node IPv4 HTTPS synthesis and MPEG-2 Layer III frame-accurate silence pacing) to generate `./audio/intro-narration.mp3` (292.7 KB) for the Carl Sagan *Pale Blue Dot* intro, played via a real `<audio>` element (`_saganAudioEl`) with `speechSynthesis` kept strictly as an emergency fallback if `<audio>` fails.
+     - Wired `playCinematicScore()` to check if `./audio/custom-intro.mp3` exists first (crossfading automatically if dropped into `./audio/`), and otherwise play an upgraded 4-act eerie, haunting deep-space Web Audio synthesizer (`Em9 → Cmaj7#11 → Fmaj9#11 → Cmaj9`) with dynamic filter/gain swells and spatial stereo Doppler flyby whooshes (`playFlybyWhoosh()`).
+  2. **The 35-Second Cold-Open Warp Flyby (Synced to Audio)**:
+     - Clicking `[ INITIALIZE SHIP SYSTEMS ]` immediately starts the deep-space music, plays `audio/intro-narration.mp3`, and launches a 35.0-second 3D camera choreography with dynamic banking roll (`camera.up`):
+       - **0s–7s (`PHASE I // INTERSTELLAR WARP ARRIVAL`)**: High-speed warp star-streak tunnel arriving from deep interstellar space.
+       - **7s–20s (`PHASE II // OUTER GIANTS BANKING FLYBY`)**: Dynamic banking flybys skimming close past **Neptune** (`7s–11.5s`), sweeping right across **Saturn's illuminated rings** (`11.5s–16.2s`), and banking past **Jupiter** (`16.2s–20s`) with spatial low-end flyby whooshes.
+       - **20s–35s (`PHASE III // TERRA — THE PALE BLUE DOT`)**: Smooth deceleration curving past the sunlit crescent of **Earth** (*"That's here. That's home. That's us..."*) before ascending into a high orbital overview of the inner solar system (`(0, 28, 55)`).
+     - Synced on-screen cinematic subtitles directly to `_saganAudioEl.currentTime` and placed a `[SPACE / CLICK] SKIP INTRO ⏭` button (`#cine-skip`) in the bottom-right corner that jumps straight to the Main Title Screen at any moment.
+  3. **The Video-Game Main Title Screen (`#main-title-screen`) & `solarExplorerSave` Persistence**:
+     - When the 35s flyby finishes (or is skipped), `_enterAfterIntro()` fades in the translucent sci-fi **Main Title Screen** (`#main-title-screen`) over the live, slowly orbiting 3D solar system (`_titleScreenOpen` gentle orbital camera drift):
+       - `CONTINUE VOYAGE` (`#title-btn-continue`): Enabled whenever `localStorage.getItem('solarExplorerSave')` exists, displaying saved Rank, Track, and `X/8` planets visited (`#title-continue-meta`).
+       - `NEW VOYAGE` (`#title-btn-new`): Opens `#title-new-voyage-card` to pick your focus (**Planetary Explorer**, **Rockets & Propulsion**, or **Space Traveler** + Science Depth), initializes `solarExplorerSave` in `localStorage`, and smoothly zooms the camera into the active HUD + first guided objective.
+       - `FREE FLIGHT` (`#title-btn-free`): Enters the cockpit HUD immediately in open sandbox mode.
+       - `AUDIO & VOICE SETTINGS` (`#title-btn-settings`): Houses the Voice Selector dropdown (`#title-voice-select`, synced with `#voice-select`), Music & Voice Narration volume sliders (`#title-music-vol`, `#title-voice-vol`), Voice Test button, and Replay 35s Cold-Open Flyby button.
 
 ---
 

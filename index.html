@@ -9,7 +9,7 @@
 <!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
      so the app renders correctly offline and on networks that block it. -->
 <link rel="stylesheet" href="vendor/fonts/orbitron.css">
-<link rel="stylesheet" href="universe.css?v=7">
+<link rel="stylesheet" href="universe.css?v=8">
 <script>
 // Catch any JS errors and show them on-screen so we can diagnose
 window.addEventListener('error', function(e) {
@@ -30,7 +30,7 @@ window.addEventListener('unhandledrejection', function(e) {
 </head>
 <body>
 
-<!-- Intro Screen -->
+<!-- Stage 1A: Sleek Deep-Space "Initialize Ship Systems" Boot Gate -->
 <div id="intro">
   <canvas id="intro-canvas"></canvas>
   <canvas id="intro-particles"></canvas>
@@ -41,74 +41,175 @@ window.addEventListener('unhandledrejection', function(e) {
   <!-- TL corner -->
   <div class="intro-corner-wrap tl">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M2,40 L2,2 L40,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="2" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="4" y1="60" x2="10" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
-    <div class="corner-data">SYS: ONLINE<br/>LAT: +23.4°<br/>ALT: 149.6M km</div>
+    <div class="corner-data">SYS: STANDBY<br/>NAV: INTERSTELLAR<br/>AUDIO: ARMED</div>
   </div>
   <!-- TR corner -->
   <div class="intro-corner-wrap tr">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,40 L118,2 L80,2" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="2" r="2.5" fill="rgba(0,212,255,.9)"/></g><line x1="60" y1="4" x2="60" y2="10" stroke="rgba(0,212,255,.4)" stroke-width="1"/><line x1="116" y1="60" x2="110" y2="60" stroke="rgba(0,212,255,.4)" stroke-width="1"/></svg>
-    <div class="corner-data">BODIES: 10<br/>FRONTIER: LIVE<br/>VER: 3.1.0</div>
+    <div class="corner-data">SOLAR: 10 BODIES<br/>FRONTIER: LIVE<br/>BUILD: 4.0</div>
   </div>
   <!-- BL corner -->
   <div class="intro-corner-wrap bl">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-duration:9s"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner" style="animation-duration:3s"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M2,80 L2,118 L40,118" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="2" cy="118" r="2.5" fill="rgba(0,212,255,.9)"/></g></svg>
-    <div class="corner-data">DRAG: ORBIT<br/>SCROLL: ZOOM<br/>CLICK: EXPLORE</div>
+    <div class="corner-data">WARP DRIVE: READY<br/>TELEMETRY: LOCKED</div>
   </div>
   <!-- BR corner -->
   <div class="intro-corner-wrap br">
     <svg viewBox="0 0 120 120"><g class="c-arc-outer" style="animation-duration:15s;animation-direction:reverse"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,212,255,.18)" stroke-width="1" stroke-dasharray="28 8"/></g><g class="c-arc-mid" style="animation-direction:reverse"><circle cx="60" cy="60" r="42" fill="none" stroke="rgba(0,212,255,.28)" stroke-width="1" stroke-dasharray="16 10"/></g><g class="c-arc-inner"><circle cx="60" cy="60" r="30" fill="none" stroke="rgba(0,212,255,.15)" stroke-width="1" stroke-dasharray="8 6"/></g><g class="c-bracket"><path d="M118,80 L118,118 L80,118" fill="none" stroke="rgba(0,212,255,.7)" stroke-width="1.5"/><circle cx="118" cy="118" r="2.5" fill="rgba(0,212,255,.9)"/></g></svg>
-    <div class="corner-data">PLANETS: 9<br/>MOONS: 200+<br/>NASA API: READY</div>
+    <div class="corner-data">OPTICS: 60 FPS<br/>NASA ARCHIVE: LINKED</div>
   </div>
 
-  <div class="intro-content">
-    <div class="intro-badge">&#9672; Interactive 3D Planetarium &amp; Deep-Space Observatory &#9672;</div>
-    <div class="intro-title">
-      <span class="intro-title-main">UNIVERSE</span>
-      <span class="intro-title-sub">EXPLORER</span>
-    </div>
-    <div class="intro-divider"><span class="intro-divider-dot"></span></div>
-
-    <!-- Cockpit Interest Track + Science Depth Selector -->
-    <div class="intro-tier-section">
-      <div class="intro-tier-prompt">CHOOSE YOUR EXPLORATION TRACK</div>
-      <div class="intro-tier-grid" id="intro-track-grid">
-        <button type="button" class="intro-track-card active" data-track="worlds">
-          <div class="itc-badge">POPULAR</div>
-          <div class="itc-icon">🪐</div>
-          <div class="itc-title">Planets &amp; Worlds</div>
-          <div class="itc-age">Cosmic Wonders &amp; Moons</div>
-          <div class="itc-desc">Diamond rain, subsurface oceans, giant volcanoes &amp; first-person talking worlds</div>
-        </button>
-        <button type="button" class="intro-track-card" data-track="rockets">
-          <div class="itc-icon">🚀</div>
-          <div class="itc-title">Rockets &amp; Propulsion</div>
-          <div class="itc-age">Spaceflight &amp; Engineering</div>
-          <div class="itc-desc">SpaceX Starship, orbital transfers, JWST, deep-space probes &amp; rocket telemetry</div>
-        </button>
-        <button type="button" class="intro-track-card" data-track="traveler">
-          <div class="itc-icon">👨‍🚀</div>
-          <div class="itc-title">Space Traveler Life</div>
-          <div class="itc-age">Humanity Among the Stars</div>
-          <div class="itc-desc">Living aboard the Live ISS, walking on the Moon &amp; Mars, spacesuits &amp; habitats</div>
-        </button>
-      </div>
-      <div class="intro-depth-bar" id="intro-tier-grid">
-        <span class="intro-depth-label">SCIENCE DEPTH:</span>
-        <button type="button" class="intro-tier-card" data-tier="kids" title="Vivid analogies, friendly stories &amp; zero jargon">🌟 Kid</button>
-        <button type="button" class="intro-tier-card active" data-tier="cadet" title="STEM discoveries, spaceflight mechanics &amp; missions">⚡ Teen</button>
-        <button type="button" class="intro-tier-card" data-tier="director" title="Full astrophysics, orbital mechanics &amp; deep telemetry">🔭 Adult</button>
-      </div>
-    </div>
-
+  <div class="intro-content boot-gate-content">
+    <div class="boot-status-pill"><span class="boot-status-dot"></span> DEEP SPACE OBSERVATORY VESSEL // ODYSSEY-IX</div>
     <div id="intro-loader">
       <div id="intro-loader-track"><div id="intro-loader-fill"></div></div>
-      <div id="intro-loader-label">Initializing Solar System</div>
+      <div id="intro-loader-label">Calibrating Ephemeris &amp; Starfields...</div>
     </div>
-    <button id="start-btn" disabled>Launch Into The Cosmos &#9654;</button>
-    <div class="intro-dedication">
-      <span class="intro-ded-text">"The sky is the limit &mdash; so I bring it a little closer for you"</span>
-      <span class="intro-ded-sig">Love, Scott &nbsp;&#10084;</span>
+    <button id="start-btn" class="boot-init-btn" disabled>[ INITIALIZE SHIP SYSTEMS ]</button>
+    <div class="boot-sub-hint">Click or press <kbd>ENTER</kbd> / <kbd>SPACE</kbd> to engage audio &amp; cold-open telemetry</div>
+  </div>
+</div>
+
+<!-- Stage 1C: Video-Game Main Title Screen (Translucent over Live 3D Solar System) -->
+<div id="main-title-screen">
+  <div class="mts-backdrop-vignette"></div>
+  <div class="mts-shell">
+    <!-- Left / Center Hero & Command Menu -->
+    <div class="mts-main-col">
+      <div class="mts-eyebrow">&#9672; INTERACTIVE 3D PLANETARIUM &amp; SPACEFLIGHT SIMULATOR &#9672;</div>
+      <h1 class="mts-logo">
+        <span class="mts-logo-top">UNIVERSE</span>
+        <span class="mts-logo-bot">EXPLORER</span>
+      </h1>
+      <div class="mts-subtitle">SOLAR SYSTEM &middot; HUMAN FRONTIER &middot; PALE BLUE DOT EDITION</div>
+
+      <nav class="mts-menu" aria-label="Main Game Menu">
+        <button type="button" id="title-btn-continue" class="mts-btn mts-btn-continue" disabled>
+          <span class="mts-btn-bar"></span>
+          <div class="mts-btn-body">
+            <div class="mts-btn-title">CONTINUE VOYAGE <span class="mts-btn-arrow">&#9654;</span></div>
+            <div class="mts-btn-meta" id="title-continue-meta">No saved voyage detected in ship log</div>
+          </div>
+        </button>
+
+        <button type="button" id="title-btn-new" class="mts-btn mts-btn-primary">
+          <span class="mts-btn-bar"></span>
+          <div class="mts-btn-body">
+            <div class="mts-btn-title">NEW VOYAGE <span class="mts-btn-arrow">&#9654;</span></div>
+            <div class="mts-btn-meta">Choose your specialization &amp; launch guided campaign</div>
+          </div>
+        </button>
+
+        <button type="button" id="title-btn-free" class="mts-btn">
+          <span class="mts-btn-bar"></span>
+          <div class="mts-btn-body">
+            <div class="mts-btn-title">FREE FLIGHT <span class="mts-btn-arrow">&#8599;</span></div>
+            <div class="mts-btn-meta">Enter the 3D cockpit immediately in open sandbox mode</div>
+          </div>
+        </button>
+
+        <button type="button" id="title-btn-settings" class="mts-btn">
+          <span class="mts-btn-bar"></span>
+          <div class="mts-btn-body">
+            <div class="mts-btn-title">AUDIO &amp; VOICE SETTINGS <span class="mts-btn-arrow">&#9881;</span></div>
+            <div class="mts-btn-meta">Configure Ship AI narrator voice, music &amp; speech levels</div>
+          </div>
+        </button>
+      </nav>
+
+      <div class="mts-dedication">
+        <span class="intro-ded-text">"The sky is the limit &mdash; so I bring it a little closer for you"</span>
+        <span class="intro-ded-sig">Love, Scott &nbsp;&#10084;</span>
+      </div>
     </div>
-    <div class="intro-hint">Click any planet &nbsp;&middot;&nbsp; Scroll to zoom &nbsp;&middot;&nbsp; Drag to orbit &nbsp;&middot;&nbsp; Press ? for shortcuts</div>
+
+    <!-- Right Dynamic Sub-Panel: New Voyage Selector OR Audio/Voice Settings -->
+    <div class="mts-side-col">
+      <!-- Card 1: New Voyage Specialization Picker -->
+      <div id="title-new-voyage-card" class="mts-card">
+        <div class="mts-card-header">
+          <div>
+            <div class="mts-card-kicker">MISSION SPECIALIZATION</div>
+            <div class="mts-card-title">SELECT YOUR VOYAGE FOCUS</div>
+          </div>
+          <button type="button" id="title-nv-close" class="modal-close-pill">Back &#10005;</button>
+        </div>
+
+        <div class="intro-tier-grid" id="intro-track-grid">
+          <button type="button" class="intro-track-card active" data-track="worlds">
+            <div class="itc-badge">RECOMMENDED</div>
+            <div class="itc-icon">🪐</div>
+            <div class="itc-title">Planetary Explorer</div>
+            <div class="itc-age">Planets &amp; Worlds</div>
+            <div class="itc-desc">Diamond rain, subsurface oceans, giant volcanoes &amp; first-person talking worlds</div>
+          </button>
+          <button type="button" class="intro-track-card" data-track="rockets">
+            <div class="itc-icon">🚀</div>
+            <div class="itc-title">Rockets &amp; Propulsion</div>
+            <div class="itc-age">Spaceflight Engineering</div>
+            <div class="itc-desc">SpaceX Starship, orbital transfers, JWST, deep-space probes &amp; delta-v telemetry</div>
+          </button>
+          <button type="button" class="intro-track-card" data-track="traveler">
+            <div class="itc-icon">🧑‍🚀</div>
+            <div class="itc-title">Space Traveler</div>
+            <div class="itc-age">Humanity Among the Stars</div>
+            <div class="itc-desc">Living aboard the Live ISS, walking on the Moon &amp; Mars, spacesuits &amp; habitats</div>
+          </button>
+        </div>
+
+        <div class="intro-depth-bar" id="intro-tier-grid">
+          <span class="intro-depth-label">SCIENCE DEPTH:</span>
+          <button type="button" class="intro-tier-card" data-tier="kids" title="Vivid analogies, friendly stories &amp; zero jargon">🌟 Kid</button>
+          <button type="button" class="intro-tier-card active" data-tier="cadet" title="STEM discoveries, spaceflight mechanics &amp; missions">⚡ Teen</button>
+          <button type="button" class="intro-tier-card" data-tier="director" title="Full astrophysics, orbital mechanics &amp; deep telemetry">🔭 Adult</button>
+        </div>
+
+        <button type="button" id="title-confirm-new-btn" class="mts-launch-cta">ENGAGE NEW VOYAGE &#9654;</button>
+      </div>
+
+      <!-- Card 2: Audio & Voice Settings Drawer -->
+      <div id="title-settings-card" class="mts-card" style="display:none">
+        <div class="mts-card-header">
+          <div>
+            <div class="mts-card-kicker">SHIP COMMUNICATIONS &amp; SYNTH</div>
+            <div class="mts-card-title">AUDIO &amp; VOICE SETTINGS</div>
+          </div>
+          <button type="button" id="title-settings-close" class="modal-close-pill">Done &#10005;</button>
+        </div>
+
+        <div class="mts-setting-row">
+          <label class="mts-setting-label" for="title-voice-select">ENGLISH NARRATOR / SHIP AI VOICE</label>
+          <div class="mts-voice-row">
+            <select id="title-voice-select" class="mts-select">
+              <option value="">🎙️ English AI Voice</option>
+            </select>
+            <button type="button" id="title-voice-test-btn" class="mts-mini-btn">Test Voice &#128266;</button>
+          </div>
+        </div>
+
+        <div class="mts-setting-row">
+          <div class="mts-slider-head">
+            <label class="mts-setting-label" for="title-music-vol">SPACE MUSIC &amp; AMBIENCE VOLUME</label>
+            <span id="title-music-vol-val" class="mts-slider-val">75%</span>
+          </div>
+          <input type="range" id="title-music-vol" class="mts-range" min="0" max="100" value="75"/>
+        </div>
+
+        <div class="mts-setting-row">
+          <div class="mts-slider-head">
+            <label class="mts-setting-label" for="title-voice-vol">VOICEOVER &amp; PLANET SPEECH VOLUME</label>
+            <span id="title-voice-vol-val" class="mts-slider-val">95%</span>
+          </div>
+          <input type="range" id="title-voice-vol" class="mts-range" min="0" max="100" value="95"/>
+        </div>
+
+        <div class="mts-setting-note">
+          Tip: Drop any custom soundtrack at <code>audio/custom-intro.mp3</code> to override the procedural deep-space synthesizer automatically.
+        </div>
+
+        <button type="button" id="title-replay-intro-btn" class="mts-secondary-cta">&#8634; Replay 35s Cold-Open Warp Flyby</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -167,14 +268,15 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 </div>
 
-<!-- Cinematic 3D Fly-In Sequence Overlay -->
+<!-- Cinematic 35-Second Cold-Open Warp Flyby Overlay -->
 <div id="cinematic">
   <canvas id="cine-canvas"></canvas>
-  <div id="cine-flyin-badge">&#9672; CARL SAGAN &middot; PALE BLUE DOT (1994) &#9672;</div>
+  <div id="cine-flyin-badge">&#9672; COLD-OPEN TELEMETRY &middot; CARL SAGAN &ldquo;PALE BLUE DOT&rdquo; &#9672;</div>
+  <div id="cine-phase-tag">INTERSTELLAR WARP APPROACH</div>
   <div id="cine-text"></div>
   <div id="cine-bottom">
     <div id="cine-progress-wrap"><div id="cine-progress-legacy"></div></div>
-    <button id="cine-skip">Skip Intro &rsaquo;&rsaquo;</button>
+    <button id="cine-skip" type="button">[SPACE / CLICK] SKIP INTRO &#9197;</button>
   </div>
 </div>
 
@@ -268,6 +370,7 @@ window.addEventListener('unhandledrejection', function(e) {
       <button class="smenu-tier-pill" data-tier="director">🔭 Adult</button>
     </div>
     <div class="smenu-section-label">EXPLORE</div>
+    <button class="smenu-btn" id="open-title-screen-btn">&#127760; Main Title Screen<span class="smenu-hint">Continue/New Voyage &amp; Audio/Voice Settings</span></button>
     <button class="smenu-btn" id="resume-campaign-btn">&#127919; Resume Campaign<span class="smenu-hint" id="resume-campaign-hint">Continue guided solar system missions</span></button>
     <button class="smenu-btn" id="replay-intro-btn">&#127756; Replay Sagan Fly-In<span class="smenu-hint">Carl Sagan Pale Blue Dot 3D fly-in</span></button>
     <button class="smenu-btn" id="replay-premiere-btn">&#127916; Replay Premiere<span class="smenu-hint">The cinematic camera fly-through</span></button>
@@ -670,6 +773,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 
-<script type="module" src="universe.js?v=7"></script>
+<script type="module" src="universe.js?v=8"></script>
 </body>
 </html>
