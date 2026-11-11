@@ -45,62 +45,87 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 .pnav-btn:hover{background:rgba(0,212,255,.18);box-shadow:0 0 10px rgba(0,212,255,.2)}
 #pnav-label{font-family:'Orbitron',sans-serif;font-size:10px;color:#e0eeff;font-weight:700;letter-spacing:.08em;min-width:140px;text-align:center;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Info Panel — locked safely inside viewport below topbar (top: 60px, max-height: 82vh) */
-#info-panel{position:fixed;right:14px;top:60px;bottom:auto;max-height:82vh;width:460px;max-width:94vw;z-index:210;transform:translateX(110%);transition:transform .38s cubic-bezier(.22,1,.36,1);background:var(--panel);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.78),0 0 32px rgba(0,212,255,.12);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.25) transparent}
+#info-panel{position:fixed;right:14px;top:60px;bottom:auto;max-height:82vh;width:490px;max-width:94vw;z-index:210;transform:translateX(110%);transition:transform .38s cubic-bezier(.22,1,.36,1);background:var(--panel);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(24px);display:flex;flex-direction:column;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.78),0 0 32px rgba(0,212,255,.12);scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.25) transparent}
 #info-panel::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.007) 2px,rgba(0,212,255,.007) 4px);pointer-events:none;z-index:0}
 #info-panel.open{transform:translateX(0)}
 .panel-sticky-header,.modal-sticky-header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:rgba(2,8,24,.96);border-bottom:1px solid rgba(0,212,255,.24);backdrop-filter:blur(16px);flex-shrink:0}
 .modal-sticky-header{margin:-24px -24px 16px -24px;padding:14px 20px;border-radius:14px 14px 0 0}
-.panel-sticky-title{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase}
+.panel-sticky-title{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase}
 .modal-close-pill,#panel-close,#mission-panel-close,#moon-close,#quiz-close,#ach-close,#rl-close,#side-menu-close{background:rgba(0,212,255,.16);border:1px solid rgba(0,212,255,.55);color:#ffffff;padding:6px 13px;min-height:30px;width:auto;height:auto;border-radius:18px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;letter-spacing:.1em;z-index:25;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:all .2s;white-space:nowrap;box-shadow:0 0 14px rgba(0,212,255,.18);position:static}
 .modal-close-pill:hover,#panel-close:hover,#mission-panel-close:hover,#moon-close:hover,#quiz-close:hover,#ach-close:hover,#rl-close:hover,#side-menu-close:hover{background:var(--cyan);color:#020818;border-color:#fff;box-shadow:0 0 20px rgba(0,212,255,.55)}
 #panel-scroll{overflow-y:visible;flex:1;padding:18px 20px 26px;position:relative;z-index:1}
-#panel-canvas{width:140px;height:140px;border-radius:50%;display:block;margin:0 auto 12px;box-shadow:0 0 50px rgba(0,212,255,.35),0 0 0 1px rgba(0,212,255,.2);cursor:zoom-in;transition:transform .2s}
+#panel-canvas{width:136px;height:136px;border-radius:50%;display:block;margin:0 auto 12px;box-shadow:0 0 50px rgba(0,212,255,.35),0 0 0 1px rgba(0,212,255,.2);cursor:zoom-in;transition:transform .2s}
 #panel-canvas:hover{transform:scale(1.06)}
-#panel-name{font-size:24px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#fff;text-align:center}
-#panel-tagline{font-size:11px;color:var(--dim);margin-bottom:14px;text-align:center;letter-spacing:.14em;text-transform:uppercase}
+#panel-name{font-size:28px;font-weight:900;margin-bottom:4px;letter-spacing:.06em;color:#fff;text-align:center}
+#panel-tagline{font-size:12.5px;color:var(--dim);margin-bottom:14px;text-align:center;letter-spacing:.12em;text-transform:uppercase}
 /* Tabs */
-.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:12px}
-.tab-btn{flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:'Orbitron',inherit;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:-1px}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px;gap:4px}
+.tab-btn{flex:1;padding:11px 6px;background:none;border:none;border-bottom:2.5px solid transparent;color:var(--dim);font-family:'Orbitron',inherit;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:-1px}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
 .tab-pane{display:none}.tab-pane.active{display:block}
-/* Panel content */
-.panel-section{margin-top:18px;border-top:1px solid rgba(0,212,255,.1);padding-top:14px}
-.panel-section h3{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.stat-box{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:8px;padding:11px 14px}
-.stat-label{font-size:10px;color:var(--dim);margin-bottom:3px;text-transform:uppercase;letter-spacing:.08em}
-.stat-value{font-size:14px;font-weight:700;color:#e8f4ff;font-family:'Segoe UI',system-ui,sans-serif}
-.fact-list{list-style:none;display:flex;flex-direction:column;gap:9px}
-.fact-list li{font-size:14px;color:var(--text);line-height:1.6;padding-left:16px;position:relative;font-family:'Segoe UI',system-ui,sans-serif}
-.fact-list li::before{content:"▸";position:absolute;left:0;color:var(--cyan);font-size:10px;top:3px}
-.moon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px;margin-top:6px}
-.moon-chip{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:7px;padding:7px 9px;cursor:pointer;transition:all .2s;text-align:center}
-.moon-chip:hover{background:rgba(0,212,255,.14);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,212,255,.14)}
-.moon-chip-name{font-size:12px;font-weight:700;color:#e8f4ff}
-.moon-chip-sub{font-size:10px;color:var(--dim);margin-top:2px;font-family:'Segoe UI',system-ui,sans-serif}
-.surface-bar{height:9px;border-radius:5px;margin-top:6px;overflow:hidden;display:flex;gap:2px}
+/* Panel content — upgraded readable typography & scannable visual cards */
+.panel-section{margin-top:18px;border-top:1px solid rgba(0,212,255,.12);padding-top:15px}
+.panel-section h3{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin-bottom:11px}
+.panel-lead-text{font-size:14.5px;color:var(--text);line-height:1.65;margin-bottom:12px;font-family:'Segoe UI',system-ui,sans-serif}
+.quick-gauges-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stat-gauge-card{background:linear-gradient(155deg,rgba(0,212,255,.07),rgba(2,12,28,.75));border:1px solid rgba(0,212,255,.2);border-radius:12px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;box-shadow:inset 0 0 18px rgba(0,212,255,.04)}
+.stat-gauge-ring-wrap{position:relative;width:46px;height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.stat-gauge-svg{width:46px;height:46px;transform:rotate(-90deg)}
+.stat-gauge-track{fill:none;stroke:rgba(255,255,255,.09);stroke-width:3.8}
+.stat-gauge-fill{fill:none;stroke:var(--cyan);stroke-width:3.8;stroke-linecap:round;transition:stroke-dasharray .65s ease}
+.stat-gauge-icon{position:absolute;font-size:15px;line-height:1}
+.stat-gauge-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+.stat-gauge-value{font-family:'Segoe UI',system-ui,sans-serif;font-size:15px;font-weight:800;color:#ffffff;line-height:1.2}
+.stat-gauge-sub{font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;color:rgba(175,220,255,.82);line-height:1.25}
+.visual-fact-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.visual-fact-card{background:rgba(0,212,255,.045);border:1px solid rgba(0,212,255,.16);border-radius:11px;padding:13px 15px;transition:all .2s}
+.visual-fact-card:hover{background:rgba(0,212,255,.085);border-color:rgba(0,212,255,.35)}
+.visual-fact-card.clickable-card{cursor:pointer}
+.vfc-header{display:flex;align-items:center;gap:9px;margin-bottom:5px}
+.vfc-icon{font-size:18px;line-height:1;flex-shrink:0}
+.vfc-title{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:800;color:#ffffff;letter-spacing:.04em;line-height:1.3}
+.vfc-sub{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:700;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+.vfc-body{font-family:'Segoe UI',system-ui,sans-serif;font-size:14.5px;color:rgba(230,244,255,.94);line-height:1.58}
+.surface-legend-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px}
+.surface-legend-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;background:rgba(255,255,255,.04);padding:3px 9px;border-radius:12px}
+.surface-legend-chip i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.panel-cta-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.panel-cta-row .zoom-in-btn,.panel-cta-row .take-quiz-btn{margin-top:0}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-box{background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.15);border-radius:9px;padding:12px 14px}
+.stat-label{font-size:10.5px;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em}
+.stat-value{font-size:15.5px;font-weight:700;color:#e8f4ff;font-family:'Segoe UI',system-ui,sans-serif}
+.fact-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+.fact-list li{font-size:14.5px;color:var(--text);line-height:1.62;padding-left:16px;position:relative;font-family:'Segoe UI',system-ui,sans-serif}
+.fact-list li::before{content:"▸";position:absolute;left:0;color:var(--cyan);font-size:11px;top:3px}
+.moon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;margin-top:8px}
+.moon-chip{background:rgba(0,212,255,.055);border:1px solid rgba(0,212,255,.18);border-radius:9px;padding:9px 10px;cursor:pointer;transition:all .2s;text-align:center}
+.moon-chip:hover{background:rgba(0,212,255,.16);border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.2)}
+.moon-chip-name{font-size:13.5px;font-weight:800;color:#ffffff}
+.moon-chip-sub{font-size:11.5px;color:var(--dim);margin-top:3px;font-family:'Segoe UI',system-ui,sans-serif}
+.surface-bar{height:10px;border-radius:5px;margin-top:6px;overflow:hidden;display:flex;gap:2px}
 .surface-seg{height:100%;border-radius:3px}
-.zoom-in-btn{width:100%;padding:10px;background:linear-gradient(135deg,rgba(0,212,255,.12),rgba(0,150,200,.06));border:1px solid var(--border);border-radius:7px;color:var(--cyan);font-weight:700;font-size:9px;cursor:pointer;margin-top:12px;transition:all .2s;font-family:'Orbitron',inherit;letter-spacing:.1em;text-transform:uppercase}
+.zoom-in-btn{width:100%;padding:11px;background:linear-gradient(135deg,rgba(0,212,255,.14),rgba(0,150,200,.08));border:1px solid var(--border);border-radius:8px;color:var(--cyan);font-weight:800;font-size:10px;cursor:pointer;margin-top:12px;transition:all .2s;font-family:'Orbitron',inherit;letter-spacing:.1em;text-transform:uppercase}
 .zoom-in-btn:hover{background:linear-gradient(135deg,rgba(0,212,255,.25),rgba(0,150,200,.14));box-shadow:0 0 14px rgba(0,212,255,.18)}
 /* Mission cards */
-.mission-card{background:rgba(0,212,255,.03);border:1px solid rgba(0,212,255,.1);border-radius:9px;padding:13px 14px;margin-bottom:9px}
-.mission-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;gap:8px}
-.mission-name{font-size:14px;font-weight:700;color:#e8f4ff}
-.mission-meta{font-size:10px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap}
-.mission-type{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
-.mission-note{font-size:13px;color:var(--text);line-height:1.6;font-family:'Segoe UI',system-ui,sans-serif}
+.mission-card{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.14);border-radius:10px;padding:14px 15px;margin-bottom:10px}
+.mission-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px}
+.mission-name{font-size:15px;font-weight:800;color:#ffffff}
+.mission-meta{font-size:11px;color:var(--cyan);letter-spacing:.04em;white-space:nowrap}
+.mission-type{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.mission-note{font-size:14.5px;color:var(--text);line-height:1.62;font-family:'Segoe UI',system-ui,sans-serif}
 /* POI items */
 .poi-item{padding:11px 0;border-bottom:1px solid rgba(0,212,255,.08)}
 .poi-item:last-child{border-bottom:none}
-.poi-name{font-size:11px;font-weight:700;color:var(--cyan);margin-bottom:5px;letter-spacing:.08em;text-transform:uppercase}
-.poi-desc{font-size:13px;color:var(--text);line-height:1.6;font-family:'Segoe UI',system-ui,sans-serif}
+.poi-name{font-size:12px;font-weight:800;color:var(--cyan);margin-bottom:5px;letter-spacing:.08em;text-transform:uppercase}
+.poi-desc{font-size:14.5px;color:var(--text);line-height:1.62;font-family:'Segoe UI',system-ui,sans-serif}
 /* Atmosphere bars */
-.atmos-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.atmos-bar-label{font-size:12px;color:var(--dim);width:40px;text-align:right;flex-shrink:0}
-.atmos-bar-track{flex:1;height:5px;background:rgba(0,212,255,.08);border-radius:3px;overflow:hidden}
+.atmos-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.atmos-bar-label{font-size:13px;color:var(--dim);width:48px;text-align:right;flex-shrink:0}
+.atmos-bar-track{flex:1;height:6px;background:rgba(0,212,255,.08);border-radius:3px;overflow:hidden}
 .atmos-bar-fill{height:100%;border-radius:3px;transition:width .7s ease-out}
-.atmos-bar-pct{font-size:12px;color:var(--cyan);width:40px;font-weight:700}
+.atmos-bar-pct{font-size:13px;color:var(--cyan);width:46px;font-weight:700}
 /* Tooltip */
 #tooltip{position:fixed;pointer-events:none;background:rgba(0,8,24,.96);border:1px solid var(--cyan);border-radius:5px;padding:5px 11px;font-size:10px;font-weight:700;color:var(--cyan);z-index:300;opacity:0;transition:opacity .15s;white-space:nowrap;letter-spacing:.1em;text-transform:uppercase;box-shadow:0 0 14px rgba(0,212,255,.25)}
 /* Intro — redesign */
@@ -350,8 +375,8 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #panel-discovery-badge{display:none;margin:0 auto 14px;padding:5px 14px;background:rgba(0,255,120,.08);border:1px solid rgba(0,255,120,.3);border-radius:20px;font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.18em;color:rgba(0,255,120,.8);text-align:center}
 #panel-discovery-badge.show{display:block}
 /* Tabs — use planet color */
-.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:12px}
-.tab-btn{flex:1;padding:10px 4px;background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font-family:'Orbitron',inherit;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:-1px}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px;gap:4px}
+.tab-btn{flex:1;padding:11px 6px;background:none;border:none;border-bottom:2.5px solid transparent;color:var(--dim);font-family:'Orbitron',inherit;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-bottom:-1px}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--pc);border-bottom-color:var(--pc);transition:color .4s,border-color .4s}
 .tab-pane{display:none}.tab-pane.active{display:block}
@@ -845,16 +870,24 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #start-btn.boot-init-btn:hover{background:linear-gradient(135deg,rgba(0,212,255,.34),rgba(0,140,255,.24));border-color:#fff;box-shadow:0 0 70px rgba(0,212,255,.65),0 0 0 1px rgba(0,212,255,.5);transform:translateY(-2px) scale(1.02)}
 .boot-sub-hint{font-family:'Orbitron',sans-serif;font-size:9px;color:rgba(135,190,235,.62);letter-spacing:.2em;text-transform:uppercase}
 
-/* Cold-Open Flyby Phase Tag & Skip Button */
-#cine-flyin-badge{top:24px;left:28px;transform:none}
-#cine-phase-tag{position:absolute;top:24px;right:28px;z-index:3;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.22em;color:#00ffaa;background:rgba(2,12,26,.78);border:1px solid rgba(0,255,170,.35);padding:7px 16px;border-radius:20px;backdrop-filter:blur(10px);pointer-events:none;text-transform:uppercase}
+/* Cold-Open Cutscene Video Layer, Solar Flare Crossfade, Phase Tag & Skip Button */
+#warp-intro-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#01030a;opacity:0;transition:opacity .85s ease;pointer-events:none;z-index:1}
+#warp-intro-video.active,#warp-intro-video.playing{opacity:1}
+#cine-canvas{z-index:2}
+#cine-solar-flare{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(circle at 50% 50%,#fffef5 0%,#ffe89e 30%,rgba(255,182,58,.94) 62%,rgba(255,118,22,.78) 100%)}
+#cine-flyin-badge{top:24px;left:28px;transform:none;z-index:4}
+#cine-phase-tag{position:absolute;top:24px;right:28px;z-index:4;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.22em;color:#00ffaa;background:rgba(2,12,26,.78);border:1px solid rgba(0,255,170,.35);padding:7px 16px;border-radius:20px;backdrop-filter:blur(10px);pointer-events:none;text-transform:uppercase}
+#cine-text{z-index:4}
+#cine-bottom{z-index:5}
 #cine-skip{background:rgba(2,8,24,.88);border:1.5px solid rgba(0,212,255,.65);color:#fff;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:10px;font-weight:800;font-family:'Orbitron',inherit;letter-spacing:.16em;transition:all .2s;white-space:nowrap;text-transform:uppercase;box-shadow:0 0 24px rgba(0,212,255,.22)}
 #cine-skip:hover{background:var(--cyan);color:#020818;border-color:#fff;box-shadow:0 0 32px rgba(0,212,255,.6)}
 
 /* Suppress HUD chrome while Boot Gate, Cold-Open Flyby, or Main Title Screen is active */
+#intro:not(.hide) ~ #hotspot-reticle-layer,
 #cinematic.active ~ #topbar,
 #cinematic.active ~ #frontier-bar,
 #cinematic.active ~ #planet-labels,
+#cinematic.active ~ #hotspot-reticle-layer,
 #cinematic.active ~ #planet-nav,
 #cinematic.active ~ #music-credit,
 #cinematic.active ~ #ambient-indicator,
@@ -863,61 +896,327 @@ body{background:#000208;color:var(--text);font-family:'Orbitron','Segoe UI',syst
 #main-title-screen.open ~ #topbar,
 #main-title-screen.open ~ #frontier-bar,
 #main-title-screen.open ~ #planet-labels,
+#main-title-screen.open ~ #hotspot-reticle-layer,
 #main-title-screen.open ~ #planet-nav,
 #main-title-screen.open ~ #music-credit,
 #main-title-screen.open ~ #ambient-indicator,
 #main-title-screen.open ~ #explore-launcher,
 #main-title-screen.open ~ #mission-hud { visibility: hidden; pointer-events: none; }
 
-/* Video-Game Main Title Screen (Live 3D Solar System Background) */
-#main-title-screen{position:fixed;inset:0;z-index:505;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .65s cubic-bezier(.22,1,.36,1);overflow:hidden}
+/* Video-Game Main Title Screen (Left-Third Menu over Live High-Res Rotating 3D Earth) */
+#main-title-screen{position:fixed;inset:0;z-index:505;display:flex;align-items:center;justify-content:flex-start;padding-left:clamp(26px,4vw,64px);opacity:0;pointer-events:none;transition:opacity .95s cubic-bezier(.22,1,.36,1);overflow:hidden}
 #main-title-screen.open{opacity:1;pointer-events:auto}
-.mts-vignette{position:absolute;inset:0;background:radial-gradient(ellipse 75% 75% at 62% 50%,rgba(0,4,14,.15) 0%,rgba(0,4,16,.68) 65%,rgba(0,2,10,.92) 100%);pointer-events:none}
+.mts-backdrop-vignette,.mts-vignette{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,3,14,.88) 0%,rgba(0,5,18,.62) 34%,rgba(0,4,14,.14) 58%,rgba(0,0,0,0) 100%);pointer-events:none}
 .mts-scanline{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,.3),transparent);animation:scanmove 9s linear infinite;pointer-events:none;opacity:.5}
-.mts-shell{position:relative;z-index:2;display:grid;grid-template-columns:minmax(320px,420px) minmax(360px,540px);gap:36px;align-items:center;width:min(1140px,94vw);max-height:90vh;padding:24px 0}
+.mts-shell{position:relative;z-index:2;display:flex;align-items:center;gap:24px;max-width:94vw;max-height:90vh;padding:18px 0}
 @media(max-width:920px){
-  .mts-shell{grid-template-columns:1fr;gap:18px;overflow-y:auto;padding:18px 8px}
+  #main-title-screen{justify-content:center;padding-left:0}
+  .mts-shell{flex-direction:column;gap:16px;overflow-y:auto;padding:16px 10px}
 }
-.mts-main-col{display:flex;flex-direction:column;gap:20px;background:linear-gradient(155deg,rgba(2,8,24,.84),rgba(1,5,16,.72));border:1px solid rgba(0,212,255,.28);border-radius:18px;padding:28px 26px;backdrop-filter:blur(18px);box-shadow:0 20px 60px rgba(0,0,0,.75),0 0 40px rgba(0,212,255,.1)}
-.mts-brand{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid rgba(0,212,255,.18);padding-bottom:16px}
-.mts-kicker{font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:800;letter-spacing:.26em;color:#00ffaa;text-transform:uppercase}
-.mts-title{font-family:'Orbitron',sans-serif;font-size:clamp(28px,3.8vw,44px);font-weight:900;letter-spacing:.1em;line-height:1;background:linear-gradient(160deg,#ffffff 0%,#bfe4ff 45%,#00d4ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:2px 0}
-.mts-subtitle{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;letter-spacing:.34em;color:rgba(0,212,255,.78);text-transform:uppercase}
-.mts-menu-list{display:flex;flex-direction:column;gap:10px}
-.mts-btn{position:relative;display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;background:rgba(4,14,34,.75);border:1px solid rgba(0,212,255,.24);border-radius:12px;color:var(--text);cursor:pointer;text-align:left;transition:all .22s cubic-bezier(.22,1,.36,1);overflow:hidden}
-.mts-btn::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);opacity:0;transition:opacity .22s}
-.mts-btn:hover:not(:disabled),.mts-btn.active:not(:disabled){background:linear-gradient(135deg,rgba(0,212,255,.22),rgba(0,110,210,.14));border-color:#00d4ff;color:#fff;transform:translateX(5px);box-shadow:0 6px 26px rgba(0,212,255,.22)}
-.mts-btn:hover:not(:disabled)::before,.mts-btn.active:not(:disabled)::before{opacity:1}
+.mts-main-col{display:flex;flex-direction:column;gap:16px;width:clamp(310px,28vw,395px);flex-shrink:0;background:linear-gradient(155deg,rgba(2,8,24,.84),rgba(1,5,16,.72));border:1px solid rgba(0,212,255,.32);border-radius:18px;padding:26px 24px;backdrop-filter:blur(18px);box-shadow:0 20px 60px rgba(0,0,0,.78),0 0 42px rgba(0,212,255,.12)}
+.mts-eyebrow,.mts-kicker{font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;letter-spacing:.22em;color:#00ffaa;text-transform:uppercase}
+.mts-logo,.mts-title{display:flex;flex-direction:column;font-family:'Orbitron',sans-serif;font-size:clamp(26px,3.1vw,40px);font-weight:900;letter-spacing:.12em;line-height:1.02;margin:0}
+.mts-logo-top{color:#fff;text-shadow:0 0 28px rgba(0,212,255,.35)}
+.mts-logo-bot{background:linear-gradient(135deg,#80e5ff 0%,#00d4ff 55%,#00ffaa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.mts-subtitle{font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:700;letter-spacing:.24em;color:rgba(160,225,255,.78);text-transform:uppercase;border-bottom:1px solid rgba(0,212,255,.18);padding-bottom:12px}
+.mts-menu,.mts-menu-list{display:flex;flex-direction:column;gap:10px}
+.mts-btn{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:13px 15px;background:rgba(4,14,34,.76);border:1px solid rgba(0,212,255,.24);border-radius:12px;color:var(--text);cursor:pointer;text-align:left;transition:all .22s cubic-bezier(.22,1,.36,1);overflow:hidden}
+.mts-btn-bar,.mts-btn::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3.5px;background:var(--cyan);opacity:0;transition:opacity .22s}
+.mts-btn:hover:not(:disabled),.mts-btn.active:not(:disabled){background:linear-gradient(135deg,rgba(0,212,255,.24),rgba(0,110,210,.15));border-color:#00d4ff;color:#fff;transform:translateX(5px);box-shadow:0 6px 26px rgba(0,212,255,.24)}
+.mts-btn:hover:not(:disabled) .mts-btn-bar,.mts-btn.active:not(:disabled) .mts-btn-bar,.mts-btn:hover:not(:disabled)::before,.mts-btn.active:not(:disabled)::before{opacity:1}
 .mts-btn:disabled{opacity:.36;cursor:not-allowed;filter:grayscale(.5)}
-.mts-btn-icon{font-size:18px;width:32px;height:32px;border-radius:8px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);display:flex;align-items:center;justify-content:center;color:var(--cyan);flex-shrink:0}
 .mts-btn-body{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
-.mts-btn-label{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;letter-spacing:.14em;color:#fff;text-transform:uppercase}
-.mts-btn-meta{font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mts-footer-telemetry{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid rgba(0,212,255,.14);font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:.16em;color:rgba(150,205,245,.6);text-transform:uppercase}
+.mts-btn-title,.mts-btn-label{display:flex;align-items:center;justify-content:space-between;font-family:'Orbitron',sans-serif;font-size:11.5px;font-weight:900;letter-spacing:.14em;color:#fff;text-transform:uppercase}
+.mts-btn-arrow{color:var(--cyan);font-size:11px;transition:transform .2s}
+.mts-btn:hover:not(:disabled) .mts-btn-arrow{transform:translateX(3px)}
+.mts-btn-meta{font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mts-dedication{display:flex;flex-direction:column;gap:3px;padding-top:10px;border-top:1px solid rgba(0,212,255,.14);font-size:11px;color:rgba(190,225,255,.72);font-style:italic}
 
-/* Right Column Sub-Cards (New Voyage & Audio/Voice Settings) */
-.mts-side-col{display:flex;flex-direction:column;justify-content:center}
-.mts-card{display:none;flex-direction:column;gap:14px;background:linear-gradient(155deg,rgba(2,9,26,.9),rgba(2,6,18,.82));border:1px solid rgba(0,212,255,.34);border-radius:18px;padding:24px 24px 22px;backdrop-filter:blur(22px);box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 36px rgba(0,212,255,.14);max-height:82vh;overflow-y:auto;animation:fadeUp .3s ease-out}
+/* Right Drawer Sub-Cards (New Voyage & Audio/Voice Settings) */
+.mts-side-col{display:flex;flex-direction:column;justify-content:center;max-width:440px}
+.mts-card{display:none;flex-direction:column;gap:12px;background:linear-gradient(155deg,rgba(2,9,26,.92),rgba(2,6,18,.84));border:1px solid rgba(0,212,255,.36);border-radius:18px;padding:22px 22px 20px;backdrop-filter:blur(22px);box-shadow:0 20px 60px rgba(0,0,0,.82),0 0 36px rgba(0,212,255,.15);max-height:82vh;overflow-y:auto;animation:fadeUp .3s ease-out}
 .mts-card.open{display:flex}
-.mts-card-header{border-bottom:1px solid rgba(0,212,255,.18);padding-bottom:12px}
-.mts-card-kicker{font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;letter-spacing:.24em;color:var(--cyan);text-transform:uppercase;margin-bottom:4px}
-.mts-card-title{font-family:'Orbitron',sans-serif;font-size:18px;font-weight:900;letter-spacing:.08em;color:#fff;margin-bottom:4px}
-.mts-card-desc{font-family:'Segoe UI',system-ui,sans-serif;font-size:12.5px;color:var(--dim);line-height:1.45}
-.mts-track-grid{grid-template-columns:1fr;gap:9px}
-.mts-track-grid .intro-track-card{padding:12px 14px}
-.mts-depth-bar{justify-content:flex-start;margin-top:4px}
-.mts-confirm-btn{width:100%;padding:15px 22px;margin-top:4px;background:linear-gradient(135deg,rgba(0,232,150,.24),rgba(0,160,255,.22));border:1.5px solid #00ffaa;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:all .25s;box-shadow:0 0 28px rgba(0,232,150,.25)}
-.mts-confirm-btn:hover{background:linear-gradient(135deg,rgba(0,232,150,.4),rgba(0,180,255,.32));box-shadow:0 0 42px rgba(0,255,170,.5);transform:translateY(-2px)}
+.mts-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(0,212,255,.18);padding-bottom:10px}
+.mts-card-kicker{font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;letter-spacing:.24em;color:var(--cyan);text-transform:uppercase;margin-bottom:3px}
+.mts-card-title{font-family:'Orbitron',sans-serif;font-size:15px;font-weight:900;letter-spacing:.08em;color:#fff}
+#main-title-screen .intro-tier-grid{grid-template-columns:1fr;gap:8px;margin-top:2px}
+#main-title-screen .intro-track-card{padding:11px 13px}
+.mts-launch-cta,.mts-confirm-btn{width:100%;padding:14px 20px;margin-top:4px;background:linear-gradient(135deg,rgba(0,232,150,.26),rgba(0,160,255,.24));border:1.5px solid #00ffaa;border-radius:10px;color:#fff;font-family:'Orbitron',sans-serif;font-size:11.5px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;transition:all .25s;box-shadow:0 0 28px rgba(0,232,150,.25)}
+.mts-launch-cta:hover,.mts-confirm-btn:hover{background:linear-gradient(135deg,rgba(0,232,150,.42),rgba(0,180,255,.34));box-shadow:0 0 42px rgba(0,255,170,.5);transform:translateY(-2px)}
 .mts-setting-row{display:flex;flex-direction:column;gap:6px;padding:10px 12px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.14);border-radius:10px}
-.mts-setting-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.16em;color:var(--cyan);text-transform:uppercase}
-.mts-setting-control{display:flex;align-items:center;gap:10px}
+.mts-setting-label{font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:800;letter-spacing:.16em;color:var(--cyan);text-transform:uppercase}
+.mts-voice-row,.mts-setting-control{display:flex;align-items:center;gap:8px}
 .mts-select{flex:1;background:rgba(2,8,24,.95);border:1px solid rgba(0,212,255,.35);color:#e8f4ff;height:36px;padding:0 10px;border-radius:8px;font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;font-weight:600;cursor:pointer;outline:none}
-.mts-mini-btn{background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.45);color:#fff;height:36px;padding:0 14px;border-radius:8px;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.12em;cursor:pointer;transition:all .2s;white-space:nowrap}
+.mts-mini-btn{background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.45);color:#fff;height:36px;padding:0 12px;border-radius:8px;font-family:'Orbitron',sans-serif;font-size:9px;font-weight:800;letter-spacing:.1em;cursor:pointer;transition:all .2s;white-space:nowrap}
 .mts-mini-btn:hover{background:var(--cyan);color:#020818}
-.mts-slider{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:rgba(0,212,255,.25);outline:none;cursor:pointer}
-.mts-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(0,212,255,.8)}
-.mts-val-pill{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;color:#fff;min-width:44px;text-align:right}
+.mts-slider-head{display:flex;align-items:center;justify-content:space-between}
+.mts-slider-val,.mts-val-pill{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;color:#fff}
+.mts-range,.mts-slider{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:rgba(0,212,255,.25);outline:none;cursor:pointer}
+.mts-range::-webkit-slider-thumb,.mts-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--cyan);cursor:pointer;box-shadow:0 0 8px rgba(0,212,255,.8)}
 .mts-setting-note{font-family:'Segoe UI',system-ui,sans-serif;font-size:11.5px;color:var(--dim);line-height:1.5;padding:8px 12px;background:rgba(255,255,255,.02);border-left:2px solid var(--cyan);border-radius:0 8px 8px 0}
-.mts-Setting-note code,.mts-setting-note code{color:#00ffaa;font-family:monospace}
-.mts-secondary-btn{width:100%;padding:11px 16px;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);border-radius:9px;color:var(--cyan);font-family:'Orbitron',sans-serif;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:all .2s}
-.mts-secondary-btn:hover{background:rgba(0,212,255,.2);color:#fff;border-color:var(--cyan)}
+.mts-setting-note code{color:#00ffaa;font-family:monospace}
+.mts-secondary-cta,.mts-secondary-btn{width:100%;padding:11px 16px;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);border-radius:9px;color:var(--cyan);font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:all .2s}
+.mts-secondary-cta:hover,.mts-secondary-btn:hover{background:rgba(0,212,255,.2);color:#fff;border-color:var(--cyan)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAGE 3: ARCADE COCKPIT VISOR HUD (78%+ UNOBSTRUCTED 3D VIEW) & 3D SCANNER
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 1. Compact Translucent Right-Edge Cockpit Visor HUD (#info-panel, #mission-panel, #moon-detail) */
+#info-panel.cockpit-visor-hud{
+  position:fixed;right:12px;top:56px;bottom:auto;
+  max-height:calc(100vh - 118px);
+  width:clamp(285px,21.5vw,344px);
+  max-width:92vw;
+  z-index:210;
+  background:linear-gradient(165deg,rgba(2,10,26,.62),rgba(1,5,16,.74));
+  border:1px solid rgba(0,212,255,.32);
+  border-left:2px solid var(--pc,#00d4ff);
+  border-radius:14px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 12px 42px rgba(0,0,0,.62),0 0 26px var(--pc-dim,rgba(0,212,255,.12));
+}
+#info-panel.cockpit-visor-hud #panel-canvas{display:none!important}
+#info-panel.cockpit-visor-hud #panel-scroll{padding:12px 14px 20px}
+.visor-header{padding:9px 13px!important;background:rgba(2,8,22,.78)!important}
+.visor-world-header{display:flex;flex-direction:column;align-items:flex-start;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(0,212,255,.14)}
+#info-panel.cockpit-visor-hud #panel-name{font-size:21px;text-align:left;margin-bottom:2px;line-height:1.1}
+#info-panel.cockpit-visor-hud #panel-tagline{font-size:10px;text-align:left;margin-bottom:0;letter-spacing:.12em}
+#info-panel.cockpit-visor-hud .quick-gauges-row{gap:6px}
+#info-panel.cockpit-visor-hud .stat-gauge-card{padding:8px 6px}
+#info-panel.cockpit-visor-hud .stat-gauge-ring-wrap{width:36px;height:36px}
+#info-panel.cockpit-visor-hud .stat-gauge-svg{width:36px;height:36px}
+#info-panel.cockpit-visor-hud .stat-gauge-value{font-size:12.5px}
+#info-panel.cockpit-visor-hud .stat-gauge-sub{font-size:10px}
+#info-panel.cockpit-visor-hud .visual-fact-card{padding:10px 12px}
+#info-panel.cockpit-visor-hud .vfc-body{font-size:12.5px;line-height:1.5}
+#info-panel.cockpit-visor-hud .tab-btn{font-size:9px;padding:8px 4px}
+
+/* Convert #moon-detail from a full-screen blocking backdrop modal into a sleek Right-Edge Cockpit Visor */
+#moon-detail.cockpit-visor-moon{
+  position:fixed;inset:0;z-index:215;
+  background:transparent!important;
+  backdrop-filter:none!important;
+  pointer-events:none!important;
+  display:block;
+  opacity:0;
+  transition:opacity .28s ease;
+}
+#moon-detail.cockpit-visor-moon.open{opacity:1}
+#moon-detail.cockpit-visor-moon #moon-card{
+  position:fixed;right:12px;top:56px;
+  width:clamp(285px,21.5vw,344px);
+  max-height:calc(100vh - 118px);
+  background:linear-gradient(165deg,rgba(2,10,26,.66),rgba(1,5,16,.78));
+  border:1px solid rgba(0,212,255,.35);
+  border-left:2px solid var(--cyan);
+  border-radius:14px;
+  padding:0 14px 18px;
+  backdrop-filter:blur(12px);
+  pointer-events:auto!important;
+  box-shadow:0 12px 42px rgba(0,0,0,.68),0 0 26px rgba(0,212,255,.15);
+  transform:translateX(110%);
+  transition:transform .35s cubic-bezier(.22,1,.36,1);
+}
+#moon-detail.cockpit-visor-moon.open #moon-card{transform:translateX(0)}
+#moon-detail.cockpit-visor-moon .modal-sticky-header{margin:0 -14px 10px -14px;padding:10px 14px}
+
+/* Compact #mission-panel into a sleek translucent Visor drawer */
+#mission-panel{
+  width:clamp(290px,22vw,355px)!important;
+  background:linear-gradient(165deg,rgba(2,10,26,.66),rgba(1,5,16,.78))!important;
+  backdrop-filter:blur(12px)!important;
+}
+
+/* Convert #discovery-overlay & #tour-title-card into sleek top-center Visor Telemetry Banners so they never cover the 3D planet */
+#discovery-overlay{align-items:flex-start;padding-top:62px}
+#discovery-card{top:68px!important;transform:translate(-50%,0) scale(.92)!important;padding:14px 28px!important;border-radius:14px!important;background:rgba(2,10,28,.74)!important;backdrop-filter:blur(10px)!important}
+#disc-planet-name{font-size:clamp(18px,2.5vw,26px)!important}
+#tour-title-card{align-items:flex-start;padding-top:66px}
+#tour-title-name{font-size:clamp(20px,3vw,34px)!important}
+#tour-title-sub{font-size:clamp(9px,1.1vw,12px)!important;margin-top:3px!important}
+
+/* 2. Top-Left Persistent "Active Mission Objective & Flight License XP Tracker" (#mission-hud) */
+#mission-hud.visor-objective-tracker{
+  position:fixed;top:56px;left:14px;right:auto;
+  z-index:108;
+  width:clamp(248px,19.5vw,288px);
+  max-width:295px;
+  background:linear-gradient(155deg,rgba(2,10,26,.66),rgba(1,6,18,.76));
+  border:1px solid rgba(0,212,255,.32);
+  border-left:3px solid #00ffaa;
+  border-radius:12px;
+  padding:10px 13px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 32px rgba(0,0,0,.55),0 0 22px rgba(0,212,255,.1);
+  transform:translateX(-330px);
+  transition:transform .45s cubic-bezier(.22,1,.36,1);
+}
+#mission-hud.visor-objective-tracker.visible{transform:translateX(0)}
+.mhud-license-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid rgba(0,212,255,.15)}
+.mhud-rank-pill{font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:900;letter-spacing:.14em;color:#ffd030;background:rgba(255,208,48,.12);border:1px solid rgba(255,208,48,.35);padding:2px 8px;border-radius:10px;text-transform:uppercase}
+.mhud-xp-pill{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:900;letter-spacing:.1em;color:var(--cyan)}
+.mhud-scan-counter{font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;letter-spacing:.1em;color:#00ffaa;background:rgba(0,255,170,.08);border:1px solid rgba(0,255,170,.24);border-radius:7px;padding:4px 8px;margin-bottom:7px;text-transform:uppercase}
+.mhud-actions-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+#mhud-warp-btn{background:rgba(0,212,255,.14);border:1px solid rgba(0,212,255,.42);color:#fff;padding:4px 10px;border-radius:7px;font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s}
+#mhud-warp-btn:hover{background:var(--cyan);color:#020818;box-shadow:0 0 14px rgba(0,212,255,.45)}
+
+/* Shift #frontier-bar right of the top-left Active Mission Tracker so they never overlap */
+#frontier-bar{left:312px!important;top:56px!important;max-width:calc(100vw - 675px)}
+@media(max-width:1100px){#frontier-bar{top:102px!important;left:312px!important}}
+
+/* 3. Interactive 3D Surface Anomaly / Hotspot Reticles (#hotspot-reticle-layer) */
+#hotspot-reticle-layer{position:fixed;inset:0;pointer-events:none;z-index:65;overflow:hidden}
+.hotspot-reticle{
+  position:absolute;
+  transform:translate(-50%,-50%);
+  pointer-events:auto;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  transition:opacity .2s ease;
+  user-select:none;
+}
+.hotspot-reticle-ring{
+  position:relative;
+  width:34px;height:34px;
+  border:1.5px solid rgba(0,235,255,.85);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 16px rgba(0,212,255,.45),inset 0 0 10px rgba(0,212,255,.25);
+  background:radial-gradient(circle,rgba(0,212,255,.18) 0%,transparent 70%);
+  animation:hotspotPulse 2s ease-in-out infinite;
+  transition:all .2s ease;
+}
+.hotspot-reticle-ring::before{
+  content:'';position:absolute;inset:-5px;
+  border:1px dashed rgba(255,205,70,.75);
+  border-radius:50%;
+  animation:corner-spin-cw 9s linear infinite;
+}
+.hotspot-reticle-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:#00ffff;
+  box-shadow:0 0 10px #00ffff,0 0 18px #ffffff;
+}
+.hotspot-reticle.scanned .hotspot-reticle-ring{
+  border-color:rgba(0,255,155,.88);
+  box-shadow:0 0 16px rgba(0,255,155,.45),inset 0 0 10px rgba(0,255,155,.22);
+}
+.hotspot-reticle.scanned .hotspot-reticle-ring::before{border-color:rgba(0,255,155,.55)}
+.hotspot-reticle.scanned .hotspot-reticle-dot{background:#00ff9d;box-shadow:0 0 10px #00ff9d}
+.hotspot-reticle:hover .hotspot-reticle-ring{
+  transform:scale(1.22);
+  border-color:#ffffff;
+  box-shadow:0 0 26px rgba(0,235,255,.85),inset 0 0 14px rgba(0,235,255,.45);
+}
+.hotspot-reticle-tag{
+  display:flex;align-items:center;gap:5px;
+  background:rgba(2,9,24,.84);
+  border:1px solid rgba(0,212,255,.45);
+  border-radius:12px;
+  padding:2.5px 8px;
+  font-family:'Orbitron',sans-serif;
+  font-size:8px;font-weight:800;letter-spacing:.09em;
+  color:#e8f6ff;white-space:nowrap;
+  backdrop-filter:blur(6px);
+  box-shadow:0 3px 12px rgba(0,0,0,.75);
+}
+.hotspot-reticle-xp{
+  color:#ffd040;font-size:7.5px;font-weight:900;
+  padding-left:4px;border-left:1px solid rgba(255,255,255,.18);
+}
+.hotspot-reticle.scanned .hotspot-reticle-xp{color:#00ff9d}
+@keyframes hotspotPulse{
+  0%,100%{transform:scale(1);opacity:.92}
+  50%{transform:scale(1.1);opacity:1}
+}
+
+/* 4. Cockpit Visor 3D Anomaly Scanner Module (.visor-scanner-box) */
+.visor-scanner-box{
+  margin:0 0 12px;
+  padding:10px 11px;
+  background:linear-gradient(155deg,rgba(0,212,255,.08),rgba(2,12,30,.72));
+  border:1px solid rgba(0,212,255,.28);
+  border-radius:11px;
+}
+.vscan-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:6px;
+}
+.vscan-title{
+  font-family:'Orbitron',sans-serif;font-size:8.5px;font-weight:900;
+  letter-spacing:.14em;color:#00ffaa;text-transform:uppercase;
+}
+.vscan-badge{
+  font-family:'Orbitron',sans-serif;font-size:8px;font-weight:800;
+  color:var(--cyan);background:rgba(0,212,255,.12);
+  border:1px solid rgba(0,212,255,.3);border-radius:8px;padding:1.5px 7px;
+}
+.vscan-hint{
+  font-size:11px;color:rgba(190,225,255,.78);margin-bottom:8px;
+  font-family:'Segoe UI',system-ui,sans-serif;line-height:1.35;
+}
+.vscan-list{display:flex;flex-direction:column;gap:5px}
+.vscan-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 9px;
+  background:rgba(2,8,22,.68);
+  border:1px solid rgba(0,212,255,.2);
+  border-radius:8px;
+  cursor:pointer;
+  transition:all .18s ease;
+}
+.vscan-item:hover{
+  background:rgba(0,212,255,.16);
+  border-color:var(--cyan);
+  transform:translateX(2px);
+}
+.vscan-item.active{
+  background:linear-gradient(135deg,rgba(0,212,255,.24),rgba(0,255,170,.12));
+  border-color:#00ffaa;
+  box-shadow:0 0 16px rgba(0,255,170,.2);
+}
+.vscan-item.scanned .vscan-status{
+  color:#00ff9d;border-color:rgba(0,255,157,.38);background:rgba(0,255,157,.1);
+}
+.vscan-item-left{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.vscan-item-name{font-family:'Orbitron',sans-serif;font-size:9.5px;font-weight:800;color:#fff;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vscan-item-coords{font-family:monospace;font-size:9.5px;color:rgba(140,205,255,.75)}
+.vscan-status{
+  font-family:'Orbitron',sans-serif;font-size:7.5px;font-weight:900;
+  letter-spacing:.08em;color:#ffd040;
+  background:rgba(255,208,64,.12);border:1px solid rgba(255,208,64,.35);
+  border-radius:6px;padding:3px 6px;white-space:nowrap;flex-shrink:0;
+}
+.vscan-active-card{
+  display:none;
+  margin-top:9px;padding-top:9px;
+  border-top:1px solid rgba(0,212,255,.22);
+  animation:fadeUp .28s ease-out;
+}
+.vscan-active-card.show{display:block}
+.vscan-card-kicker{
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:'Orbitron',sans-serif;font-size:7.5px;font-weight:800;
+  letter-spacing:.14em;color:#00ffaa;text-transform:uppercase;margin-bottom:4px;
+}
+.vscan-card-title{
+  font-family:'Orbitron',sans-serif;font-size:12px;font-weight:900;
+  color:#fff;margin-bottom:3px;letter-spacing:.04em;
+}
+.vscan-card-metric{
+  font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;
+  color:var(--cyan);margin-bottom:7px;
+}
+.vscan-card-photo{
+  width:100%;aspect-ratio:16/9;object-fit:cover;
+  border-radius:8px;border:1px solid rgba(0,212,255,.32);
+  margin-bottom:7px;cursor:zoom-in;background:#020614;
+}
+.vscan-card-desc{
+  font-family:'Segoe UI',system-ui,sans-serif;font-size:12px;
+  color:rgba(230,244,255,.94);line-height:1.52;
+}

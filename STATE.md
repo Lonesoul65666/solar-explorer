@@ -2,7 +2,7 @@
 
 > **Dual-Engine Continuity Protocol**: Both **Gemini (Antigravity)** and **Claude** share this file as the single source of truth for repository state. Every agent session **MUST** read `STATE.md` before making changes and update `STATE.md` before concluding work.
 
-**Last Updated**: 2026-10-20  
+**Last Updated**: 2026-10-23  
 **Branch**: `main`  
 **Working Tree**: Clean  
 **Deployment Target**: GitHub Pages (`main` branch, `/ (root)` directory, `.nojekyll` enabled)
@@ -30,9 +30,9 @@
 | **Application Logic** | Vanilla ES2022 (`universe.js`) | Single-module architecture (~7,947 lines) managing 3D scene, coronal loops, Human Frontier layer, NASA API + SVG fallbacks, ambient synth, and age-tiered first-person speech |
 | **3D Engine** | Three.js `r165` (`vendor/three/`) | Vendored `three.module.js` (1.34 MB) + `controls/OrbitControls.js` via native `<script type="importmap">` |
 | **Typography** | Orbitron Variable (`vendor/fonts/`) | Self-hosted `orbitron-variable.woff2` (weights 400–900, SIL OFL 1.1) + system fallbacks (`Segoe UI`, `Georgia`) |
-| **Surface Maps** | NASA Public-Domain JPEG (`textures/`) | Nine 2K textures (`2k_mercury.jpg`, `2k_venus_atmosphere.jpg`, `2k_earth_daymap.jpg`, `2k_earth_clouds.jpg`, `2k_earth_nightmap.jpg`, `2k_mars.jpg`, `2k_jupiter.jpg`, `2k_saturn.jpg`, `2k_uranus.jpg`, `2k_neptune.jpg`) + procedural canvas textures |
+| **Surface Maps** | NASA Public-Domain JPEG/PNG (`textures/`) | High-res multi-layer Earth textures (`earth_day.jpg`, `earth_normal.jpg`, `earth_spec.jpg`, `earth_night.png`, `earth_clouds.png`), bump/normal-mapped Moon (`moon.jpg`), plus nine 2K planet maps (`2k_*.jpg`) |
 | **Visual Galleries** | Live NASA Images API + Procedural SVG Fallback | Live `images-api.nasa.gov` search carousel (`fetchNasaGallery`, `openLightboxCarousel`) backed by 35 custom-authored SVG schematics (`MISSION_ART_SPECS` / `resolveMissionPhoto`) |
-| **Audio & Voice** | Web Audio API + Web Speech API | Warm major/minor 7th & 9th polyphonic pad synth, zero harsh noise, 80% voice ducking, and strict `en-*` voice filtering with HUD selector |
+| **Audio & Voice** | Pre-Rendered Cutscene (`video/intro-cutscene.mp4`) + Mastered Audio + Web Audio/Speech API | 42.0s H.264/AAC pre-rendered cutscene (`video/intro-cutscene.mp4`), 42.0s mastered Carl Sagan *Pale Blue Dot* + dark ambient drone (`audio/sagan-real.ogg` / `audio/sagan-real.mp3`), pre-generated 13.82s handoff track (`audio/welcome-handoff.mp3` — zero live TTS in intro), 5-act deep-space pad synth, 80% voice ducking, and strict `en-*` voice filtering |
 
 ---
 
@@ -106,29 +106,54 @@ C:\SolarExplorer\
   4. **Lush Stellardrone / Interstellar / Mass Effect Procedural Ambient Synth**: Replaced harsh vibraphone/noise drones with warm major/minor 7th & 9th polyphonic pads, gentle low-pass filter modulation, and `#audio-vol-slider` in the HUD.
   5. **Live NASA Image Galleries & Lightbox Carousel**: Integrated `images-api.nasa.gov` photo search into every planet, Sun, moon, mission, and Frontier panel with a full prev/next carousel lightbox and instant offline procedural SVG fallback.
   6. **The "Human Frontier" Layer (`F` / HUD / Quick-Jump Bar)**: Added clickable 3D markers, trajectories, live ISS telemetry (`api.wheretheiss.at`), SpaceX Starship Mars Transfer, Orbital AI Data Center, JWST at L2, and Voyager 1.
-- **Latest — Stage 1 Outside-In UX Rebuild (`v=8`): Boot Gate, 35s Cold-Open Warp Flyby, Real Audio Pipeline & Video-Game Main Title Screen**:
-  1. **The "Initialize Systems" Boot Gate & Real Audio Pipeline**:
-     - Redesigned `#intro` into a sleek, dark deep-space Boot Gate featuring `[ INITIALIZE SHIP SYSTEMS ]` (`#start-btn.boot-init-btn`, also triggered via `Enter` / `Space`) with zero launch delay.
-     - Authored and ran `scripts/build-intro-audio.mjs` (using Node IPv4 HTTPS synthesis and MPEG-2 Layer III frame-accurate silence pacing) to generate `./audio/intro-narration.mp3` (292.7 KB) for the Carl Sagan *Pale Blue Dot* intro, played via a real `<audio>` element (`_saganAudioEl`) with `speechSynthesis` kept strictly as an emergency fallback if `<audio>` fails.
-     - Wired `playCinematicScore()` to check if `./audio/custom-intro.mp3` exists first (crossfading automatically if dropped into `./audio/`), and otherwise play an upgraded 4-act eerie, haunting deep-space Web Audio synthesizer (`Em9 → Cmaj7#11 → Fmaj9#11 → Cmaj9`) with dynamic filter/gain swells and spatial stereo Doppler flyby whooshes (`playFlybyWhoosh()`).
-  2. **The 35-Second Cold-Open Warp Flyby (Synced to Audio)**:
-     - Clicking `[ INITIALIZE SHIP SYSTEMS ]` immediately starts the deep-space music, plays `audio/intro-narration.mp3`, and launches a 35.0-second 3D camera choreography with dynamic banking roll (`camera.up`):
-       - **0s–7s (`PHASE I // INTERSTELLAR WARP ARRIVAL`)**: High-speed warp star-streak tunnel arriving from deep interstellar space.
-       - **7s–20s (`PHASE II // OUTER GIANTS BANKING FLYBY`)**: Dynamic banking flybys skimming close past **Neptune** (`7s–11.5s`), sweeping right across **Saturn's illuminated rings** (`11.5s–16.2s`), and banking past **Jupiter** (`16.2s–20s`) with spatial low-end flyby whooshes.
-       - **20s–35s (`PHASE III // TERRA — THE PALE BLUE DOT`)**: Smooth deceleration curving past the sunlit crescent of **Earth** (*"That's here. That's home. That's us..."*) before ascending into a high orbital overview of the inner solar system (`(0, 28, 55)`).
-     - Synced on-screen cinematic subtitles directly to `_saganAudioEl.currentTime` and placed a `[SPACE / CLICK] SKIP INTRO ⏭` button (`#cine-skip`) in the bottom-right corner that jumps straight to the Main Title Screen at any moment.
-  3. **The Video-Game Main Title Screen (`#main-title-screen`) & `solarExplorerSave` Persistence**:
-     - When the 35s flyby finishes (or is skipped), `_enterAfterIntro()` fades in the translucent sci-fi **Main Title Screen** (`#main-title-screen`) over the live, slowly orbiting 3D solar system (`_titleScreenOpen` gentle orbital camera drift):
-       - `CONTINUE VOYAGE` (`#title-btn-continue`): Enabled whenever `localStorage.getItem('solarExplorerSave')` exists, displaying saved Rank, Track, and `X/8` planets visited (`#title-continue-meta`).
-       - `NEW VOYAGE` (`#title-btn-new`): Opens `#title-new-voyage-card` to pick your focus (**Planetary Explorer**, **Rockets & Propulsion**, or **Space Traveler** + Science Depth), initializes `solarExplorerSave` in `localStorage`, and smoothly zooms the camera into the active HUD + first guided objective.
-       - `FREE FLIGHT` (`#title-btn-free`): Enters the cockpit HUD immediately in open sandbox mode.
-       - `AUDIO & VOICE SETTINGS` (`#title-btn-settings`): Houses the Voice Selector dropdown (`#title-voice-select`, synced with `#voice-select`), Music & Voice Narration volume sliders (`#title-music-vol`, `#title-voice-vol`), Voice Test button, and Replay 35s Cold-Open Flyby button.
+- **Stage 1 Outside-In UX Rebuild (`v=8`): Boot Gate, Cold-Open Warp Flyby, Real Audio Pipeline & Video-Game Main Title Screen**:
+  - Redesigned `#intro` into `[ INITIALIZE SHIP SYSTEMS ]` Boot Gate (`#start-btn.boot-init-btn`), added `#main-title-screen` with `solarExplorerSave` persistence (`CONTINUE VOYAGE`, `NEW VOYAGE`, `FREE FLIGHT`, `AUDIO & VOICE SETTINGS`), and added `scripts/build-intro-audio.mjs`.
+- **Super High-Res Multi-Layer Earth, GLSL Fresnel Atmospheric Shader & Two-Part Cutscene (`v=9`)**:
+  - Replaced procedural canvas Earth with a multi-layered photorealistic 3D Earth (`earth_day.jpg`, `earth_normal.jpg`, `earth_spec.jpg`, `earth_night.png`, independent `earth_clouds.png` sphere, dual-shell Fresnel atmospheric scattering shaders) and bump/normal-mapped Moon (`moon.jpg`).
+- **Latest — True Video-Game Cutscene Architecture (`video/intro-cutscene.mp4`) -> Solar Flare Crossfade -> Live 3D Engine Handoff (`v=10`)**:
+  1. **Mastered Intro Audio Assets (Zero Live Browser TTS in Intro)**:
+     - **`audio/sagan-real.ogg` & `audio/sagan-real.mp3` (`42.00s`)**: Extracted and crossfaded all 6 archival Carl Sagan *Pale Blue Dot* segments (*"We succeeded in taking that picture... Look again at that dot. That's here. That's home. That's us... The Earth is a very small stage in a vast cosmic arena... To me, it underscores our responsibility... on a mote of dust, suspended in a sunbeam"*) and mixed them with a dark, mysterious stereo deep-space ambient drone + golden solar flare climax swell into one locked master track.
+     - **`audio/welcome-handoff.mp3` (`13.82s`)**: Pre-generated and mastered local Ship Narrator audio file speaking *"Welcome to Solar Explorer. I hope you have fun traveling the galaxy with us... One last turn... and... here we are. Earth... our home."* (pre-fetched and pre-decoded into an `AudioBuffer` during the video cutscene so the 3D handoff runs with zero latency and zero live `window.speechSynthesis`).
+  2. **Pre-Rendered 42-Second Video Cutscene (`video/intro-cutscene.mp4` + `scripts/BuildIntroCutscene.cs`)**:
+     - Generated `video/intro-cutscene.mp4` (`1280×720 @ 30fps`, H.264 + AAC 199kbps, `+faststart`, 42.00s) rendering the three-act visual journey locked to the Carl Sagan master audio:
+       - `0s – 15s`: Thousands of light-years away in dark, mysterious deep space with warp-speed star streaks, rotating spiral galaxies, and volumetric dark/cyan/violet nebulae rushing past the camera.
+       - `15s – 30s`: Gradual warp tunnel deceleration as Sagan reflects on how small our world is in the cosmic dark while our Sun ignites in the center distance and grows into a blazing golden sphere.
+       - `30s – 42s`: Gliding past the outer edge of the solar system (ringed Saturn silhouette + Pale Blue Dot glinting inside a diagonal sunbeam) as the blazing Sun fills the screen with warm golden glare on *"...on a mote of dust, suspended in a sunbeam"*.
+  3. **Background 3D Warmup & Seamless Golden Solar Flare Crossfade -> Stop at Earth (`runCinematic`, `warmUp3DEngineForHandoff`, `#cine-solar-flare`)**:
+     - While `video/intro-cutscene.mp4` plays in full-screen cinema mode (with `[SPACE / CLICK] SKIP INTRO ⏭`), `_gpuInitTexture` and `warmUp3DEngineForHandoff()` silently upload all 2K planet textures to the GPU and compile all Three.js GLSL shaders (`renderer.compile(scene, camera)`).
+     - At `~42s`, `#cine-solar-flare` swells on the golden Sun glare to crossfade seamlessly out of the video into the live 3D solar system while `audio/welcome-handoff.mp3` plays, sweeping the live camera inward past the outer planets, banking around the Moon's horizon on *"One last turn..."* (`7.09s`), stopping in high orbit facing our high-res multi-layer Earth (`_getEarthHeroFraming(0)`), and fading in the Main Game Title Menu (`#main-title-screen`) on the left side of the screen.
 
 ---
 
 ## 5. Active Work / Known Bugs & Technical Debt
 
 - **None currently open.** Verified with `node --check universe.js` (exit code 0, zero syntax errors) and full offline fallback coverage.
+- **Latest — Carl Sagan Verbatim Audio/Subtitle Sync + Arcade Visor HUD & 3D Surface Anomaly Scanner Overhaul (`v=11` — 2026-10-23):**
+  1. **Carl Sagan Audio & Cutscene Re-Master (`audio/sagan-real.ogg`, `audio/sagan-real.mp3`, `video/intro-cutscene.mp4`, `SAGAN_SCRIPT`, `SHIP_SCRIPT`):**
+     - **Root Cause Fixed**: Audited `audio/sagan-real.ogg` and found that the first 20.05s slice of the Archive.org *Pale Blue Dot* recording actually spoke *"From this distant vantage point, the Earth might not seem of any particular interest... Consider again that dot. That's here. That's home. That's us. On it, everyone you love..."* (cutting off mid-sentence at 20.05s), whereas `SAGAN_SCRIPT` previously displayed *"Look again at that dot..."* at `0.15s`.
+     - **Verbatim Complete-Sentence Master (`42.00s`)**: Re-sliced `[(0.00, 5.70), (7.30, 9.50), (17.55, 10.65), (191.05, 12.05), (67.90, 4.10)]` from the original Carl Sagan recording so every sentence finishes naturally (*"...every human being who ever was, lived out their lives"* and *"...to preserve and cherish the pale blue dot, the only home we've ever known"*), mixed with the dark deep-space ambient drone (`audio/sagan-real.ogg`, `audio/sagan-real.mp3`, `audio/intro-narration.mp3`) and re-baked `video/intro-cutscene.mp4` (`42.00s`, 1280×720 @ 30fps).
+     - **100% Verbatim Subtitle Synchronization**: Updated `SAGAN_SCRIPT` and `SHIP_SCRIPT` in `universe.js` so every subtitle card matches Carl Sagan's and the Ship Narrator's exact spoken words and timestamps to the tenth of a second (`?v=7` cache-busting).
+  2. **Sleek Cockpit Visor HUD Overhaul (`index.html`, `universe.css`, `universe.js`):**
+     - Replaced the intrusive 490px webpage-style planet modal (`#info-panel`), full-screen blocking moon modal (`#moon-detail`), 500px mission modal (`#mission-panel`), and blocking `#mission-briefing` wall with a sleek, translucent **Cockpit Visor HUD** (`width: clamp(285px, 21.5vw, 344px)`) docked to the right edge (`top: 56px; bottom: 58px`) that leaves **78%+ of the 3D viewport completely unobstructed** and hides the redundant 2D `#panel-canvas`.
+     - Converted `#discovery-overlay` and `#tour-title-card` into compact top-center visor HUD banners so planet arrivals never obscure the 3D sphere.
+  3. **Interactive 3D Surface Anomaly / Hotspot Scanner (`SURFACE_HOTSPOTS`, `spawnSurfaceHotspotsForBody`, `triggerHotspotScan`, `_updateSurfaceHotspots`):**
+     - When orbiting any planet, the Sun, or a moon, renders **3 to 4 glowing, pulsing 3D target markers** (`Sprite` beacon + pulsing surface `RingGeometry` + projected 2D `.hotspot-reticle` HUD brackets) locked to real `(lat, lon)` surface coordinates on the rotating 3D sphere (e.g., *Olympus Mons*, *Valles Marineris*, *Jezero Crater* & *North Polar Ice Cap* on Mars; *Great Red Spot*, *Jovian Polar Auroras* & *Metallic Hydrogen Core* on Jupiter; *Mariana Trench*, *Amazon Basin*, *Sahara Dust Plume* & *Aurora Oval* on Earth; *Loki Patera* & *Pele Plume* on Io).
+     - Players rotate the 3D globe to bring hidden farside markers into view, click either the 3D surface marker, floating HUD reticle, or Visor button to trigger an arcade scan sound (`playArcadeScannerSFX`), camera focus, first-person voiceover briefing, and NASA photo card, earning **+75 Flight License XP** per scan (`+150 XP` bonus when all anomalies on a world are scanned).
+  4. **Persistent Top-Left Active Mission & Flight License Tracker (`#mission-hud.visor-objective-tracker`, `_refreshMissionTrackerHUD`):**
+     - Upgraded `#mission-hud` into a persistent top-left Cockpit Objective Tracker displaying the player's **Flight License Rank** (`CADET` → `LEGEND`), live **XP counter**, current **Mission Objective**, **3D Surface Scan progress** (`X/Y Scanned`), and a 1-click **`🎯 Lock Target`** warp button (`#mhud-warp-btn`).
+  1. **Jupiter's 4 Galilean Moons (`makeMoonTexture`, `planetMeshes`, `getPickList`, `window.showMoon`):**
+     - Rendered all 4 Galilean moons (`Io`, `Europa`, `Ganymede`, `Callisto`) around Jupiter with tight orbital radii (`3.16` to `4.00` units from Jupiter's center—well inside 35% of the Jupiter–Saturn gap so they never touch Saturn's rings).
+     - Built distinct 256×128 procedural canvas textures and PBR materials for **Io** (sulfur yellow/orange + mottled black lava calderas with molten rims), **Europa** (brilliant icy white/pale-blue shell crisscrossed with dark reddish-brown `lineae` fractures), **Ganymede** (two-tone dark cratered rock and lighter grooved tectonic ice plains), and **Callisto** (dark charcoal-brown cratered ice/rock with bright white impact rays and Valhalla multi-ring basin).
+     - Added all rendered moon meshes (`userData.moonKey`) into `getPickList()` and updated `window.showMoon(planetId, moonName)` to fly the 3D camera directly to the clicked moon and open `#moon-detail`.
+  2. **Satellite / Probe Scale, Metallic PBR Shading & Distance LOD (`createMissionMeshGroup`, `_buildFrontierMesh`, `updateHumanFrontier`, `animate`):**
+     - Scaled all `MISSIONS` and `HUMAN_FRONTIER` 3D spacecraft models down by 75% (`0.25x`), replaced flat `MeshBasicMaterial` with metallic gold Kapton foil, brushed silver/titanium, and deep-blue photovoltaic solar panel PBR `MeshStandardMaterial`, and implemented distance-based LOD visibility so probes hide/fade when zoomed far out unless their host planet or Mission/Frontier panel is focused.
+  3. **Uninterrupted Carl Sagan Audio Stream + 3.5s Cosmic Silence Pause + Full System Perimeter Orbit (`runCinematic`):**
+     - Pre-warmed 3D shaders once before playback (`warmUp3DEngineForHandoff`), muted `videoEl` so it never fights audio, and played `audio/sagan-real.ogg` in a single continuous, uninterrupted stream from `0.0s` driving `SAGAN_SCRIPT` subtitles passively.
+     - Added a 3.5-second pause (`PAUSE_DUR = 3.50`) of eerie cosmic silence after Sagan's speech completes, followed by a wide, graceful 3D camera sweep around the outer perimeter of the solar system (*"The universe, while a tiny dot, is a vast space..."*) banking inward across the ecliptic past the Moon to rest at Earth (*"...and here we are, right at home"*).
+  4. **Earth & Planet Photo Gallery Filtering (`PLANET_GALLERY_CONFIG`, `fetchNasaGallery`, `MISSION_ART_SPECS`):**
+     - Updated Earth's gallery query and curated schematics to showcase living oceans, coral reefs, Amazon rainforest biodiversity, polar auroras, and orbital lightning storms, while filtering out people/meetings/ceremonies/podiums/portraits from NASA Image API results.
+  5. **Scannable Visual Cards & 3 Quick-Glance Stat Gauges (`openPlanet`, `openSun`, `universe.css`):**
+     - Replaced dense text walls in planet and Sun panels with 3 circular SVG Quick-Glance Stat Gauges (`Diameter`, `Temperature`, `Orbit & Day`), scannable visual discovery cards (`.visual-fact-card`), clean tabs (`Overview`, `Surface & Sky`, `Missions`, `Moons`), and larger readable typography (`14.5px–15.5px` body/card values).
 
 ---
 

@@ -1161,7 +1161,8 @@ PLANETS.forEach(pdata => {
   scene.add(group);
 
   const tex = makeTexture(pdata.texture, 1024);
-  const geo = new THREE.SphereGeometry(pdata.size, 40, 40);
+  const segs = pdata.id === 'earth' ? 96 : 40;
+  const geo = new THREE.SphereGeometry(pdata.size, segs, segs);
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
     roughness: 0.85,
@@ -1181,13 +1182,93 @@ PLANETS.forEach(pdata => {
   group.add(mesh);
   group.userData = {planetId: pdata.id, pdata};
 
-  // Atmosphere glow
-  const atmGeo = new THREE.SphereGeometry(pdata.size*1.06, 32, 32);
-  const atmMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(pdata.color),
-    transparent: true, opacity: 0.06, side: THREE.BackSide
-  });
-  group.add(new THREE.Mesh(atmGeo, atmMat));
+  // Atmosphere glow (Earth receives a custom GLSL Fresnel atmospheric scattering shader below)
+  if (pdata.id === 'earth') {
+    const earthAtmVert = `
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+    const earthAtmFrag = `
+      uniform vec3 uSunPos;
+      uniform float uRimPower;
+      uniform float uIntensity;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      void main() {
+        vec3 N = normalize(vWorldNormal);
+        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+        vec3 lightDir = normalize(uSunPos - vWorldPosition);
+
+        float viewDot = clamp(abs(dot(N, viewDir)), 0.0, 1.0);
+        float fresnel = pow(1.0 - viewDot, uRimPower);
+
+        float sunDot = dot(N, lightDir);
+        float dayLit = smoothstep(-0.48, 0.42, sunDot);
+
+        // Rayleigh forward scattering when Earth's horizon is backlit by the Sun
+        float backlit = pow(max(0.0, dot(-viewDir, lightDir)), 2.8) * pow(1.0 - viewDot, 1.85);
+        float twilight = exp(-pow((sunDot + 0.05) * 4.8, 2.0)) * fresnel;
+
+        vec3 rayleighBlue = mix(vec3(0.10, 0.46, 0.98), vec3(0.46, 0.84, 1.0), fresnel);
+        vec3 sunsetAmber  = vec3(1.0, 0.48, 0.16);
+        vec3 col = mix(rayleighBlue, sunsetAmber, twilight * 0.36);
+        col += vec3(0.32, 0.74, 1.0) * backlit * 0.85;
+
+        float alpha = clamp((fresnel * (0.20 + 0.80 * dayLit) + backlit * 0.65) * uIntensity, 0.0, 0.96);
+        gl_FragColor = vec4(col * (1.1 + backlit * 0.5), alpha);
+      }
+    `;
+    // Inner crisp Fresnel horizon rim shell
+    const atmInnerGeo = new THREE.SphereGeometry(pdata.size * 1.078, 96, 96);
+    const atmInnerMat = new THREE.ShaderMaterial({
+      vertexShader: earthAtmVert,
+      fragmentShader: earthAtmFrag,
+      uniforms: {
+        uSunPos:    { value: new THREE.Vector3(0, 0, 0) },
+        uRimPower:  { value: 2.65 },
+        uIntensity: { value: 0.92 }
+      },
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.FrontSide
+    });
+    const atmInnerMesh = new THREE.Mesh(atmInnerGeo, atmInnerMat);
+    atmInnerMesh.userData.isEarthAtmosphere = true;
+    group.add(atmInnerMesh);
+
+    // Outer volumetric Rayleigh backlit scatter halo
+    const atmOuterGeo = new THREE.SphereGeometry(pdata.size * 1.155, 64, 64);
+    const atmOuterMat = new THREE.ShaderMaterial({
+      vertexShader: earthAtmVert,
+      fragmentShader: earthAtmFrag,
+      uniforms: {
+        uSunPos:    { value: new THREE.Vector3(0, 0, 0) },
+        uRimPower:  { value: 2.15 },
+        uIntensity: { value: 0.58 }
+      },
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide
+    });
+    const atmOuterMesh = new THREE.Mesh(atmOuterGeo, atmOuterMat);
+    atmOuterMesh.userData.isEarthAtmosphere = true;
+    group.add(atmOuterMesh);
+  } else {
+    const atmGeo = new THREE.SphereGeometry(pdata.size*1.06, 32, 32);
+    const atmMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(pdata.color),
+      transparent: true, opacity: 0.06, side: THREE.BackSide
+    });
+    group.add(new THREE.Mesh(atmGeo, atmMat));
+  }
 
   // Saturn rings
   if(pdata.id==='saturn') {
@@ -1230,31 +1311,294 @@ PLANETS.forEach(pdata => {
     group.add(ringMesh);
   }
 
-  // Moons (visual only for major ones)
-  pdata.moons.slice(0,2).forEach((moon, mi) => {
-    const mOrbit = pdata.size * (2.5 + mi * 1.4);
-    const mSize = pdata.size * 0.18;
-    const mc=document.createElement('canvas'); mc.width=64;mc.height=64;
-    const mctx=mc.getContext('2d');
-    const mg=mctx.createRadialGradient(32,32,0,32,32,32);
-    mg.addColorStop(0,'#d0d0d0'); mg.addColorStop(1,'#808080');
-    mctx.fillStyle=mg; mctx.fillRect(0,0,64,64);
-    for(let i=0;i<20;i++){mctx.beginPath();mctx.arc(Math.random()*64,Math.random()*64,Math.random()*4,0,Math.PI*2);mctx.fillStyle='rgba(60,60,60,0.4)';mctx.fill();}
-    const mGeo=new THREE.SphereGeometry(mSize,16,16);
-    const mMat=new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(mc),roughness:0.9});
-    const mMesh=new THREE.Mesh(mGeo,mMat);
-    mMesh.position.x=mOrbit;
-    const mPivot=new THREE.Group();
+  // ─── PROCEDURAL MOON TEXTURES (Distinct Galilean Moons + Major Moons) ────────
+  function makeMoonTexture(moonName, planetId) {
+    const key = (moonName || '').toLowerCase();
+    const mc = document.createElement('canvas');
+    mc.width = 256; mc.height = 128;
+    const ctx = mc.getContext('2d');
+    const W = mc.width, H = mc.height;
+
+    if (key === 'io') {
+      // Io: Bright volcanic sulfur yellow, orange, and mottled black lava calderas
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#d87a18');
+      bg.addColorStop(0.25, '#f6d338');
+      bg.addColorStop(0.5, '#ffea55');
+      bg.addColorStop(0.75, '#e88b20');
+      bg.addColorStop(1, '#c85a14');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Sulfur plains & orange pyroclastic flows
+      for (let i = 0; i < 55; i++) {
+        const x = (Math.sin(i * 73.1) * 0.5 + 0.5) * W;
+        const y = (Math.cos(i * 41.7) * 0.5 + 0.5) * H;
+        const r = 8 + (i % 18);
+        const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+        const col = i % 3 === 0 ? 'rgba(255,105,15,0.55)' : (i % 3 === 1 ? 'rgba(245,235,90,0.6)' : 'rgba(185,55,10,0.45)');
+        g.addColorStop(0, col);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+      // Mottled black lava calderas (Paterae) with glowing molten orange rims
+      for (let i = 0; i < 28; i++) {
+        const cx = ((i * 37 + 19) % 240) + 8;
+        const cy = ((i * 53 + 11) % 108) + 10;
+        const rx = 2.5 + (i % 5) * 1.3;
+        const ry = 1.8 + ((i * 3) % 4) * 1.1;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((i * 1.1) % Math.PI);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx + 2.2, ry + 1.8, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,90,0,0.65)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#160d08';
+        ctx.fill();
+        ctx.restore();
+      }
+      return { tex: new THREE.CanvasTexture(mc), roughness: 0.62, metalness: 0.06, emissive: new THREE.Color(0x280d00), emissiveIntensity: 0.22 };
+    }
+
+    if (key === 'europa') {
+      // Europa: Brilliant icy white/pale-blue shell crisscrossed with dark reddish-brown fracture lines (lineae)
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#d8ecff');
+      bg.addColorStop(0.35, '#f4f9ff');
+      bg.addColorStop(0.65, '#eef6ff');
+      bg.addColorStop(1, '#cde4fa');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle pale-blue ice chaos terrain patches
+      for (let i = 0; i < 24; i++) {
+        const x = ((i * 47 + 13) % W);
+        const y = ((i * 31 + 7) % H);
+        const r = 10 + (i % 14);
+        const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+        g.addColorStop(0, i % 2 === 0 ? 'rgba(165,210,245,0.45)' : 'rgba(185,120,95,0.22)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Crisscrossing dark reddish-brown lineae fracture network
+      for (let i = 0; i < 36; i++) {
+        const x0 = ((i * 29) % W);
+        const y0 = ((i * 19 + 5) % H);
+        const x1 = (x0 + 70 + (i * 23) % 140) % W;
+        const y1 = Math.max(4, Math.min(H - 4, y0 + ((i % 2 === 0 ? 1 : -1) * (20 + (i * 13) % 75))));
+        const cx = (x0 + x1) * 0.5 + ((i % 3) - 1) * 24;
+        const cy = (y0 + y1) * 0.5 + ((i % 2) ? 16 : -16);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.quadraticCurveTo(cx, cy, x1, y1);
+        ctx.strokeStyle = i % 3 === 0 ? 'rgba(122,42,22,0.82)' : 'rgba(150,68,40,0.62)';
+        ctx.lineWidth = i % 4 === 0 ? 2.1 : 1.15;
+        ctx.stroke();
+      }
+      return { tex: new THREE.CanvasTexture(mc), roughness: 0.25, metalness: 0.12, emissive: new THREE.Color(0x06121e), emissiveIntensity: 0.12 };
+    }
+
+    if (key === 'ganymede') {
+      // Ganymede: Two-tone dark cratered rock (Galileo Regio) and lighter grooved tectonic ice plains
+      ctx.fillStyle = '#b9b2a6';
+      ctx.fillRect(0, 0, W, H);
+
+      // Dark ancient cratered regions (two-tone continents)
+      const darkRegions = [
+        [48, 38, 52, 30, 0.3],
+        [145, 44, 64, 34, -0.25],
+        [218, 82, 46, 28, 0.4],
+        [88, 92, 50, 25, -0.15]
+      ];
+      darkRegions.forEach(([x, y, rx, ry, rot]) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rot);
+        const g = ctx.createRadialGradient(0, 0, 4, 0, 0, rx);
+        g.addColorStop(0, '#3a3028');
+        g.addColorStop(0.75, '#4c4036');
+        g.addColorStop(1, 'rgba(76,64,54,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      });
+
+      // Lighter grooved sulci bands
+      for (let i = 0; i < 22; i++) {
+        ctx.beginPath();
+        const y = 8 + i * 5.4;
+        ctx.moveTo(0, y);
+        ctx.bezierCurveTo(W * 0.33, y + ((i % 2) ? 8 : -8), W * 0.66, y + ((i % 2) ? -8 : 8), W, y);
+        ctx.strokeStyle = i % 2 === 0 ? 'rgba(225,220,210,0.42)' : 'rgba(90,80,70,0.35)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
+
+      // Bright ice impact craters
+      for (let i = 0; i < 32; i++) {
+        const cx = (i * 43 + 17) % W;
+        const cy = (i * 29 + 9) % H;
+        const r = 1.6 + (i % 4) * 1.1;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = i % 3 === 0 ? 'rgba(240,245,250,0.75)' : 'rgba(55,48,42,0.55)';
+        ctx.fill();
+      }
+      return { tex: new THREE.CanvasTexture(mc), roughness: 0.68, metalness: 0.08, emissive: new THREE.Color(0x080706), emissiveIntensity: 0.08 };
+    }
+
+    if (key === 'callisto') {
+      // Callisto: Dark, heavily cratered ancient charcoal-brown ice/rock with bright white impact rays
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#221c17');
+      bg.addColorStop(0.5, '#2d251e');
+      bg.addColorStop(1, '#1d1814');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Multi-ring Valhalla impact basin
+      const vx = 110, vy = 58;
+      for (let r = 6; r <= 34; r += 5.5) {
+        ctx.beginPath(); ctx.arc(vx, vy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(185,175,160,${(0.5 - r * 0.01).toFixed(2)})`;
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+      }
+
+      // Heavy ancient cratering + bright white starburst impact rays
+      for (let i = 0; i < 65; i++) {
+        const cx = (i * 59 + 11) % W;
+        const cy = (i * 37 + 15) % H;
+        const r = 1.2 + (i % 4) * 0.9;
+        if (i % 4 === 0) {
+          // Bright white impact rays
+          for (let k = 0; k < 6; k++) {
+            const ang = (k / 6) * Math.PI * 2 + (i * 0.4);
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(ang) * (r * 3.8), cy + Math.sin(ang) * (r * 3.8));
+            ctx.strokeStyle = 'rgba(235,242,255,0.55)';
+            ctx.lineWidth = 0.85;
+            ctx.stroke();
+          }
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = '#f2f7ff';
+          ctx.fill();
+        } else {
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(15,12,10,0.65)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(165,150,135,0.45)';
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+        }
+      }
+      return { tex: new THREE.CanvasTexture(mc), roughness: 0.85, metalness: 0.05, emissive: new THREE.Color(0x060504), emissiveIntensity: 0.06 };
+    }
+
+    // Default / other moons (Titan orange haze, Triton pinkish-ice, Phobos/Deimos dark rock, etc.)
+    const mg = ctx.createRadialGradient(W * 0.5, H * 0.5, 4, W * 0.5, H * 0.5, W * 0.55);
+    if (key === 'titan') {
+      mg.addColorStop(0, '#e8a444'); mg.addColorStop(1, '#b86b1b');
+    } else if (key === 'enceladus' || key === 'triton') {
+      mg.addColorStop(0, '#edf6ff'); mg.addColorStop(1, '#9ab8d4');
+    } else {
+      mg.addColorStop(0, '#d0d0d0'); mg.addColorStop(1, '#787878');
+    }
+    ctx.fillStyle = mg; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 28; i++) {
+      ctx.beginPath();
+      ctx.arc((i * 47) % W, (i * 31) % H, 1.5 + (i % 4), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(50,50,55,0.38)';
+      ctx.fill();
+    }
+    return { tex: new THREE.CanvasTexture(mc), roughness: 0.88, metalness: 0.03, emissive: new THREE.Color(0x000000), emissiveIntensity: 0 };
+  }
+
+  // Moons (all 4 Galilean moons for Jupiter with tight orbits & distinct textures; major moons for others)
+  const moonCount = pdata.id === 'jupiter' ? Math.min(4, pdata.moons.length) : Math.min(2, pdata.moons.length);
+  const moonRefs = [];
+  const galileanRadii = { io: 0.115, europa: 0.098, ganymede: 0.145, callisto: 0.130 };
+
+  pdata.moons.slice(0, moonCount).forEach((moon, mi) => {
+    const isJupiter = pdata.id === 'jupiter';
+    const isEarthMoon = pdata.id === 'earth' && mi === 0;
+    // Keep Jupiter's 4 Galilean moons tightly inside 35% of the Jupiter-Saturn gap (3.16 to 4.00 units from Jupiter center)
+    const mOrbit = isJupiter
+      ? (pdata.size + 0.36 + mi * 0.28)
+      : (pdata.size * (2.15 + mi * 1.05));
+    const mKeyLower = moon.name.toLowerCase();
+    const mSize = isJupiter
+      ? (galileanRadii[mKeyLower] || 0.11)
+      : (isEarthMoon ? pdata.size * 0.24 : pdata.size * 0.16);
+    const mSegs = (isEarthMoon || isJupiter) ? 36 : 20;
+
+    const mTexSpec = makeMoonTexture(moon.name, pdata.id);
+    mTexSpec.tex.colorSpace = THREE.SRGBColorSpace;
+    const mGeo = new THREE.SphereGeometry(mSize, mSegs, mSegs);
+    const mMat = new THREE.MeshStandardMaterial({
+      map: mTexSpec.tex,
+      roughness: mTexSpec.roughness,
+      metalness: mTexSpec.metalness,
+      emissive: mTexSpec.emissive,
+      emissiveIntensity: mTexSpec.emissiveIntensity
+    });
+    const mMesh = new THREE.Mesh(mGeo, mMat);
+    mMesh.position.x = mOrbit;
+    const moonTagData = {
+      isMoonMesh: true,
+      moonKey: `${pdata.id}:${moon.name}`,
+      planetId: pdata.id,
+      moonName: moon.name
+    };
+    mMesh.userData = Object.assign({}, moonTagData);
+
+    // Add slightly larger invisible pick-assist sphere so clicking moons in 3D space is effortless
+    const mPick = new THREE.Mesh(
+      new THREE.SphereGeometry(Math.max(mSize * 2.1, 0.22), 12, 12),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false })
+    );
+    mPick.userData = Object.assign({}, moonTagData);
+    mMesh.add(mPick);
+
+    // Subtle orbital path ring for Jupiter's 4 Galilean moons
+    if (isJupiter) {
+      const mRingPts = [];
+      for (let s = 0; s <= 64; s++) {
+        const a = (s / 64) * Math.PI * 2;
+        mRingPts.push(new THREE.Vector3(Math.cos(a) * mOrbit, 0, Math.sin(a) * mOrbit));
+      }
+      const mRingColors = [0xffb830, 0x88d4ff, 0xd8cfc0, 0x9a8878];
+      const mOrbitLine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(mRingPts),
+        new THREE.LineBasicMaterial({ color: mRingColors[mi] || 0x88aacc, transparent: true, opacity: 0.22 })
+      );
+      group.add(mOrbitLine);
+    }
+
+    const mPivot = new THREE.Group();
+    mPivot.rotation.y = (mi / Math.max(1, moonCount)) * Math.PI * 2 + mi * 0.85;
     mPivot.add(mMesh);
-    mPivot.userData={moonOrbit:mOrbit,moonSpeed:2/(mi+1)};
+    mPivot.userData = {
+      moonOrbit: mOrbit,
+      moonSpeed: isJupiter ? (2.6 / (mi + 1)) : (2 / (mi + 1)),
+      moonName: moon.name,
+      planetId: pdata.id
+    };
     group.add(mPivot);
+    moonRefs.push({ mMesh, mPick, moonPivot: mPivot, moon, planetId: pdata.id });
   });
 
   // Set initial position
   const angle = (PLANETS.indexOf(pdata)/PLANETS.length)*Math.PI*2;
   group.position.set(Math.cos(angle)*pdata.orbitRadius, 0, Math.sin(angle)*pdata.orbitRadius);
 
-  planetMeshes.push({mesh, group, pdata, angle: angle});
+  planetMeshes.push({mesh, group, pdata, angle: angle, moonRefs});
   planetGroups.push(group);
 });
 
@@ -1303,12 +1647,10 @@ PLANETS.forEach(pdata => {
   scene.userData.asteroidBelt = { speed: 0.0015 };
 })();
 
-// ─── PHOTO TEXTURES ──────────────────────────────────────────────────────────
+// ─── PHOTO TEXTURES & MULTI-LAYER HIGH-RES EARTH / BUMP-MAPPED MOON ──────────
 const PHOTO_URLS = {
   mercury: 'textures/2k_mercury.jpg',
   venus:   'textures/2k_venus_atmosphere.jpg',
-  earth:   'textures/2k_earth_daymap.jpg',
-  earthClouds: 'textures/2k_earth_clouds.jpg',
   mars:    'textures/2k_mars.jpg',
   jupiter: 'textures/2k_jupiter.jpg',
   saturn:  'textures/2k_saturn.jpg',
@@ -1316,12 +1658,68 @@ const PHOTO_URLS = {
   neptune: 'textures/2k_neptune.jpg',
 };
 const tLoader = new THREE.TextureLoader();
+let _earthShaderUniforms = null;
+
+function _buildMoonNormalTexture(img) {
+  try {
+    const W = Math.min(1024, img.naturalWidth || 512);
+    const H = Math.min(512, img.naturalHeight || 256);
+    const srcC = document.createElement('canvas');
+    srcC.width = W; srcC.height = H;
+    const sCtx = srcC.getContext('2d');
+    sCtx.drawImage(img, 0, 0, W, H);
+    const srcData = sCtx.getImageData(0, 0, W, H).data;
+
+    const dstC = document.createElement('canvas');
+    dstC.width = W; dstC.height = H;
+    const dCtx = dstC.getContext('2d');
+    const outImg = dCtx.createImageData(W, H);
+    const dst = outImg.data;
+    const strength = 2.8;
+
+    const lumAt = (x, y) => {
+      const wx = (x + W) % W;
+      const wy = Math.max(0, Math.min(H - 1, y));
+      const idx = (wy * W + wx) * 4;
+      return (srcData[idx] * 0.299 + srcData[idx + 1] * 0.587 + srcData[idx + 2] * 0.114) / 255;
+    };
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const dX = (lumAt(x + 1, y) - lumAt(x - 1, y)) * strength;
+        const dY = (lumAt(x, y + 1) - lumAt(x, y - 1)) * strength;
+        let nx = -dX, ny = dY, nz = 1.0;
+        const inv = 1.0 / Math.hypot(nx, ny, nz);
+        nx *= inv; ny *= inv; nz *= inv;
+        const idx = (y * W + x) * 4;
+        dst[idx]     = Math.round((nx * 0.5 + 0.5) * 255);
+        dst[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+        dst[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+        dst[idx + 3] = 255;
+      }
+    }
+    dCtx.putImageData(outImg, 0, 0);
+    return new THREE.CanvasTexture(dstC);
+  } catch (e) {
+    return null;
+  }
+}
+
+function _gpuInitTexture(tex) {
+  if (tex && renderer && typeof renderer.initTexture === 'function') {
+    try { renderer.initTexture(tex); } catch (e) {}
+  }
+}
+
 function loadPhotoTextures() {
+  const maxAniso = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 4;
+
   planetMeshes.forEach(pm => {
     const url = PHOTO_URLS[pm.pdata.id];
     if(!url) return;
     tLoader.load(url, tex => {
       tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = maxAniso;
       // Free the procedural CanvasTexture we're replacing. Three.js only
       // releases GPU storage on an explicit dispose(), and by the time these
       // async loads resolve the 1024x1024 canvas textures have already been
@@ -1329,49 +1727,381 @@ function loadPhotoTextures() {
       if(pm.mesh.material.map) pm.mesh.material.map.dispose();
       pm.mesh.material.map = tex;
       pm.mesh.material.needsUpdate = true;
+      _gpuInitTexture(tex);
     }, undefined, ()=>{});
   });
-  // Earth cloud layer + night lights + auroras
-  const earthEntry = planetMeshes.find(p=>p.pdata.id==='earth');
-  if(earthEntry) {
-    tLoader.load(PHOTO_URLS.earthClouds, cloudTex => {
+
+  // ── SUPER HIGH-RES MULTI-LAYER EARTH & ATMOSPHERIC SHADER ──────────────────
+  const earthEntry = planetMeshes.find(p => p.pdata.id === 'earth');
+  if (earthEntry) {
+    const existingProcTex = earthEntry.mesh.material.map;
+    const uniforms = {
+      uDayMap:      { value: existingProcTex },
+      uNormalMap:   { value: null },
+      uSpecMap:     { value: null },
+      uNightMap:    { value: null },
+      uCloudMap:    { value: null },
+      uHasNormal:   { value: 0.0 },
+      uHasSpec:     { value: 0.0 },
+      uHasNight:    { value: 0.0 },
+      uHasClouds:   { value: 0.0 },
+      uCloudDrift:  { value: 0.0 },
+      uSunPos:      { value: new THREE.Vector3(0, 0, 0) }
+    };
+    _earthShaderUniforms = uniforms;
+
+    const earthCoreVert = `
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldTangent;
+      varying vec3 vWorldBitangent;
+      void main() {
+        vUv = uv;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        vec3 nObj = normalize(normal);
+        // Analytical spherical tangent along longitude so normal map relief never seams
+        vec3 tObj = normalize(vec3(-nObj.z, 0.0, nObj.x + 1e-5));
+        vec3 bObj = normalize(cross(nObj, tObj));
+        mat3 nMat = mat3(modelMatrix);
+        vWorldNormal    = normalize(nMat * nObj);
+        vWorldTangent   = normalize(nMat * tObj);
+        vWorldBitangent = normalize(nMat * bObj);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+
+    const earthCoreFrag = `
+      uniform sampler2D uDayMap;
+      uniform sampler2D uNormalMap;
+      uniform sampler2D uSpecMap;
+      uniform sampler2D uNightMap;
+      uniform sampler2D uCloudMap;
+      uniform float uHasNormal;
+      uniform float uHasSpec;
+      uniform float uHasNight;
+      uniform float uHasClouds;
+      uniform float uCloudDrift;
+      uniform vec3 uSunPos;
+
+      varying vec2 vUv;
+      varying vec3 vWorldNormal;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldTangent;
+      varying vec3 vWorldBitangent;
+
+      void main() {
+        vec3 N = normalize(vWorldNormal);
+        vec3 T = normalize(vWorldTangent);
+        vec3 B = normalize(vWorldBitangent);
+
+        // Apply normal map relief from textures/earth_normal.jpg
+        if (uHasNormal > 0.5) {
+          vec3 nSample = texture2D(uNormalMap, vUv).xyz * 2.0 - 1.0;
+          N = normalize(N + T * (nSample.x * 1.15) + B * (nSample.y * 1.15));
+        }
+
+        vec3 lightDir = normalize(uSunPos - vWorldPosition);
+        vec3 viewDir  = normalize(cameraPosition - vWorldPosition);
+        float rawSunDot = dot(normalize(vWorldNormal), lightDir);
+        float sunDot    = dot(N, lightDir);
+
+        vec3 dayTex = texture2D(uDayMap, vUv).rgb;
+
+        // Subtle cloud shadow projected onto continents & oceans
+        float cloudShadow = 0.0;
+        if (uHasClouds > 0.5) {
+          vec2 shadowUv = vec2(fract(vUv.x + uCloudDrift - 0.0022), clamp(vUv.y - 0.0018, 0.0, 1.0));
+          vec4 cShadowSmp = texture2D(uCloudMap, shadowUv);
+          float cLum = dot(cShadowSmp.rgb, vec3(0.299, 0.587, 0.114));
+          cloudShadow = (cShadowSmp.a < 0.99 ? cShadowSmp.r * cShadowSmp.a : cLum) * 0.35;
+        }
+
+        // Day diffuse illumination + golden terminator scattering
+        float dayMask   = smoothstep(-0.14, 0.16, rawSunDot);
+        float diffLight = max(sunDot, 0.0);
+        float litLevel  = dayMask * (0.14 + 0.96 * diffLight) * (1.0 - cloudShadow);
+
+        float terminator = exp(-pow((rawSunDot - 0.01) * 7.2, 2.0));
+        vec3 terminatorGlow = vec3(1.0, 0.44, 0.14) * terminator * 0.34;
+
+        // Specular ocean reflection from textures/earth_spec.jpg
+        float specMask = 0.0;
+        if (uHasSpec > 0.5) {
+          specMask = texture2D(uSpecMap, vUv).r;
+        } else {
+          // Ocean heuristic fallback while spec map loads
+          specMask = clamp((dayTex.b - max(dayTex.r, dayTex.g)) * 2.8, 0.0, 1.0);
+        }
+        vec3 halfVec = normalize(lightDir + viewDir);
+        float ndoth  = max(dot(N, halfVec), 0.0);
+        float specGlint = (pow(ndoth, 68.0) * 1.15 + pow(ndoth, 18.0) * 0.26)
+                        * specMask * smoothstep(-0.04, 0.24, sunDot) * (1.0 - cloudShadow * 0.8);
+        vec3 specCol = mix(vec3(0.75, 0.90, 1.0), vec3(1.0, 0.94, 0.82), 0.65) * specGlint;
+
+        // Subtle deep-ocean Fresnel sky reflection
+        float viewFresnel = pow(1.0 - clamp(dot(normalize(vWorldNormal), viewDir), 0.0, 1.0), 3.1);
+        vec3 oceanSheen = vec3(0.08, 0.36, 0.78) * specMask * viewFresnel * dayMask * 0.35;
+
+        // Night-side city lights from textures/earth_night.png ( strictly on dark hemisphere away from Sun )
+        vec3 nightLights = vec3(0.0);
+        float nightMask  = smoothstep(0.09, -0.25, rawSunDot);
+        if (uHasNight > 0.5) {
+          vec3 nCol = texture2D(uNightMap, vUv).rgb;
+          nightLights = nCol * vec3(1.12, 0.88, 0.56) * nightMask * 1.75 * (1.0 - cloudShadow * 0.6);
+        }
+
+        // Ambient dark-side twilight earthshine so continents are faintly discernible at night
+        vec3 darkSideBase = dayTex * vec3(0.035, 0.055, 0.095) * (1.0 - dayMask);
+
+        // Surface-level Rayleigh atmospheric rim haze
+        vec3 surfaceRim = vec3(0.22, 0.62, 1.0) * viewFresnel * smoothstep(-0.32, 0.38, rawSunDot) * 0.46;
+
+        vec3 finalColor = dayTex * litLevel + darkSideBase + terminatorGlow + specCol + oceanSheen + nightLights + surfaceRim;
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+
+    const earthCoreMat = new THREE.ShaderMaterial({
+      vertexShader: earthCoreVert,
+      fragmentShader: earthCoreFrag,
+      uniforms
+    });
+    // Preserve .map reference on the ShaderMaterial so updatePanelPreview('earth') can draw the 2D canvas preview
+    earthCoreMat.map = existingProcTex;
+    earthEntry.mesh.material.dispose();
+    earthEntry.mesh.material = earthCoreMat;
+
+    // 1a) Load Core Day Map: textures/earth_day.jpg (fallback: textures/2k_earth_daymap.jpg)
+    const applyDayTex = (dayTex) => {
+      dayTex.colorSpace = THREE.SRGBColorSpace;
+      dayTex.anisotropy = maxAniso;
+      dayTex.wrapS = THREE.RepeatWrapping;
+      if (existingProcTex) existingProcTex.dispose();
+      uniforms.uDayMap.value = dayTex;
+      earthCoreMat.map = dayTex;
+      _gpuInitTexture(dayTex);
+    };
+    tLoader.load('textures/earth_day.jpg', applyDayTex, undefined, () => {
+      tLoader.load('textures/2k_earth_daymap.jpg', applyDayTex, undefined, () => {});
+    });
+
+    // 1b) Load Normal Map: textures/earth_normal.jpg
+    tLoader.load('textures/earth_normal.jpg', normTex => {
+      normTex.anisotropy = maxAniso;
+      uniforms.uNormalMap.value = normTex;
+      uniforms.uHasNormal.value = 1.0;
+      _gpuInitTexture(normTex);
+    }, undefined, () => {});
+
+    // 1c) Load Specular Map: textures/earth_spec.jpg
+    tLoader.load('textures/earth_spec.jpg', specTex => {
+      specTex.anisotropy = maxAniso;
+      uniforms.uSpecMap.value = specTex;
+      uniforms.uHasSpec.value = 1.0;
+      _gpuInitTexture(specTex);
+    }, undefined, () => {});
+
+    // 1d) Load Night City Lights Map: textures/earth_night.png (fallback: textures/2k_earth_nightmap.jpg)
+    const applyNightTex = (nightTex) => {
+      nightTex.colorSpace = THREE.SRGBColorSpace;
+      nightTex.anisotropy = maxAniso;
+      uniforms.uNightMap.value = nightTex;
+      uniforms.uHasNight.value = 1.0;
+      _gpuInitTexture(nightTex);
+    };
+    tLoader.load('textures/earth_night.png', applyNightTex, undefined, () => {
+      tLoader.load('textures/2k_earth_nightmap.jpg', applyNightTex, undefined, () => {});
+    });
+
+    // 2) Load Independent Transparent Cloud Sphere: textures/earth_clouds.png (fallback: textures/2k_earth_clouds.jpg)
+    const applyCloudTex = (cloudTex) => {
       cloudTex.colorSpace = THREE.SRGBColorSpace;
-      const cGeo = new THREE.SphereGeometry(earthEntry.pdata.size*1.012, 40, 40);
-      const cMat = new THREE.MeshStandardMaterial({map:cloudTex,transparent:true,opacity:0.45,depthWrite:false});
+      cloudTex.anisotropy = maxAniso;
+      cloudTex.wrapS = THREE.RepeatWrapping;
+      uniforms.uCloudMap.value = cloudTex;
+      uniforms.uHasClouds.value = 1.0;
+      _gpuInitTexture(cloudTex);
+
+      const cloudVert = `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+        void main() {
+          vUv = uv;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `;
+      const cloudFrag = `
+        uniform sampler2D uCloudTex;
+        uniform vec3 uSunPos;
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 smp = texture2D(uCloudTex, vUv);
+          float lum = dot(smp.rgb, vec3(0.299, 0.587, 0.114));
+          // Support both RGBA cloud PNGs and RGB grayscale cloud maps seamlessly
+          float density = smp.a < 0.99 ? smp.r * smp.a : lum;
+          float alpha = smoothstep(0.08, 0.85, density) * 0.86;
+          if (alpha < 0.01) discard;
+
+          vec3 N = normalize(vWorldNormal);
+          vec3 lightDir = normalize(uSunPos - vWorldPosition);
+          float sunDot = dot(N, lightDir);
+          float dayFactor = smoothstep(-0.20, 0.22, sunDot);
+          float sunsetBand = exp(-pow((sunDot + 0.02) * 6.5, 2.0));
+
+          vec3 dayCloudCol   = vec3(0.98, 0.99, 1.0);
+          vec3 nightCloudCol = vec3(0.04, 0.08, 0.16);
+          vec3 sunsetCol     = vec3(1.0, 0.56, 0.28);
+
+          vec3 col = mix(nightCloudCol, dayCloudCol, dayFactor);
+          col = mix(col, sunsetCol, sunsetBand * 0.42);
+          gl_FragColor = vec4(col, alpha * (0.28 + 0.72 * dayFactor));
+        }
+      `;
+
+      const cGeo = new THREE.SphereGeometry(earthEntry.pdata.size * 1.016, 96, 96);
+      const cMat = new THREE.ShaderMaterial({
+        vertexShader: cloudVert,
+        fragmentShader: cloudFrag,
+        uniforms: {
+          uCloudTex: { value: cloudTex },
+          uSunPos:   { value: new THREE.Vector3(0, 0, 0) }
+        },
+        transparent: true,
+        depthWrite: false
+      });
       const cMesh = new THREE.Mesh(cGeo, cMat);
+      cMesh.rotation.order = 'ZYX';
+      cMesh.rotation.z = THREE.MathUtils.degToRad(earthEntry.pdata.tilt || 23.5);
       cMesh.userData.isCloudLayer = true;
       earthEntry.group.add(cMesh);
-    }, undefined, ()=>{});
+    };
+    tLoader.load('textures/earth_clouds.png', applyCloudTex, undefined, () => {
+      tLoader.load('textures/2k_earth_clouds.jpg', applyCloudTex, undefined, () => {});
+    });
 
-    // Earth city lights (emissive map — visible on dark side only due to lighting)
-    tLoader.load('textures/2k_earth_nightmap.jpg', nightTex => {
-      nightTex.colorSpace = THREE.SRGBColorSpace;
-      earthEntry.mesh.material.emissiveMap = nightTex;
-      earthEntry.mesh.material.emissive = new THREE.Color(1.0, 0.85, 0.4);
-      earthEntry.mesh.material.emissiveIntensity = 1.4;
-      earthEntry.mesh.material.needsUpdate = true;
-    }, undefined, ()=>{});
-
+    // 3) Apply textures/moon.jpg with bump & normal mapping to Earth's Moon
+    const moonPivot = earthEntry.group.children.find(c => c.userData && c.userData.moonSpeed);
+    const moonMesh  = moonPivot && moonPivot.children[0];
+    if (moonMesh) {
+      tLoader.load('textures/moon.jpg', moonTex => {
+        moonTex.colorSpace = THREE.SRGBColorSpace;
+        moonTex.anisotropy = maxAniso;
+        if (moonMesh.material.map) moonMesh.material.map.dispose();
+        moonMesh.material.map = moonTex;
+        moonMesh.material.bumpMap = moonTex;
+        moonMesh.material.bumpScale = 0.042;
+        const moonNorm = _buildMoonNormalTexture(moonTex.image);
+        if (moonNorm) {
+          moonMesh.material.normalMap = moonNorm;
+          moonMesh.material.normalScale = new THREE.Vector2(1.25, 1.25);
+        }
+        moonMesh.material.roughness = 0.88;
+        moonMesh.material.metalness = 0.03;
+        moonMesh.material.needsUpdate = true;
+        _gpuInitTexture(moonTex);
+        if (moonMesh.material.normalMap) _gpuInitTexture(moonMesh.material.normalMap);
+      }, undefined, () => {});
+    }
   }
 }
 loadPhotoTextures();
 
-// ─── MISSION MESH OBJECTS ────────────────────────────────────────────────────
+function warmUp3DEngineForHandoff() {
+  try {
+    planetMeshes.forEach(pm => {
+      if (pm.mesh && pm.mesh.material) {
+        if (pm.mesh.material.map) _gpuInitTexture(pm.mesh.material.map);
+        if (pm.mesh.material.normalMap) _gpuInitTexture(pm.mesh.material.normalMap);
+        if (pm.mesh.material.bumpMap) _gpuInitTexture(pm.mesh.material.bumpMap);
+      }
+      if (pm.moonRefs) {
+        pm.moonRefs.forEach(mr => {
+          if (mr.mMesh && mr.mMesh.material) {
+            if (mr.mMesh.material.map) _gpuInitTexture(mr.mMesh.material.map);
+            if (mr.mMesh.material.normalMap) _gpuInitTexture(mr.mMesh.material.normalMap);
+            if (mr.mMesh.material.bumpMap) _gpuInitTexture(mr.mMesh.material.bumpMap);
+          }
+        });
+      }
+    });
+    if (_earthShaderUniforms) {
+      ['uDayMap', 'uNormalMap', 'uSpecMap', 'uNightMap', 'uCloudMap'].forEach(k => {
+        if (_earthShaderUniforms[k] && _earthShaderUniforms[k].value) {
+          _gpuInitTexture(_earthShaderUniforms[k].value);
+        }
+      });
+    }
+    if (renderer && typeof renderer.compile === 'function') {
+      renderer.compile(scene, camera);
+    }
+  } catch (e) {}
+}
+
+// ─── MISSION MESH OBJECTS (75% Scaled Down PBR Metallic Probes + Distance LOD) ─
 const missionMeshes = [];
 
 function createMissionMeshGroup(mission) {
-  const col = mission.color;
-  const core = new THREE.Mesh(
-    new THREE.SphereGeometry(0.09, 8, 8),
-    new THREE.MeshBasicMaterial({color: col})
-  );
-  core.userData.missionId = mission.id;
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.2, 8, 8),
-    new THREE.MeshBasicMaterial({color: col, transparent:true, opacity:0.22, side:THREE.BackSide})
-  );
+  const col = new THREE.Color(mission.color || '#ffd060');
   const g = new THREE.Group();
-  g.add(core, glow);
+
+  // Invisible raycast pick sphere (children[0])
+  const pickCore = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 10, 10),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.0, depthWrite: false })
+  );
+  pickCore.userData.missionId = mission.id;
+  g.add(pickCore);
+
+  // Subtle beacon halo (children[1])
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 10, 10),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.14, side: THREE.BackSide, depthWrite: false })
+  );
+  g.add(glow);
+
+  // Realistic PBR metallic gold foil bus + silver high-gain dish + deep-blue solar arrays
+  const foilMat = new THREE.MeshStandardMaterial({
+    color: 0xd4af37,
+    metalness: 0.88,
+    roughness: 0.24,
+    emissive: 0x221600,
+    emissiveIntensity: 0.15
+  });
+  const silverMat = new THREE.MeshStandardMaterial({
+    color: 0xd8e2ec,
+    metalness: 0.92,
+    roughness: 0.18
+  });
+  const solarMat = new THREE.MeshStandardMaterial({
+    color: 0x143868,
+    metalness: 0.78,
+    roughness: 0.22,
+    emissive: 0x06152d,
+    emissiveIntensity: 0.2
+  });
+
+  const bus = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), foilMat);
+  const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.02, 0.03, 14), silverMat);
+  dish.position.y = 0.055;
+  const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.008, 0.07), solarMat);
+  wingL.position.x = -0.16;
+  const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.008, 0.07), solarMat);
+  wingR.position.x = 0.16;
+
+  const craftModel = new THREE.Group();
+  craftModel.add(bus, dish, wingL, wingR);
+  // Scale down by 75% (0.25x) so probes look like delicate spacecraft, never moon-sized blobs
+  craftModel.scale.setScalar(0.25);
+  g.add(craftModel);
+
   g.userData.missionId = mission.id;
   g.userData.missionName = mission.name;
   return g;
@@ -1379,14 +2109,15 @@ function createMissionMeshGroup(mission) {
 
 MISSIONS.forEach(mission => {
   const grp = createMissionMeshGroup(mission);
-  const mObj = {group: grp, mission, pivot: null};
+  const mObj = {group: grp, mission, pivot: null, hostPlanet: mission.hostPlanet || null};
 
   if(mission.hostPlanet && !mission.surfaceMission) {
     const pe = planetMeshes.find(p => p.pdata.id === mission.hostPlanet);
     if(pe) {
       const pivot = new THREE.Group();
       pivot.userData.missionOrbitSpeed = mission.orbitSpeed;
-      grp.position.x = pe.pdata.size * mission.orbitHeight;
+      // Keep probe orbit tight to its host planet
+      grp.position.x = pe.pdata.size * Math.min(1.45, Math.max(1.18, mission.orbitHeight * 0.72));
       pivot.add(grp);
       pivot.rotation.y = Math.random() * Math.PI * 2;
       pe.group.add(pivot);
@@ -1395,7 +2126,7 @@ MISSIONS.forEach(mission => {
   } else if(mission.surfaceMission) {
     const pe = planetMeshes.find(p => p.pdata.id === mission.hostPlanet);
     if(pe) {
-      grp.position.x = pe.pdata.size + 0.14;
+      grp.position.x = pe.pdata.size + 0.05;
       pe.group.add(grp);
     }
   } else if(mission.deepSpacePos) {
@@ -1574,20 +2305,59 @@ let _introActive = false;
 // lands directly on the mission briefing. The premiere is still good material,
 // so it stays reachable from the menu rather than being deleted.
 let _titleScreenOpen = false;
-let _titleCamAngle = 0.42;
+let _titleCamAngle = 0.0;
 let _userVoiceVolume = 0.95;
 try {
   const savedVVol = parseFloat(localStorage.getItem('ue_voice_vol'));
   if (!isNaN(savedVVol)) _userVoiceVolume = Math.max(0, Math.min(1, savedVVol));
 } catch(e) {}
 
+// Computes the signature "Right-Side Live Earth Hero Framing" so Part 2 of the
+// intro cutscene and Part 3 (the Left-Third Main Game Title Screen) share the
+// exact same camera coordinates with zero jump.
+function _getEarthHeroFraming(customOrbitOffset = 0) {
+  const earthEntry = planetMeshes.find(p => p.pdata.id === 'earth');
+  const earthPos = new THREE.Vector3(12, 0, 6);
+  let earthSize = 0.95;
+  if (earthEntry) {
+    earthEntry.group.getWorldPosition(earthPos);
+    earthSize = earthEntry.pdata.size || 0.95;
+  }
+  const earthToSun = new THREE.Vector3(-earthPos.x, 0, -earthPos.z).normalize();
+  const earthRight = new THREE.Vector3(-earthToSun.z, 0, earthToSun.x).normalize();
+
+  // Position camera at a sunlit 3/4 crescent angle so day continents, ocean sun-glint,
+  // backlit blue Fresnel horizon rim, and terminator city lights are all visible at once
+  const az = customOrbitOffset;
+  const baseDir = earthToSun.clone().multiplyScalar(0.54 + Math.sin(az) * 0.06)
+    .add(earthRight.clone().multiplyScalar(0.83 + Math.cos(az) * 0.05))
+    .add(new THREE.Vector3(0, 0.12 + Math.sin(az * 0.7) * 0.03, 0))
+    .normalize();
+
+  const camDist = earthSize * 2.42;
+  const camPos = earthPos.clone().addScaledVector(baseDir, camDist);
+
+  // Shift look target to the LEFT of Earth so the high-res rotating Earth fills
+  // the RIGHT side of the screen while the Main Title Menu occupies the LEFT third
+  const toEarth = earthPos.clone().sub(camPos).normalize();
+  const screenRight = new THREE.Vector3().crossVectors(toEarth, new THREE.Vector3(0, 1, 0)).normalize();
+  const lookPos = earthPos.clone()
+    .addScaledVector(screenRight, -earthSize * 0.86)
+    .add(new THREE.Vector3(0, earthSize * 0.03, 0));
+
+  return { earthEntry, earthPos, earthSize, earthToSun, earthRight, baseDir, camPos, lookPos, screenRight };
+}
+
 function _enterAfterIntro() {
+  // Keep orbital positions locked on the Earth-Moon hero composition while Earth
+  // and its independent cloud sphere rotate live on the right side of the screen
   paused = false;
   controls.enabled = true;
   camera.up.set(0, 1, 0);
-  // Match the standard overview framing so we never land zoomed or rolled.
-  camera.position.set(0, 28, 55);
-  controls.target.set(0, 0, 0);
+  _titleCamAngle = 0.0;
+  const hero = _getEarthHeroFraming(0);
+  camera.position.copy(hero.camPos);
+  controls.target.copy(hero.lookPos);
   controls.update();
 
   if (!audioCtx) initAudio();
@@ -1900,17 +2670,21 @@ function fetchNasaGallery(query, containerEl, fallbackSpecs=[]) {
     return;
   }
 
-  const url = `https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=6`;
+  const url = `https://images-api.nasa.gov/search?q=${encodeURIComponent(query)}&media_type=image&page_size=18`;
   fetch(url)
     .then(r => r.ok ? r.json() : Promise.reject(new Error('NASA API status ' + r.status)))
     .then(data => {
       const rawItems = (data && data.collection && data.collection.items) || [];
       const parsed = [];
+      // Filter out people in meetings, ceremonies, podiums, portraits, classrooms, and press briefings
+      const peopleExcludeRx = /\b(astronaut|portrait|ceremony|podium|meeting|conference|administrator|senator|award|headquarters|handshake|interview|press|crew|classroom|student|official|director|committee|gala|workshop|briefing|panel|symposium|speaker|auditorium|office|governor|president|ambassador|signing|ribbon|dedication|banquet|reception)\b/i;
       for (const item of rawItems) {
         if (!item.links || !item.links.length || !item.data || !item.data.length) continue;
         const imgLink = item.links.find(l => l.render === 'image' && l.href) || item.links[0];
         if (!imgLink || !imgLink.href) continue;
         const d = item.data[0];
+        const combinedText = `${d.title || ''} ${d.description || ''} ${(d.keywords || []).join(' ')}`;
+        if (peopleExcludeRx.test(combinedText)) continue;
         parsed.push({
           src: imgLink.href.replace(/^http:\/\//i, 'https://'),
           fallbackSrc: fallbackItems[parsed.length % fallbackItems.length].src,
@@ -2134,63 +2908,74 @@ setTimeout(() => {
 function _buildFrontierMesh(node) {
   const g = new THREE.Group();
   const col = new THREE.Color(node.color);
-  // Invisible pick sphere first (children[0]) so raycasting is super easy to click
+  // Invisible pick sphere first (children[0]) so raycasting is easy when zoomed in
   const pickMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.55, 12, 12),
+    new THREE.SphereGeometry(0.28, 12, 12),
     new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.0, depthWrite: false})
   );
   g.add(pickMesh);
 
-  // Pulsing outer beacon halo (children[1])
+  // Subtle outer beacon halo (children[1]) — scaled down 75%
   const haloMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.32, 16, 16),
-    new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false})
+    new THREE.SphereGeometry(0.08, 14, 14),
+    new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false})
   );
   g.add(haloMesh);
 
+  const craftGroup = new THREE.Group();
+  const silverPBR = new THREE.MeshStandardMaterial({color: 0xd8e2ec, metalness: 0.90, roughness: 0.18});
+  const titaniumPBR = new THREE.MeshStandardMaterial({color: 0xb8c4d0, metalness: 0.84, roughness: 0.26});
+  const goldFoilPBR = new THREE.MeshStandardMaterial({color: 0xd4af37, metalness: 0.92, roughness: 0.20, emissive: 0x241800, emissiveIntensity: 0.14});
+  const solarPanelPBR = new THREE.MeshStandardMaterial({color: 0x163a70, metalness: 0.80, roughness: 0.22, emissive: 0x061630, emissiveIntensity: 0.22});
+
   if (node.id === 'frontier_iss') {
-    // Truss + central modules + 4 solar wings
-    const truss = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.03, 0.03), new THREE.MeshStandardMaterial({color: 0xddeeff, metalness: 0.8, roughness: 0.2}));
-    const hab   = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.26, 12), new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.6, roughness: 0.3}));
+    // Truss + pressurized modules + 4 photovoltaic solar wings (PBR metallic/solar materials)
+    const truss = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.03, 0.03), titaniumPBR);
+    const hab   = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.26, 12), silverPBR);
     hab.rotation.x = Math.PI / 2;
-    g.add(truss, hab);
+    craftGroup.add(truss, hab);
     [-0.2, -0.1, 0.1, 0.2].forEach(xOff => {
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.34), new THREE.MeshBasicMaterial({color: 0x2299ff}));
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.34), solarPanelPBR);
       wing.position.set(xOff, 0, 0);
-      g.add(wing);
+      craftGroup.add(wing);
     });
   } else if (node.id === 'starship_mars') {
-    // Stainless steel Starship hull + nosecone + 4 flaps + glowing Raptor plume
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 16), new THREE.MeshStandardMaterial({color: 0xe0e8f0, metalness: 0.9, roughness: 0.15}));
+    // Stainless steel Starship hull + nosecone + glowing Raptor plume
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.32, 16), silverPBR);
     hull.rotation.z = -Math.PI / 2;
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 16), new THREE.MeshStandardMaterial({color: 0xe0e8f0, metalness: 0.9, roughness: 0.15}));
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 16), silverPBR);
     nose.rotation.z = -Math.PI / 2;
     nose.position.x = 0.23;
-    const plume = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 12), new THREE.MeshBasicMaterial({color: 0x66ccff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending}));
+    const plume = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.18, 12), new THREE.MeshBasicMaterial({color: 0x66ccff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending}));
     plume.rotation.z = Math.PI / 2;
-    plume.position.x = -0.26;
-    g.add(hull, nose, plume);
+    plume.position.x = -0.25;
+    craftGroup.add(hull, nose, plume);
   } else if (node.id === 'orbital_datacenter') {
-    // Octagonal compute core + gold solar wings + crimson infrared radiator fins
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), new THREE.MeshStandardMaterial({color: 0x00e5ff, emissive: 0x006688, metalness: 0.8, roughness: 0.2}));
-    const sWing = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.01, 0.12), new THREE.MeshBasicMaterial({color: 0xffcc33}));
-    const radFin = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.36, 0.01), new THREE.MeshBasicMaterial({color: 0xff4466}));
-    g.add(core, sWing, radFin);
+    // Octagonal compute core + gold solar wings + metallic radiator fins
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), titaniumPBR);
+    const sWing = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.01, 0.12), goldFoilPBR);
+    const radFin = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.36, 0.01), new THREE.MeshStandardMaterial({color: 0xb83248, metalness: 0.72, roughness: 0.28, emissive: 0x380810, emissiveIntensity: 0.2}));
+    craftGroup.add(core, sWing, radFin);
   } else if (node.id === 'frontier_jwst') {
-    // Diamond 5-layer sunshield + gold hexagonal primary mirror
-    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.015, 0.22), new THREE.MeshStandardMaterial({color: 0xc8d8f0, metalness: 0.85, roughness: 0.2}));
-    const mirror = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.02, 6), new THREE.MeshBasicMaterial({color: 0xffd020}));
+    // Diamond 5-layer Kapton sunshield + gold hexagonal beryllium primary mirror
+    const shield = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.015, 0.22), silverPBR);
+    const mirror = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.02, 6), goldFoilPBR);
     mirror.rotation.z = Math.PI / 2;
     mirror.position.y = 0.09;
-    g.add(shield, mirror);
+    craftGroup.add(shield, mirror);
   } else {
-    // Voyager 1 dish + magnetometer boom
-    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.03, 0.04, 16), new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.5, roughness: 0.4}));
-    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.42, 8), new THREE.MeshBasicMaterial({color: 0xb388ff}));
+    // Voyager 1 high-gain dish + gold foil bus + magnetometer boom
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.03, 0.04, 16), silverPBR);
+    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.42, 8), goldFoilPBR);
     boom.rotation.z = Math.PI / 3;
-    g.add(dish, boom);
+    craftGroup.add(dish, boom);
   }
-  return {group: g, pickMesh, haloMesh, node};
+
+  // Scale all satellite/probe 3D models down by 75% (0.25x) so they never rival moons in size
+  craftGroup.scale.setScalar(0.25);
+  g.add(craftGroup);
+
+  return {group: g, pickMesh, haloMesh, craftGroup, node};
 }
 
 let _starshipArcLine = null;
@@ -2276,15 +3061,15 @@ function updateHumanFrontier(delta) {
     _issLiveTelemetry.lat = 51.6 * Math.sin(elapsed * 0.45);
   }
 
-  const pulse = 0.16 + 0.10 * Math.sin(elapsed * 3.2);
+  const pulse = 0.14 + 0.08 * Math.sin(elapsed * 3.2);
+  const missionPanelOpen = document.getElementById('mission-panel') && document.getElementById('mission-panel').classList.contains('open');
 
   frontierMeshes.forEach(fm => {
-    fm.haloMesh.material.opacity = pulse;
     const id = fm.node.id;
     if (id === 'frontier_iss') {
       const latR = (_issLiveTelemetry.lat * Math.PI) / 180;
       const lonR = (_issLiveTelemetry.lon * Math.PI) / 180 + elapsed * 0.35;
-      const r = 1.55;
+      const r = 1.42;
       fm.group.position.set(
         _earthWpos.x + r * Math.cos(latR) * Math.cos(lonR),
         _earthWpos.y + r * Math.sin(latR),
@@ -2293,10 +3078,10 @@ function updateHumanFrontier(delta) {
       fm.group.rotation.y = -lonR;
     } else if (id === 'orbital_datacenter') {
       const a = elapsed * 0.52 + 2.1;
-      const r = 2.35;
+      const r = 1.85;
       fm.group.position.set(
         _earthWpos.x + Math.cos(a) * r,
-        _earthWpos.y + Math.sin(a * 1.3) * 0.85,
+        _earthWpos.y + Math.sin(a * 1.3) * 0.55,
         _earthWpos.z + Math.sin(a) * r
       );
       fm.group.rotation.y += delta * 0.6;
@@ -2305,13 +3090,13 @@ function updateHumanFrontier(delta) {
       const dirX = _earthWpos.x || 14;
       const dirZ = _earthWpos.z || 0;
       const len  = Math.hypot(dirX, dirZ) || 1;
-      const l2X  = _earthWpos.x + (dirX / len) * 3.4;
-      const l2Z  = _earthWpos.z + (dirZ / len) * 3.4;
+      const l2X  = _earthWpos.x + (dirX / len) * 2.75;
+      const l2Z  = _earthWpos.z + (dirZ / len) * 2.75;
       const haloA = elapsed * 0.4;
       fm.group.position.set(
-        l2X + Math.cos(haloA) * 0.55,
-        Math.sin(haloA) * 0.65,
-        l2Z + Math.sin(haloA) * 0.55
+        l2X + Math.cos(haloA) * 0.42,
+        Math.sin(haloA) * 0.48,
+        l2Z + Math.sin(haloA) * 0.42
       );
       fm.group.lookAt(0, 0, 0);
     } else if (id === 'starship_mars') {
@@ -2352,7 +3137,22 @@ function updateHumanFrontier(delta) {
       fm.group.position.set(nodePos(fm.node).x, nodePos(fm.node).y, nodePos(fm.node).z);
       fm.group.lookAt(0, 0, 0);
     }
+
+    // Distance-based LOD visibility: hide/fade planet-orbiting probes when zoomed far out
+    // so they don't clutter planets from across the solar system
+    const camDist = camera.position.distanceTo(fm.group.position);
+    const maxDist = (id === 'frontier_voyager' || id === 'starship_mars') ? 55 : 22;
+    const isNearOrFocused = missionPanelOpen || camDist <= maxDist || currentPlanet === 'earth';
+    fm.group.visible = frontierVisible && !_introActive && isNearOrFocused;
+    if (fm.group.visible) {
+      const lodFactor = missionPanelOpen ? 1.0 : Math.max(0.15, Math.min(1.0, 1.0 - (camDist - 6) / (maxDist - 4)));
+      fm.haloMesh.material.opacity = pulse * lodFactor;
+    }
   });
+  if (_starshipArcLine) {
+    const camDistOrigin = camera.position.length();
+    _starshipArcLine.visible = frontierVisible && !_introActive && (missionPanelOpen || camDistOrigin < 48);
+  }
 }
 
 function nodePos(node) {
@@ -2486,10 +3286,117 @@ const SUN_DATA = {
   layers:[['Core','15 million°C — nuclear fusion zone. 600 million tons of hydrogen become helium every second.'],['Radiative Zone','Energy bounces around this zone for up to 170,000 years before escaping.'],['Convection Zone','Massive convection cells carry energy to the surface, each the size of Texas.'],['Photosphere','The visible surface, 5,500°C. The light you see every day comes from here.'],['Chromosphere','100,000°C reddish layer, visible as a crimson ring during total solar eclipses.'],['Corona','1–3 million°C superheated outer atmosphere. The source of solar wind and space weather.']]
 };
 
+// ─── CURATED PLANET GALLERY QUERIES & VISUAL FACT HELPERS ────────────────────
+const PLANET_GALLERY_CONFIG = {
+  mercury: {
+    query: 'Mercury crater Caloris Basin MESSENGER surface',
+    fallbacks: [
+      {src:'photos/missions/mercury/messenger.jpg', title:'MESSENGER — Caloris Basin & Volcanic Plains'},
+      {src:'photos/missions/mercury/bepi.jpg', title:'BepiColombo — Close Approach Over Cratered Limb'}
+    ]
+  },
+  venus: {
+    query: 'Venus Magellan radar volcano cloud atmosphere',
+    fallbacks: [
+      {src:'photos/missions/venus/magellan.jpg', title:'Magellan Radar — Maat Mons Shield Volcano'},
+      {src:'photos/missions/venus/venera.jpg', title:'Venera 13 — Basalt Slabs Under 92-Bar Sky'}
+    ]
+  },
+  earth: {
+    query: 'Earth ocean coral reef aurora lightning rainforest from space',
+    fallbacks: [
+      {src:'photos/missions/earth/oceans_reef.jpg', title:'Living Oceans & Great Barrier Coral Reefs From Orbit'},
+      {src:'photos/missions/earth/rainforest_life.jpg', title:'Amazon Rainforest Canopy & Biodiversity From Space'},
+      {src:'photos/missions/earth/aurora_lightning.jpg', title:'Aurora Australis & Supercell Lightning Storms Over Ocean'},
+      {src:'photos/missions/earth/apollo.jpg', title:'Apollo 11 — Earthrise: The Living Oasis in the Cosmic Dark'}
+    ]
+  },
+  mars: {
+    query: 'Mars Olympus Mons Valles Marineris Perseverance Gale Crater',
+    fallbacks: [
+      {src:'photos/missions/mars/perseverance.jpg', title:'Perseverance Rover — Jezero Crater Ancient River Delta'},
+      {src:'photos/missions/mars/valles.jpg', title:'Viking / MRO — Valles Marineris Grand Canyon of Mars'}
+    ]
+  },
+  jupiter: {
+    query: 'Jupiter Juno Great Red Spot clouds Io Europa Ganymede Callisto',
+    fallbacks: [
+      {src:'photos/missions/jupiter/juno_storms.jpg', title:'Juno — Polar Cyclones & Ammonia Cloud Belts'},
+      {src:'photos/missions/jupiter/great_red_spot.jpg', title:'Voyager / Juno — Great Red Spot Anticyclone'}
+    ]
+  },
+  saturn: {
+    query: 'Saturn Cassini rings hexagon Enceladus geysers Titan',
+    fallbacks: [
+      {src:'photos/missions/saturn/cassini_rings.jpg', title:'Cassini — Backlit Ice Rings & Eclipse Shadow'},
+      {src:'photos/missions/saturn/enceladus.jpg', title:'Cassini — Enceladus South Polar Ice Plumes'}
+    ]
+  },
+  uranus: {
+    query: 'Uranus Voyager 2 rings Miranda ice cliffs JWST infrared',
+    fallbacks: [
+      {src:'photos/missions/uranus/voyager2.jpg', title:'Voyager 2 — Crescent Uranus & Vertical Ring System'},
+      {src:'photos/missions/uranus/miranda.jpg', title:'Voyager 2 — Verona Rupes 20 km Ice Cliffs on Miranda'}
+    ]
+  },
+  neptune: {
+    query: 'Neptune Voyager 2 Great Dark Spot Triton geysers clouds',
+    fallbacks: [
+      {src:'photos/missions/neptune/dark_spot.jpg', title:'Voyager 2 — Great Dark Spot & Supersonic Methane Cirrus'},
+      {src:'photos/missions/neptune/triton.jpg', title:'Voyager 2 — Triton Nitrogen Ice Geysers'}
+    ]
+  },
+  pluto: {
+    query: 'Pluto New Horizons Tombaugh Regio nitrogen glaciers Charon',
+    fallbacks: [
+      {src:'photos/missions/pluto/new_horizons.jpg', title:'New Horizons — Sputnik Planitia Nitrogen Ice Heart'},
+      {src:'photos/missions/pluto/haze.jpg', title:'New Horizons — Backlit Blue Atmospheric Haze Layers'}
+    ]
+  }
+};
+
+function _extractVisualCard(factText, idx) {
+  const icons = ['🌍', '⚡', '🌊', '🔭', '🧬', '🌋', '❄️', '🪐'];
+  const clean = String(factText || '').trim();
+  const firstSentenceEnd = clean.indexOf('. ');
+  let headline = '';
+  let summary = clean;
+  if (firstSentenceEnd > 12 && firstSentenceEnd < 88) {
+    headline = clean.slice(0, firstSentenceEnd + 1);
+    summary = clean.slice(firstSentenceEnd + 2);
+  } else {
+    const words = clean.split(/\s+/);
+    headline = words.slice(0, 6).join(' ') + (words.length > 6 ? '…' : '');
+    summary = clean;
+  }
+  return { icon: icons[idx % icons.length], headline, summary };
+}
+
+function _buildQuickGaugesHTML(gauges) {
+  return `<div class="quick-gauges-row">${gauges.map(g => {
+    const pct = Math.max(6, Math.min(100, Math.round(g.pct || 50)));
+    const dash = Math.round((pct / 100) * 113);
+    return `
+      <div class="stat-gauge-card">
+        <div class="stat-gauge-ring-wrap">
+          <svg class="stat-gauge-svg" viewBox="0 0 44 44">
+            <circle class="stat-gauge-track" cx="22" cy="22" r="18"></circle>
+            <circle class="stat-gauge-fill" cx="22" cy="22" r="18" style="stroke:${g.color || 'var(--pc)'};stroke-dasharray:${dash} 113"></circle>
+          </svg>
+          <span class="stat-gauge-icon">${g.icon || '◈'}</span>
+        </div>
+        <div class="stat-gauge-label">${g.label}</div>
+        <div class="stat-gauge-value">${g.value}</div>
+        <div class="stat-gauge-sub">${g.sub || ''}</div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
 function openSun(addHistory=true) {
   const panel = document.getElementById('info-panel');
   const _alreadyOpenForSun = panel && panel.classList.contains('open') && currentPlanet === 'sun';
   currentPlanet = 'sun';
+  _currentMoonTargetRef = null;
   checkMissionComplete('planet_visited', {id:'sun'});
   if(addHistory) pushHistory({type:'sun'});
   if(typeof playPlanetOpen==='function') playPlanetOpen();
@@ -2497,7 +3404,7 @@ function openSun(addHistory=true) {
   playPlanetAmbience('sun');
   syncPnavIdx('sun');
   if(!_alreadyOpenForSun) showTourTitleCard('The Sun', 'Our Star — 4.6 Billion Years of Light', ()=>{}, '#ffe060');
-  animateCameraTo({x:0,y:8,z:18},{x:0,y:0,z:0});
+  animateCameraTo({x:0,y:2.6,z:9.2},{x:0.75,y:0,z:0});
   if(panel) {
     panel.style.setProperty('--pc', '#ffe060');
     panel.style.setProperty('--pc-glow', 'rgba(255,224,96,0.38)');
@@ -2510,17 +3417,41 @@ function openSun(addHistory=true) {
   updatePanelPreview('sun');
   const body = document.getElementById('panel-body-content');
   const s = SUN_DATA.stats;
-  const overviewHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Quick Stats</h3><div class="stat-grid"><div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${s.diameter}</div></div><div class="stat-box"><div class="stat-label">Type</div><div class="stat-value">${s.type}</div></div><div class="stat-box"><div class="stat-label">Surface Temp</div><div class="stat-value">${s.surfaceTemp}</div></div><div class="stat-box"><div class="stat-label">Core Temp</div><div class="stat-value">${s.coreTemp}</div></div><div class="stat-box"><div class="stat-label">Age</div><div class="stat-value">${s.age}</div></div><div class="stat-box"><div class="stat-label">Rotation</div><div class="stat-value">${s.rotation}</div></div></div></div><div id="sun-nasa-gallery" class="nasa-gallery-section"></div><div class="panel-section"><h3>Fascinating Facts</h3>${SUN_DATA.facts.map(f=>`<div class="sun-fact-item">${f}</div>`).join('')}</div><button class="take-quiz-btn" onclick="window.launchQuiz('sun')">&#9670; Take Sun Quiz</button>`;
+
+  const sunGaugesHTML = _buildQuickGaugesHTML([
+    { label: 'Diameter', value: s.diameter, sub: '109× Earth · 99.86% Mass', pct: 100, color: '#ffcc33', icon: '☀️' },
+    { label: 'Core / Surface', value: s.coreTemp, sub: `Surface: ${s.surfaceTemp}`, pct: 96, color: '#ff6622', icon: '🔥' },
+    { label: 'Star Age', value: s.age, sub: s.type, pct: 50, color: '#ffe066', icon: '⏳' }
+  ]);
+
+  const sunFactCardsHTML = `<div class="visual-fact-grid">${SUN_DATA.facts.slice(0, 4).map((f, i) => {
+    const c = _extractVisualCard(f, i);
+    return `<div class="visual-fact-card"><div class="vfc-header"><span class="vfc-icon">${c.icon}</span><span class="vfc-title">${c.headline}</span></div><div class="vfc-body">${c.summary}</div></div>`;
+  }).join('')}</div>`;
+
+  const overviewHTML = `
+    <div class="panel-section" style="margin-top:0;border-top:none;padding-top:0">
+      <h3>At-a-Glance Telemetry</h3>
+      ${sunGaugesHTML}
+    </div>
+    <div id="sun-nasa-gallery" class="nasa-gallery-section"></div>
+    <div class="panel-section">
+      <h3>Key Highlights</h3>
+      ${sunFactCardsHTML}
+    </div>
+    <button class="take-quiz-btn" onclick="window.launchQuiz('sun')">&#9670; Take Sun Quiz</button>`;
+
   const missionsHTML = SUN_DATA.missions.map(m=>`<div class="mission-card"><div class="mission-header"><span class="mission-name">${m.name}</span><span class="mission-meta">${m.year} · ${m.agency}</span></div><div class="mission-type">${m.type}</div><div class="mission-note">${m.note}</div></div>`).join('');
-  const surfaceHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Composition</h3><p style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:10px;font-family:'Segoe UI',system-ui,sans-serif">The Sun is a ball of plasma — hydrogen and helium in their ionized state — sustained by nuclear fusion. Every atom heavier than hydrogen in your body was forged in stars like this one.</p><div class="surface-bar">${SUN_DATA.surfaceComp.map(c=>`<div class="surface-seg" style="flex:${c.pct};background:${c.color}" title="${c.label}: ${c.pct}%"></div>`).join('')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:7px">${SUN_DATA.surfaceComp.map(c=>`<span style="font-size:9px;color:var(--dim)"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${c.color};margin-right:3px;vertical-align:middle"></span>${c.label} ${c.pct}%</span>`).join('')}</div></div><div class="panel-section"><h3>Structure (Surface → Core)</h3>${SUN_DATA.layers.map(([l,d])=>`<div class="poi-item"><div class="poi-name">${l}</div><div class="poi-desc">${d}</div></div>`).join('')}</div>`;
-  body.innerHTML = `<div class="tab-bar"><button class="tab-btn active" data-tab="overview">Overview</button><button class="tab-btn" data-tab="missions">Probes</button><button class="tab-btn" data-tab="surface">Structure</button></div><div class="tab-pane active" id="tab-overview">${overviewHTML}</div><div class="tab-pane" id="tab-missions">${missionsHTML}</div><div class="tab-pane" id="tab-surface">${surfaceHTML}</div>`;
+  const surfaceHTML = `<div class="panel-section" style="margin-top:0;border-top:none;padding-top:0"><h3>Plasma Composition</h3><p class="panel-lead-text">The Sun is a sphere of glowing plasma sustained by nuclear fusion — forging hydrogen into helium at 600 million tons per second.</p><div class="surface-bar">${SUN_DATA.surfaceComp.map(c=>`<div class="surface-seg" style="flex:${c.pct};background:${c.color}" title="${c.label}: ${c.pct}%"></div>`).join('')}</div><div class="surface-legend-row">${SUN_DATA.surfaceComp.map(c=>`<span class="surface-legend-chip"><i style="background:${c.color}"></i>${c.label} ${c.pct}%</span>`).join('')}</div></div><div class="panel-section"><h3>Solar Layers (Core → Corona)</h3><div class="visual-fact-grid">${SUN_DATA.layers.map(([l,d], idx)=>`<div class="visual-fact-card"><div class="vfc-header"><span class="vfc-icon">${idx < 2 ? '⚛️' : '☀️'}</span><span class="vfc-title">${l}</span></div><div class="vfc-body">${d}</div></div>`).join('')}</div></div>`;
+  body.innerHTML = `<div class="tab-bar"><button class="tab-btn active" data-tab="overview">Overview</button><button class="tab-btn" data-tab="surface">Structure</button><button class="tab-btn" data-tab="missions">Probes</button></div><div class="tab-pane active" id="tab-overview">${overviewHTML}</div><div class="tab-pane" id="tab-surface">${surfaceHTML}</div><div class="tab-pane" id="tab-missions">${missionsHTML}</div>`;
   body.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>{body.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));body.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));btn.classList.add('active');body.querySelector('#tab-'+btn.dataset.tab).classList.add('active');});});
-  fetchNasaGallery('Sun solar corona SDO', document.getElementById('sun-nasa-gallery'), [
+  fetchNasaGallery('Sun solar corona prominence SDO', document.getElementById('sun-nasa-gallery'), [
     {src:'photos/missions/sun/corona.jpg', title:'Solar Dynamics Observatory — Extreme UV Coronal Loops'},
     {src:'photos/missions/sun/parker.jpg', title:'Parker Solar Probe — Perihelion Coronal Dive'}
   ]);
   closeAllPanels({keepTour:true});
   document.getElementById('info-panel').classList.add('open');
+  spawnSurfaceHotspotsForBody('sun', sunObj.mesh, 2.5, 'visor-scanner-container');
 }
 
 // ─── PLANET INTERACTION ──────────────────────────────────────────────────────
@@ -2539,6 +3470,7 @@ function openPlanet(id, addHistory=true) {
   const _infoPanel = document.getElementById('info-panel');
   const _alreadyOpenForPlanet = _infoPanel && _infoPanel.classList.contains('open') && currentPlanet === id;
   currentPlanet = id;
+  _currentMoonTargetRef = null;
   syncPnavIdx(id);
   onPlanetVisit(id);
   playPlanetOpen();
@@ -2551,10 +3483,12 @@ function openPlanet(id, addHistory=true) {
   if(entry) {
     const wpos = new THREE.Vector3();
     entry.group.getWorldPosition(wpos);
-    const offset = pdata.size * 5 + 4;
+    // Close-up hero orbital distance so the 3D planet & its 3D surface markers are the star of the show
+    const dist = Math.max(pdata.size * 2.85, 2.15);
+    const camPos = { x: wpos.x + dist * 0.78, y: wpos.y + pdata.size * 0.65, z: wpos.z + dist * 0.85 };
     animateCameraTo(
-      {x: wpos.x+offset, y: wpos.y+pdata.size*2, z: wpos.z+offset},
-      {x: wpos.x, y: wpos.y, z: wpos.z}
+      camPos,
+      { x: wpos.x, y: wpos.y, z: wpos.z }
     );
   }
 
@@ -2576,133 +3510,161 @@ function openPlanet(id, addHistory=true) {
 
   const body = document.getElementById('panel-body-content');
 
-  // ── Scale comparison data ──────────────────────────────────────────────────
+  // ── 3 Quick-Glance Stat Gauges (Size vs Earth, Temperature, Orbit/Day) ─────
   const DIAMS = {sun:1392700,jupiter:139820,saturn:116460,uranus:50724,neptune:49244,earth:12742,venus:12104,mars:6779,mercury:4879,pluto:2377};
+  const TEMP_PCT = {mercury:78,venus:98,earth:56,mars:36,jupiter:28,saturn:22,uranus:12,neptune:10,pluto:6};
+  const ORBIT_PCT = {mercury:14,venus:24,earth:34,mars:46,jupiter:64,saturn:76,uranus:86,neptune:94,pluto:100};
   const diam = DIAMS[id] || DIAMS.earth;
-  const sunDiam = DIAMS.sun;
-  const earthDiam = DIAMS.earth;
-  const scalePct = v => Math.max(1, Math.round((v/sunDiam)*100));
-  const scaleCompareHTML = id !== 'sun' ? `
-    <div class="scale-compare">
-      <div class="scale-compare-label">Size Comparison</div>
-      <div class="scale-bars">
-        <div class="scale-bar-row">
-          <span class="scale-bar-name">The Sun</span>
-          <div style="flex:1;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;height:10px">
-            <div class="scale-bar-fill" style="width:100%;background:linear-gradient(90deg,#ff8020,#ffe060)"></div>
-          </div>
-          <span class="scale-bar-val">1,392,700 km</span>
+  const earthRatio = (diam / DIAMS.earth);
+  const earthRatioLabel = id === 'earth' ? '1.0× Earth (Home)' : (earthRatio >= 1 ? `${earthRatio.toFixed(1)}× Earth Width` : `${Math.round(earthRatio * 100)}% of Earth`);
+  const sizeGaugePct = Math.min(100, Math.max(12, Math.round((Math.log10(diam) - 3.2) / 2.0 * 100)));
+
+  const quickGaugesHTML = _buildQuickGaugesHTML([
+    {
+      label: 'Diameter',
+      value: pdata.stats.diameter,
+      sub: earthRatioLabel,
+      pct: sizeGaugePct,
+      color: pc,
+      icon: '🌐'
+    },
+    {
+      label: 'Temperature',
+      value: pdata.stats.temp,
+      sub: `Sun Dist: ${pdata.stats.distanceFromSun}`,
+      pct: TEMP_PCT[id] || 50,
+      color: (TEMP_PCT[id] || 50) > 65 ? '#ff7b3a' : ((TEMP_PCT[id] || 50) < 30 ? '#5ce1e6' : '#00e896'),
+      icon: '🌡️'
+    },
+    {
+      label: 'Orbit & Day',
+      value: pdata.stats.yearLength,
+      sub: `Day: ${pdata.stats.dayLength} · ${pdata.stats.moons} Moon${parseInt(pdata.stats.moons)===1?'':'s'}`,
+      pct: ORBIT_PCT[id] || 50,
+      color: '#66d9ff',
+      icon: '⏱️'
+    }
+  ]);
+
+  // ── Scannable Visual Fact Cards (replaces dense bullet lists) ──────────────
+  const visualFactsHTML = `<div class="visual-fact-grid">${(pdata.facts || []).slice(0, 4).map((f, idx) => {
+    const c = _extractVisualCard(f, idx);
+    return `
+      <div class="visual-fact-card">
+        <div class="vfc-header">
+          <span class="vfc-icon">${c.icon}</span>
+          <span class="vfc-title">${c.headline}</span>
         </div>
-        <div class="scale-bar-row">
-          <span class="scale-bar-name">${pdata.name}</span>
-          <div style="flex:1;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;height:10px">
-            <div class="scale-bar-fill" style="width:${scalePct(diam)}%;background:${pc}"></div>
-          </div>
-          <span class="scale-bar-val">${diam.toLocaleString()} km</span>
-        </div>
-        ${id !== 'earth' ? `<div class="scale-bar-row">
-          <span class="scale-bar-name">Earth</span>
-          <div style="flex:1;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;height:10px">
-            <div class="scale-bar-fill" style="width:${scalePct(earthDiam)}%;background:#4fa3e0"></div>
-          </div>
-          <span class="scale-bar-val">12,742 km</span>
-        </div>` : ''}
+        <div class="vfc-body">${c.summary}</div>
+      </div>`;
+  }).join('')}</div>`;
+
+  const moonsSectionHTML = pdata.moons.length > 0 ? `
+    <div class="panel-section">
+      <h3>Moons (${pdata.stats.moons}) — Click to Fly &amp; Explore</h3>
+      <div class="moon-grid">
+        ${pdata.moons.map(m=>`<div class="moon-chip" onclick="showMoon('${id}','${m.name.replace(/'/g, "\\'")}')"><div class="moon-chip-name">${m.name}</div><div class="moon-chip-sub">${m.tagline}</div></div>`).join('')}
+        ${pdata.moons.length<parseInt(pdata.stats.moons)?`<div class="moon-chip" style="opacity:.45;cursor:default"><div class="moon-chip-name">+${parseInt(pdata.stats.moons)-pdata.moons.length} more</div><div class="moon-chip-sub">smaller moons</div></div>`:''}
       </div>
     </div>` : '';
 
-  // ── "What if you lived here?" fun facts ────────────────────────────────────
-  const lifeItems = [
-    `<div class="life-here-item"><strong>One day lasts</strong>${pdata.stats.dayLength}</div>`,
-    `<div class="life-here-item"><strong>One year lasts</strong>${pdata.stats.yearLength}</div>`,
-    `<div class="life-here-item"><strong>Step outside to</strong>${pdata.stats.temp}</div>`,
-  ];
-  if(parseInt(pdata.stats.moons)>0) lifeItems.push(`<div class="life-here-item"><strong>Moons in the sky</strong>${pdata.stats.moons} moon${parseInt(pdata.stats.moons)!==1?'s':''}</div>`);
-  const lifeHereHTML = `
-    <div class="life-here">
-      <div class="life-here-title">&#127968; What if you lived here?</div>
-      ${lifeItems.join('')}
-    </div>`;
-
   const overviewHTML = `
     <div class="panel-section" style="margin-top:0;border-top:none;padding-top:0">
-      <h3>Quick Stats</h3>
-      <div class="stat-grid">
-        <div class="stat-box"><div class="stat-label">Diameter</div><div class="stat-value">${pdata.stats.diameter}</div></div>
-        <div class="stat-box"><div class="stat-label">From Sun</div><div class="stat-value">${pdata.stats.distanceFromSun}</div></div>
-        <div class="stat-box"><div class="stat-label">Day Length</div><div class="stat-value">${pdata.stats.dayLength}</div></div>
-        <div class="stat-box"><div class="stat-label">Year Length</div><div class="stat-value">${pdata.stats.yearLength}</div></div>
-        <div class="stat-box"><div class="stat-label">Temperature</div><div class="stat-value">${pdata.stats.temp}</div></div>
-        <div class="stat-box"><div class="stat-label">Moons</div><div class="stat-value">${pdata.stats.moons}</div></div>
-      </div>
-      ${scaleCompareHTML}
-      ${lifeHereHTML}
+      <h3>Quick-Glance Telemetry</h3>
+      ${quickGaugesHTML}
     </div>
     <div id="planet-nasa-gallery" class="nasa-gallery-section"></div>
     <div class="panel-section">
-      <h3>Key Facts</h3>
-      <ul class="fact-list">${pdata.facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      <h3>Discovery Cards</h3>
+      ${visualFactsHTML}
     </div>
-    ${pdata.moons.length>0?`
-    <div class="panel-section">
-      <h3>Moons (${pdata.stats.moons}) — Click to Explore &amp; Hear Speak</h3>
-      <div class="moon-grid">
-        ${pdata.moons.map(m=>`<div class="moon-chip" onclick="showMoon('${id}','${m.name}')"><div class="moon-chip-name">${m.name}</div><div class="moon-chip-sub">${m.tagline}</div></div>`).join('')}
-        ${pdata.moons.length<parseInt(pdata.stats.moons)?`<div class="moon-chip" style="opacity:.4;cursor:default"><div class="moon-chip-name">+${parseInt(pdata.stats.moons)-pdata.moons.length} more</div><div class="moon-chip-sub">smaller moons</div></div>`:''}
-      </div>
-    </div>`:''}
-    <button class="zoom-in-btn" onclick="zoomCloser('${id}')">Get Even Closer ↗</button>
-    <button class="take-quiz-btn" onclick="window.launchQuiz('${id}')">&#9670; Take Planet Quiz</button>`;
+    ${moonsSectionHTML}
+    <div class="panel-cta-row">
+      <button class="zoom-in-btn" onclick="zoomCloser('${id}')">Get Even Closer ↗</button>
+      <button class="take-quiz-btn" onclick="window.launchQuiz('${id}')">&#9670; Take Planet Quiz</button>
+    </div>`;
 
   const missionsHTML = (pdata.missions||[]).map(m=>`
     <div class="mission-card">
       <div class="mission-header"><span class="mission-name">${m.name}</span><span class="mission-meta">${m.year} · ${m.agency}</span></div>
       <div class="mission-type">${m.type}</div>
       <div class="mission-note">${m.note}</div>
-    </div>`).join('') || '<p style="font-size:12px;color:var(--dim);padding:8px 0">No mission records.</p>';
+    </div>`).join('') || '<p style="font-size:14px;color:var(--dim);padding:8px 0">No mission records.</p>';
+
+  const atm = pdata.atmosphere;
+  const atmosBlockHTML = atm ? `
+    <div class="panel-section">
+      <h3>Atmosphere &amp; Weather</h3>
+      <div class="quick-gauges-row">
+        <div class="stat-gauge-card">
+          <div class="stat-gauge-label">Surface Pressure</div>
+          <div class="stat-gauge-value">${atm.pressure}</div>
+        </div>
+        <div class="stat-gauge-card">
+          <div class="stat-gauge-label">Peak Winds</div>
+          <div class="stat-gauge-value">${atm.windSpeed}</div>
+        </div>
+        <div class="stat-gauge-card">
+          <div class="stat-gauge-label">Mean Temp</div>
+          <div class="stat-gauge-value">${atm.temp}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        ${atm.composition.map(g=>`
+          <div class="atmos-bar-row">
+            <span class="atmos-bar-label">${g.gas}</span>
+            <div class="atmos-bar-track"><div class="atmos-bar-fill" style="width:${g.pct}%;background:${g.color}"></div></div>
+            <span class="atmos-bar-pct">${g.pct}%</span>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
 
   const surfaceHTML = `
     <div class="panel-section" style="margin-top:0;border-top:none;padding-top:0">
-      <h3>Surface Composition</h3>
-      <p style="font-size:12px;color:var(--text);line-height:1.55;margin-bottom:10px;font-family:\'Segoe UI\',system-ui,sans-serif">${pdata.surface}</p>
+      <h3>Surface &amp; Structure</h3>
+      <p class="panel-lead-text">${pdata.surface}</p>
       <div class="surface-bar">${pdata.surfaceComp.map(s=>`<div class="surface-seg" style="flex:${s.pct};background:${s.color}" title="${s.label}: ${s.pct}%"></div>`).join('')}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:7px">${pdata.surfaceComp.map(s=>`<span style="font-size:9px;color:var(--dim)"><span style="display:inline-block;width:7px;height:7px;border-radius:1px;background:${s.color};margin-right:3px;vertical-align:middle"></span>${s.label} ${s.pct}%</span>`).join('')}</div>
+      <div class="surface-legend-row">${pdata.surfaceComp.map(s=>`<span class="surface-legend-chip"><i style="background:${s.color}"></i>${s.label} ${s.pct}%</span>`).join('')}</div>
     </div>
     <div class="panel-section">
-      <h3>Points of Interest</h3>
-      ${(pdata.pois||[]).map(p=>`<div class="poi-item"><div class="poi-name">${p.name}</div><div class="poi-desc">${p.desc}</div></div>`).join('')}
-    </div>`;
-
-  const atm = pdata.atmosphere;
-  const atmosHTML = atm ? `
-    <div class="panel-section" style="margin-top:0;border-top:none;padding-top:0">
-      <h3>Key Readings</h3>
-      <div class="stat-grid">
-        <div class="stat-box"><div class="stat-label">Pressure</div><div class="stat-value">${atm.pressure}</div></div>
-        <div class="stat-box"><div class="stat-label">Temperature</div><div class="stat-value">${atm.temp}</div></div>
-        <div class="stat-box" style="grid-column:1/-1"><div class="stat-label">Wind Speed</div><div class="stat-value">${atm.windSpeed}</div></div>
+      <h3>Landmarks &amp; Phenomena</h3>
+      <div class="visual-fact-grid">
+        ${(pdata.pois||[]).map((p, idx)=>`
+          <div class="visual-fact-card">
+            <div class="vfc-header"><span class="vfc-icon">${idx % 2 === 0 ? '🏔️' : '🧭'}</span><span class="vfc-title">${p.name}</span></div>
+            <div class="vfc-body">${p.desc}</div>
+          </div>`).join('')}
       </div>
     </div>
-    <div class="panel-section">
-      <h3>Composition</h3>
-      ${atm.composition.map(g=>`
-        <div class="atmos-bar-row">
-          <span class="atmos-bar-label">${g.gas}</span>
-          <div class="atmos-bar-track"><div class="atmos-bar-fill" style="width:${g.pct}%;background:${g.color}"></div></div>
-          <span class="atmos-bar-pct">${g.pct}%</span>
-        </div>`).join('')}
-    </div>` : '<p style="font-size:12px;color:var(--dim);padding:8px 0">No significant atmosphere detected.</p>';
+    ${atmosBlockHTML}`;
+
+  const moonsTabHTML = pdata.moons.length > 0 ? `
+    <div class="panel-section" style="margin-top:0;border-top:none;padding-top:0">
+      <h3>Major Moons of ${pdata.name}</h3>
+      <div class="visual-fact-grid">
+        ${pdata.moons.map(m => `
+          <div class="visual-fact-card clickable-card" onclick="showMoon('${id}','${m.name.replace(/'/g, "\\'")}')">
+            <div class="vfc-header">
+              <span class="vfc-icon">🌕</span>
+              <span class="vfc-title">${m.name}</span>
+            </div>
+            <div class="vfc-sub">${m.tagline}</div>
+            <div class="vfc-body">${m.desc}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : '<p class="panel-lead-text">This world has no natural moons.</p>';
 
   body.innerHTML = `
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="surface">Surface &amp; Sky</button>
       <button class="tab-btn" data-tab="missions">Missions</button>
-      <button class="tab-btn" data-tab="surface">Surface</button>
-      <button class="tab-btn" data-tab="atmos">Atmos</button>
+      <button class="tab-btn" data-tab="moons">Moons (${pdata.moons.length})</button>
     </div>
     <div class="tab-pane active" id="tab-overview">${overviewHTML}</div>
-    <div class="tab-pane" id="tab-missions">${missionsHTML}</div>
     <div class="tab-pane" id="tab-surface">${surfaceHTML}</div>
-    <div class="tab-pane" id="tab-atmos">${atmosHTML}</div>`;
+    <div class="tab-pane" id="tab-missions">${missionsHTML}</div>
+    <div class="tab-pane" id="tab-moons">${moonsTabHTML}</div>`;
 
   body.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -2713,20 +3675,857 @@ function openPlanet(id, addHistory=true) {
     });
   });
 
-  // Wire live NASA photo gallery for this planet (with instant schematic fallback)
+  // Wire live NASA photo gallery using nature/science-focused queries (no meetings/people)
+  const galCfg = PLANET_GALLERY_CONFIG[id] || {
+    query: `planet ${pdata.name} surface clouds space`,
+    fallbacks: []
+  };
   const tourStop = TOUR_STOPS.find(s => s.planetId === id);
-  const fbSpecs = (tourStop && tourStop.photos ? tourStop.photos : []).map(src => ({
-    src,
-    title: `${pdata.name} — NASA / JPL Reconnaissance`
-  }));
-  fetchNasaGallery(`planet ${pdata.name} NASA`, document.getElementById('planet-nasa-gallery'), fbSpecs);
+  const fbSpecs = galCfg.fallbacks && galCfg.fallbacks.length
+    ? galCfg.fallbacks
+    : (tourStop && tourStop.photos ? tourStop.photos : []).map(src => ({
+        src,
+        title: `${pdata.name} — NASA / JPL Reconnaissance`
+      }));
+  fetchNasaGallery(galCfg.query, document.getElementById('planet-nasa-gallery'), fbSpecs);
 
   closeAllPanels({keepTour:true});
   document.getElementById('info-panel').classList.add('open');
+  if (entry && entry.mesh) {
+    spawnSurfaceHotspotsForBody(id, entry.mesh, pdata.size || 1.0, 'visor-scanner-container');
+  }
 }
 
 function closePanel() {
   document.getElementById('info-panel').classList.remove('open');
+  if (!document.getElementById('moon-detail')?.classList.contains('open')) {
+    clearSurfaceHotspots();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STAGE 3: INTERACTIVE 3D SURFACE ANOMALY / HOTSPOT SCANNER & ARCADE VISOR HUD
+// ═══════════════════════════════════════════════════════════════════════════════
+let _currentMoonTargetRef = null;
+const _scannedHotspots = new Set();
+try {
+  const savedHS = JSON.parse(localStorage.getItem('ue_scanned_hotspots') || '[]');
+  if (Array.isArray(savedHS)) savedHS.forEach(k => _scannedHotspots.add(k));
+} catch (e) {}
+
+const SURFACE_HOTSPOTS = {
+  sun: [
+    {
+      id: 'sun_coronal_loops', name: 'Active Magnetic Coronal Loops', coords: '16.4° N, 42.0° E', lat: 16.4, lon: 42.0,
+      metric: 'PLASMA ARCH: 2,100,000°C · 12× EARTH HEIGHT',
+      desc: 'Colossal arches of ionized plasma trapped along twisted magnetic flux tubes rising hundreds of thousands of kilometers above the photosphere.',
+      voice: 'Scanner locked onto Active Magnetic Coronal Loops! These glowing plasma arches tower twelve Earths high and reach temperatures over two million degrees Celsius.',
+      nasaQuery: 'Sun solar corona magnetic loops SDO AIA',
+      fallbackPhoto: 'photos/missions/sun/corona.jpg'
+    },
+    {
+      id: 'sun_prominence', name: 'Solar Prominence Ejection Zone', coords: '28.0° S, 135.0° E', lat: -28.0, lon: 135.0,
+      metric: 'VELOCITY: 950 KM/S · CME MAGNETIC RECONNECTION',
+      desc: 'When twisted solar magnetic field lines snap and reconnect, they hurl billions of tons of magnetized plasma into interplanetary space.',
+      voice: 'Scanner locked onto a Solar Prominence Ejection Zone! When twisted magnetic fields snap, they launch billions of tons of solar plasma across the solar system.',
+      nasaQuery: 'Sun solar prominence eruption SDO SOHO',
+      fallbackPhoto: 'photos/missions/sun/corona.jpg'
+    },
+    {
+      id: 'sun_parker_perihelion', name: 'Parker Solar Probe Coronal Corridor', coords: '4.2° N, 265.0° E', lat: 4.2, lon: 265.0,
+      metric: 'ALTITUDE: 6.1M KM · SPEED: 690,000 KM/H',
+      desc: 'The Alfvén critical surface where NASA\'s carbon-shielded Parker Solar Probe flies directly through the Sun\'s outer atmosphere.',
+      voice: 'Scanner locked onto the Parker Perihelion Corridor! Here NASA\'s Parker Solar Probe dives right through the solar corona at six hundred and ninety thousand kilometers per hour.',
+      nasaQuery: 'Parker Solar Probe corona sun NASA',
+      fallbackPhoto: 'photos/missions/sun/parker.jpg'
+    }
+  ],
+  mercury: [
+    {
+      id: 'mercury_caloris', name: 'Caloris Impact Basin', coords: '30.5° N, 189.8° E', lat: 30.5, lon: 189.8,
+      metric: 'DIAMETER: 1,550 KM · RING PEAKS: 3.0 KM',
+      desc: 'One of the largest impact basins in the solar system, blasted by a 100-kilometer asteroid whose seismic shockwaves buckled the opposite side of Mercury.',
+      voice: 'Scanner locked onto Caloris Basin! This fifteen-hundred-and-fifty kilometer crater was carved by an asteroid impact so powerful its shockwaves jumbled the crust on the opposite side of Mercury.',
+      nasaQuery: 'Mercury Caloris Basin MESSENGER crater',
+      fallbackPhoto: 'photos/missions/mercury/caloris.jpg'
+    },
+    {
+      id: 'mercury_polar_ice', name: 'Prokofiev Shadowed Polar Ice', coords: '85.8° N, 62.9° E', lat: 85.8, lon: 62.9,
+      metric: 'TEMP: -180°C · WATER ICE DEPOSIT: >100 BILLION TONS',
+      desc: 'Deep inside permanently shadowed polar craters where sunlight never reaches, MESSENGER radar confirmed thick sheets of pure water ice.',
+      voice: 'Scanner locked onto Prokofiev Polar Crater! Even on sun-scorched Mercury, permanently shadowed polar craters preserve billions of tons of frozen water ice.',
+      nasaQuery: 'Mercury north pole water ice crater MESSENGER',
+      fallbackPhoto: 'photos/missions/mercury/messenger.jpg'
+    },
+    {
+      id: 'mercury_discovery_scarp', name: 'Enterprise & Discovery Rupes', coords: '56.3° S, 321.7° E', lat: -56.3, lon: 321.7,
+      metric: 'CLIFF HEIGHT: 3.2 KM · LENGTH: 1,000 KM',
+      desc: 'Towering thrust-fault cliffs formed as Mercury\'s giant iron core slowly cooled and contracted, shrinking the planet\'s radius by 7 kilometers.',
+      voice: 'Scanner locked onto Discovery Rupes! As Mercury\'s massive iron core cooled over billions of years, the entire planet shrank and wrinkled into three-kilometer-tall cliffs.',
+      nasaQuery: 'Mercury lobate scarp cliff MESSENGER',
+      fallbackPhoto: 'photos/missions/mercury/bepi.jpg'
+    }
+  ],
+  venus: [
+    {
+      id: 'venus_maat_mons', name: 'Maat Mons Active Shield Volcano', coords: '0.5° N, 194.6° E', lat: 0.5, lon: 194.6,
+      metric: 'ELEVATION: +8.0 KM · ACTIVE VENT DETECTED',
+      desc: 'The tallest volcano on Venus. Re-analysis of Magellan radar imagery revealed a volcanic vent changing shape over 8 months — proof of active volcanism!',
+      voice: 'Scanner locked onto Maat Mons! Magellan radar imagery caught a volcanic vent on this eight-kilometer peak actively changing shape and erupting beneath Venus\'s acid clouds.',
+      nasaQuery: 'Venus Maat Mons volcano Magellan radar',
+      fallbackPhoto: 'photos/missions/venus/magellan.jpg'
+    },
+    {
+      id: 'venus_maxwell', name: 'Maxwell Montes Radar Highlands', coords: '65.2° N, 3.3° E', lat: 65.2, lon: 3.3,
+      metric: 'ELEVATION: +11.0 KM · METALLIC PYRITE SNOW',
+      desc: 'Rising 11 kilometers above mean radius on Ishtar Terra, these peaks are coated in radar-bright metallic frost of lead and bismuth sulfide.',
+      voice: 'Scanner locked onto Maxwell Montes! Rising eleven kilometers high, these peaks are dusted not with water snow, but with radar-bright metallic frost of lead and bismuth sulfide.',
+      nasaQuery: 'Venus Ishtar Terra Maxwell Montes Magellan',
+      fallbackPhoto: 'photos/missions/venus/magellan.jpg'
+    },
+    {
+      id: 'venus_venera13', name: 'Venera 13 Basalt Landing Plain', coords: '7.5° S, 303.0° E', lat: -7.5, lon: 303.0,
+      metric: 'PRESSURE: 92 BAR · SURFACE TEMP: 465°C',
+      desc: 'Where the titanium-hulled Soviet Venera 13 lander survived 127 minutes in crushing 92-atmosphere pressure to transmit the first color panorama of Venus.',
+      voice: 'Scanner locked onto the Venera 13 Landing Site! Built like a deep-sea titanium submarine, Venera 13 survived over two hours at four hundred and sixty-five degrees Celsius.',
+      nasaQuery: 'Venus surface Venera lander Magellan',
+      fallbackPhoto: 'photos/missions/venus/venera.jpg'
+    }
+  ],
+  earth: [
+    {
+      id: 'earth_mariana', name: 'Pacific Mariana Trench (Challenger Deep)', coords: '11.35° N, 142.2° E', lat: 11.35, lon: 142.2,
+      metric: 'DEPTH: -10,935 M · PRESSURE: 1,086 BAR',
+      desc: 'The deepest oceanic subduction trench in Earth\'s crust, where the Pacific tectonic plate dives beneath the Mariana Plate.',
+      voice: 'Scanner locked onto the Pacific Mariana Trench! Eleven kilometers below the waves, tectonic subduction carves the deepest abyss on Earth, deeper than Mount Everest is tall.',
+      nasaQuery: 'Earth Pacific Ocean coral reef atoll from space',
+      fallbackPhoto: 'photos/missions/earth/oceans_reef.jpg'
+    },
+    {
+      id: 'earth_amazon', name: 'Amazon Basin Rainforest Canopy', coords: '3.46° S, 62.2° W', lat: -3.46, lon: -62.2,
+      metric: 'BIOSPHERE: 5.5M KM² · OXYGEN & TRANSPIRATION ENGINE',
+      desc: 'Earth\'s richest photosynthetic biome, recycling 20 billion tons of atmospheric water vapor daily into flying rivers that water South America.',
+      voice: 'Scanner locked onto the Amazon Rainforest Basin! From orbit, you can see rivers of clouds exhaled by hundreds of billions of trees powering Earth\'s living biosphere.',
+      nasaQuery: 'Amazon river basin rainforest from space ISS',
+      fallbackPhoto: 'photos/missions/earth/rainforest_life.jpg'
+    },
+    {
+      id: 'earth_sahara', name: 'Sahara Eye (Richat Geological Dome)', coords: '21.12° N, 11.40° W', lat: 21.12, lon: -11.4,
+      metric: 'DIAMETER: 40 KM · PROTEROZOIC ERODED DOME',
+      desc: 'A striking 40-kilometer concentric bullseye of eroded sedimentary rock in Mauritania used as an orbital landmark by astronauts since Gemini 4.',
+      voice: 'Scanner locked onto the Eye of the Sahara! This forty-kilometer concentric geological bullseye in the Mauritanian desert has been a favorite landmark for astronauts in orbit.',
+      nasaQuery: 'Richat Structure Eye of Sahara ISS NASA',
+      fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+    },
+    {
+      id: 'earth_aurora', name: 'Geomagnetic Polar Aurora Oval', coords: '66.5° N, 19.0° E', lat: 66.5, lon: 19.0,
+      metric: 'ALTITUDE: 100–300 KM · MAGNETOSPHERIC SHIELD',
+      desc: 'Where solar wind electrons guided by Earth\'s liquid-iron core magnetic field excite upper-atmosphere oxygen and nitrogen into glowing curtains.',
+      voice: 'Scanner locked onto the Polar Aurora Oval! Here Earth\'s invisible magnetic shield channels solar wind particles into shimmering curtains of green and violet light.',
+      nasaQuery: 'Aurora Borealis from International Space Station',
+      fallbackPhoto: 'photos/missions/earth/aurora_lightning.jpg'
+    }
+  ],
+  mars: [
+    {
+      id: 'mars_olympus', name: 'Olympus Mons Shield Volcano', coords: '18.65° N, 226.2° E', lat: 18.65, lon: 226.2,
+      metric: 'HEIGHT: 21.9 KM (3× EVEREST) · WIDTH: 600 KM',
+      desc: 'The tallest planetary mountain in the solar system! Because Mars lacks drifting tectonic plates, lava piled up over a single mantle hotspot for billions of years.',
+      voice: 'Scanner locked onto Olympus Mons! Towering nearly twenty-two kilometers into the thin Martian sky, this shield volcano is three times taller than Mount Everest and wide enough to cover Arizona.',
+      nasaQuery: 'Mars Olympus Mons volcano Viking MRO',
+      fallbackPhoto: 'photos/missions/mars/valles.jpg'
+    },
+    {
+      id: 'mars_valles', name: 'Valles Marineris Tectonic Rift', coords: '13.9° S, 300.8° E', lat: -13.9, lon: 300.8,
+      metric: 'LENGTH: 4,000 KM · DEPTH: 7.0 KM',
+      desc: 'A colossal tectonic canyon system stretching a quarter of the way around Mars — ten times longer and five times deeper than Earth\'s Grand Canyon.',
+      voice: 'Scanner locked onto Valles Marineris! This gigantic tectonic rift stretches four thousand kilometers across Mars—long enough to span from New York to Los Angeles.',
+      nasaQuery: 'Valles Marineris canyon Mars Viking MRO',
+      fallbackPhoto: 'photos/missions/mars/valles.jpg'
+    },
+    {
+      id: 'mars_jezero', name: 'Jezero Crater River Delta (Perseverance)', coords: '18.38° N, 77.58° E', lat: 18.38, lon: 77.58,
+      metric: 'DIAMETER: 45 KM · ANCIENT LAKEBED & SAMPLE DEPOT',
+      desc: 'An ancient 3.5-billion-year-old crater lake and river delta where NASA\'s Perseverance rover and Ingenuity helicopter search for biosignatures.',
+      voice: 'Scanner locked onto Jezero Crater! Three and a half billion years ago a river flooded this crater into a deep lake; today NASA\'s Perseverance rover is coring its mudstones for signs of ancient life.',
+      nasaQuery: 'Perseverance rover Jezero Crater delta Mars',
+      fallbackPhoto: 'photos/missions/mars/perseverance.jpg'
+    },
+    {
+      id: 'mars_polar', name: 'Planum Australe Ice Cap & Subglacial Brine', coords: '83.0° S, 160.0° E', lat: -83.0, lon: 160.0,
+      metric: 'THICKNESS: 3.7 KM · LAYERED H₂O & CO₂ ICE',
+      desc: 'Spiraling troughs of water ice and seasonal dry-ice frost storing a 3.7-kilometer-thick climate archive of Martian orbital cycles.',
+      voice: 'Scanner locked onto the Martian South Polar Ice Cap! Radar sounders have probed three point seven kilometers deep through alternating layers of water ice and frozen carbon dioxide.',
+      nasaQuery: 'Mars south polar ice cap MRO ESA',
+      fallbackPhoto: 'photos/missions/perseverance/surface.jpg'
+    }
+  ],
+  jupiter: [
+    {
+      id: 'jupiter_grs', name: 'The Great Red Spot Anticyclone', coords: '22.0° S, 115.0° W', lat: -22.0, lon: -115.0,
+      metric: 'WIDTH: 16,350 KM (1.3× EARTH) · WINDS: 680 KM/H',
+      desc: 'The largest vortex storm in the solar system, wedged between opposing jet streams and raging continuously for over 350 years.',
+      voice: 'Scanner locked onto the Great Red Spot! This colossal anticyclone is wider than the entire planet Earth, with crimson ammonia clouds whipping at six hundred and eighty kilometers per hour.',
+      nasaQuery: 'Jupiter Great Red Spot Juno Voyager',
+      fallbackPhoto: 'photos/missions/jupiter/great_red_spot.jpg'
+    },
+    {
+      id: 'jupiter_auroras', name: 'Jovian Polar Magnetospheric Auroras', coords: '78.0° N, 45.0° E', lat: 78.0, lon: 45.0,
+      metric: 'POWER: 100 TERAWATTS · IO PLASMA TORUS FOOTPRINT',
+      desc: 'Permanent ultraviolet and X-ray polar auroras hundreds of times more energetic than Earth\'s, fed by volcanic sulfur ions from Jupiter\'s moon Io.',
+      voice: 'Scanner locked onto Jupiter\'s Polar Auroras! Powered by a magnetic field twenty thousand times stronger than Earth\'s and volcanic plasma from Io, these auroras never switch off.',
+      nasaQuery: 'Jupiter aurora Hubble Juno north pole',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    },
+    {
+      id: 'jupiter_cyclones', name: 'Circumpolar Cyclone Octagon', coords: '84.0° N, 180.0° E', lat: 84.0, lon: 180.0,
+      metric: '8 POLAR VORTICES · 4,500 KM EACH',
+      desc: 'Discovered by NASA\'s Juno spacecraft: eight giant swirling cyclones arranged in a geometric octagon around a central north-polar storm.',
+      voice: 'Scanner locked onto Jupiter\'s Circumpolar Cyclone Octagon! Juno revealed eight continent-sized hurricanes locked in a geometric ring around Jupiter\'s north pole.',
+      nasaQuery: 'Jupiter north pole cyclones Juno infrared',
+      fallbackPhoto: 'photos/missions/juno/jupiter_cloud.jpg'
+    }
+  ],
+  saturn: [
+    {
+      id: 'saturn_hexagon', name: 'North Polar Hexagon Jet Stream', coords: '78.0° N, 30.0° E', lat: 78.0, lon: 30.0,
+      metric: 'WIDTH: 30,000 KM (2.3× EARTH) · 6-SIDED WAVE',
+      desc: 'A persistent six-sided standing Rossby wave in Saturn\'s northern atmosphere with a 500 km/h hurricane eye at the exact north pole.',
+      voice: 'Scanner locked onto Saturn\'s North Polar Hexagon! This six-sided atmospheric jet stream is thirty thousand kilometers wide—big enough to fit two Earths side by side.',
+      nasaQuery: 'Saturn north pole hexagon storm Cassini',
+      fallbackPhoto: 'photos/missions/cassini/saturn.jpg'
+    },
+    {
+      id: 'saturn_grand_finale', name: 'Cassini Grand Finale Ring-Grazing Dive', coords: '5.0° S, 140.0° E', lat: -5.0, lon: 140.0,
+      metric: 'RING GAP: 2,400 KM · ICE RAIN FLUX',
+      desc: 'The narrow gap between Saturn\'s upper ammonia cloud deck and its innermost D-ring where Cassini dove 22 times before its final plunge.',
+      voice: 'Scanner locked onto the Cassini Grand Finale Corridor! Here Cassini threaded the two-thousand-kilometer needle between Saturn\'s cloud tops and its icy rings.',
+      nasaQuery: 'Saturn rings Cassini Grand Finale shadow',
+      fallbackPhoto: 'photos/missions/saturn/cassini_rings.jpg'
+    },
+    {
+      id: 'saturn_dragon_storm', name: 'Great White Spot Super-Lightning Belt', coords: '35.0° N, 255.0° E', lat: 35.0, lon: 255.0,
+      metric: 'LIGHTNING: 10,000× EARTH · ERUPTS EVERY 30 YRS',
+      desc: 'Every Saturnian year (29.5 Earth years), a planet-encircling ammonia thunderstorm erupts with lightning bolts ten thousand times stronger than Earth\'s.',
+      voice: 'Scanner locked onto Saturn\'s Great White Spot storm belt! Once every Saturnian year, deep water-ammonia convection triggers a thunderstorm that wraps all the way around the planet.',
+      nasaQuery: 'Saturn storm Cassini lightning clouds',
+      fallbackPhoto: 'photos/missions/cassini/rings.jpg'
+    }
+  ],
+  uranus: [
+    {
+      id: 'uranus_polar_collar', name: 'Sunlit Extreme Axial Polar Cap', coords: '82.0° N, 15.0° E', lat: 82.0, lon: 15.0,
+      metric: 'OBLIQUITY: 97.77° · 42-YEAR POLAR SUMMER',
+      desc: 'Because Uranus rolls on its side at a 98-degree tilt, its polar hood experiences 42 continuous years of sunlight followed by 42 years of darkness.',
+      voice: 'Scanner locked onto Uranus\'s Sunlit Polar Cap! Knocked sideways by an ancient protoplanet collision, this pole bakes in forty-two straight years of summer daylight.',
+      nasaQuery: 'Uranus polar cap rings JWST Hubble Voyager',
+      fallbackPhoto: 'photos/missions/uranus/voyager2.jpg'
+    },
+    {
+      id: 'uranus_magneto_tail', name: 'Offset Corkscrew Magnetosphere Anomaly', coords: '15.0° S, 165.0° E', lat: -15.0, lon: 165.0,
+      metric: 'FIELD TILT: 59° · OFFSET BY 0.33 RADIUS',
+      desc: 'Generated in a convecting ionic water-ammonia ocean, Uranus\'s magnetic field is tilted 59° from its spin axis and shifted off-center.',
+      voice: 'Scanner locked onto Uranus\'s Offset Magnetic Anomaly! Unlike Earth\'s centered magnetic bar, Uranus\'s magnetic field is tilted fifty-nine degrees and wobbles like a corkscrew.',
+      nasaQuery: 'Uranus Voyager 2 crescent atmosphere',
+      fallbackPhoto: 'photos/missions/uranus/voyager2.jpg'
+    },
+    {
+      id: 'uranus_diamond_mantle', name: 'Methane Cloud Deck & Diamond-Rain Zone', coords: '24.0° N, 275.0° E', lat: 24.0, lon: 275.0,
+      metric: 'TROPOPAUSE: -224°C (49 K) · DEEP PRESSURE: 50 GPA',
+      desc: 'Beneath the frigid 49-Kelvin methane haze, extreme pressure splits hydrocarbon molecules into solid diamond crystals that hail toward the core.',
+      voice: 'Scanner locked onto the Deep Methane Convection Zone! Beneath the coldest cloud tops in the solar system, millions of atmospheres of pressure compress carbon into real falling diamonds.',
+      nasaQuery: 'Uranus clouds rings Hubble',
+      fallbackPhoto: 'photos/missions/uranus/miranda.jpg'
+    }
+  ],
+  neptune: [
+    {
+      id: 'neptune_dark_spot', name: 'Great Dark Spot Anticyclonic Vortex', coords: '20.0° S, 75.0° W', lat: -20.0, lon: -75.0,
+      metric: 'WINDS: 2,100 KM/H (SUPERSONIC) · EARTH-SIZED',
+      desc: 'An Earth-sized high-pressure hole in Neptune\'s methane cloud deck rimmed by bright frozen methane cirrus clouds screaming at supersonic speeds.',
+      voice: 'Scanner locked onto the Great Dark Spot! Driven by Neptune\'s mysterious internal heat, winds around this Earth-sized vortex scream past two thousand one hundred kilometers per hour.',
+      nasaQuery: 'Neptune Great Dark Spot Voyager 2',
+      fallbackPhoto: 'photos/missions/neptune/dark_spot.jpg'
+    },
+    {
+      id: 'neptune_scooter', name: 'The Scooter High-Altitude Methane Plume', coords: '42.0° S, 130.0° E', lat: -42.0, lon: 130.0,
+      metric: 'REVOLUTION: 16.8 HOURS · BRIGHT METHANE ICE',
+      desc: 'A fast-moving white cloud group deep in Neptune\'s southern hemisphere that zips around the planet faster than the Great Dark Spot.',
+      voice: 'Scanner locked onto The Scooter! Voyager 2 tracked this bright plume of frozen methane crystals racing around Neptune faster than almost any other storm feature.',
+      nasaQuery: 'Neptune clouds Voyager 2 Scooter',
+      fallbackPhoto: 'photos/missions/neptune/dark_spot.jpg'
+    },
+    {
+      id: 'neptune_south_hot_pole', name: 'Warm South Polar Vortex', coords: '80.0° S, 240.0° E', lat: -80.0, lon: 240.0,
+      metric: 'THERMAL ANOMALY: +10°C WARMER · METHANE ESCAPE',
+      desc: 'Exposed to sunlight for 40 Earth years, Neptune\'s south pole is 10 degrees warmer than the rest of the planet, allowing methane gas to vent into the stratosphere.',
+      voice: 'Scanner locked onto Neptune\'s South Polar Vortex! After forty Earth years of continuous summer sunlight, this warm polar vortex vents methane high into Neptune\'s stratosphere.',
+      nasaQuery: 'Neptune Voyager 2 Triton',
+      fallbackPhoto: 'photos/missions/neptune/triton.jpg'
+    }
+  ],
+  pluto: [
+    {
+      id: 'pluto_sputnik', name: 'Sputnik Planitia Nitrogen Ice Heart', coords: '25.0° N, 175.0° E', lat: 25.0, lon: 175.0,
+      metric: 'WIDTH: 1,000 KM · CONVECTING N₂ ICE CELLS',
+      desc: 'The bright western lobe of Tombaugh Regio: a 4-km-deep basin of solid nitrogen ice slowly overturning in polygonal convection cells with zero craters.',
+      voice: 'Scanner locked onto Sputnik Planitia—Pluto\'s giant icy heart! This thousand-kilometer glacier of frozen nitrogen slowly bubbles and renews its surface like a cosmic lava lamp.',
+      nasaQuery: 'Pluto Sputnik Planitia heart New Horizons',
+      fallbackPhoto: 'photos/missions/pluto/new_horizons.jpg'
+    },
+    {
+      id: 'pluto_wright_mons', name: 'Wright Mons Cryovolcano', coords: '21.3° S, 173.2° E', lat: -21.3, lon: 173.2,
+      metric: 'HEIGHT: 4.0 KM · WIDTH: 150 KM · ICE VOLCANO',
+      desc: 'A massive dome with a deep central depression built not from molten rock, but from slushy water-ammonia cryolava erupted from Pluto\'s interior.',
+      voice: 'Scanner locked onto Wright Mons! Instead of fiery magma, this four-kilometer-tall ice volcano erupted slushy water and ammonia from deep beneath Pluto\'s crust.',
+      nasaQuery: 'Pluto mountains ice New Horizons Wright Mons',
+      fallbackPhoto: 'photos/missions/new_horizons/heart.jpg'
+    },
+    {
+      id: 'pluto_cthulhu', name: 'Cthulhu Macula Tholin Equatorial Belt', coords: '8.0° S, 95.0° E', lat: -8.0, lon: 95.0,
+      metric: 'LENGTH: 3,000 KM · ORGANIC THOLIN DEPOSIT',
+      desc: 'A dark crimson region stretching nearly halfway around Pluto\'s equator, coated in complex reddish organic macromolecules (tholins) forged by ultraviolet light.',
+      voice: 'Scanner locked onto Cthulhu Macula! Ultraviolet sunlight breaks apart methane in Pluto\'s thin blue sky, snowing dark red organic molecules across these ancient craters.',
+      nasaQuery: 'Pluto New Horizons color Cthulhu haze',
+      fallbackPhoto: 'photos/missions/pluto/haze.jpg'
+    }
+  ],
+  moon_themoon: [
+    {
+      id: 'moon_tranquillitatis', name: 'Mare Tranquillitatis (Apollo 11 Base)', coords: '0.67° N, 23.47° E', lat: 0.67, lon: 23.47,
+      metric: 'JULY 20, 1969 · FIRST HUMAN FOOTPRINTS',
+      desc: 'Ancient basaltic lava plain where Neil Armstrong and Buzz Aldrin landed Eagle and took humanity\'s first steps on another world.',
+      voice: 'Scanner locked onto Mare Tranquillitatis—Tranquility Base! Here on July twentieth, nineteen sixty-nine, humans first set foot on another world.',
+      nasaQuery: 'Apollo 11 Moon surface footprint lander',
+      fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+    },
+    {
+      id: 'moon_tycho', name: 'Tycho Ray Crater & Central Peak', coords: '43.3° S, 11.36° W', lat: -43.3, lon: -11.36,
+      metric: 'DIAMETER: 85 KM · AGE: 108 MILLION YEARS',
+      desc: 'A young, sharp-rimmed impact crater whose bright ejecta rays stretch 1,500 kilometers across the lunar near side.',
+      voice: 'Scanner locked onto Tycho Crater! Carved just one hundred and eight million years ago while dinosaurs walked the Earth, its bright ejecta rays stretch halfway across the Moon.',
+      nasaQuery: 'Tycho crater Moon LRO NASA',
+      fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+    },
+    {
+      id: 'moon_shackleton', name: 'Shackleton South Polar Ice Rim (Artemis)', coords: '89.5° S, 0.0° E', lat: -89.5, lon: 0.0,
+      metric: 'PEAKS OF ETERNAL LIGHT · COLD-TRAPPED WATER ICE',
+      desc: 'The primary target for NASA\'s Artemis human landings: sunlit crater rims overlooking permanently shadowed floors rich in water ice.',
+      voice: 'Scanner locked onto Shackleton Crater at the Lunar South Pole! Its sunlit rim overlooks shadowy depths holding millions of tons of water ice for future Artemis astronauts.',
+      nasaQuery: 'Moon south pole Shackleton crater Artemis LRO',
+      fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+    }
+  ],
+  moon_io: [
+    {
+      id: 'io_pele', name: 'Pele Volcanic Lava Lake & Plume', coords: '18.7° S, 255.3° W', lat: -18.7, lon: -255.3,
+      metric: 'PLUME HEIGHT: 300 KM · LAVA TEMP: 1,300°C',
+      desc: 'A churning silicate lava lake surrounded by a 1,200-kilometer crimson ring of sulfur fallout.',
+      voice: 'Scanner locked onto Pele Volcano on Io! Tidal flexing from Jupiter pumps so much heat into Io that Pele blasts umbrella plumes of sulfur three hundred kilometers into space.',
+      nasaQuery: 'Io volcano plume Galileo New Horizons Juno',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    },
+    {
+      id: 'io_loki', name: 'Loki Patera Magma Sea', coords: '13.0° N, 308.8° W', lat: 13.0, lon: -308.8,
+      metric: 'WIDTH: 202 KM · 15% OF IO\'S HEAT OUTPUT',
+      desc: 'The largest volcanic depression on Io, containing an active crusted lava sea larger than Lake Ontario.',
+      voice: 'Scanner locked onto Loki Patera! This two-hundred-kilometer magma sea radiates fifteen percent of all the volcanic heat on Io.',
+      nasaQuery: 'Io Loki Patera volcano Galileo Juno',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    },
+    {
+      id: 'io_tvashtar', name: 'Tvashtar Paterae Super-Plume', coords: '62.8° N, 123.5° W', lat: 62.8, lon: -123.5,
+      metric: 'PLUME HEIGHT: 330 KM · FILAMENTARY CURTAIN',
+      desc: 'Photographed in action by New Horizons: a 25-kilometer-long curtain of incandescent lava fountains shooting sulfur dioxide 330 km above Io.',
+      voice: 'Scanner locked onto Tvashtar Paterae! New Horizons caught this polar volcano erupting a glowing umbrella plume three hundred and thirty kilometers high.',
+      nasaQuery: 'Io Tvashtar plume New Horizons volcano',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    }
+  ],
+  moon_europa: [
+    {
+      id: 'europa_conamara', name: 'Conamara Chaos Iceberg Matrix', coords: '9.7° N, 272.7° W', lat: 9.7, lon: -272.7,
+      metric: 'WARM ICE PLUME · SUBSURFACE SALT OCEAN',
+      desc: 'Jumbled blocks of water ice that broke apart, rotated, and refroze over a warm upwelling plume from Europa\'s subsurface liquid ocean.',
+      voice: 'Scanner locked onto Conamara Chaos! Here warm water rising from Europa\'s global underground ocean melted and rotated giant icebergs before refreezing.',
+      nasaQuery: 'Europa Conamara Chaos ice Galileo',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    },
+    {
+      id: 'europa_lineae', name: 'Minos Linea Reddish Evaporite Ridges', coords: '45.0° N, 196.0° W', lat: 45.0, lon: -196.0,
+      metric: 'LENGTH: 1,500 KM · IRRADIATED OCEAN SALTS',
+      desc: 'Double ridges crisscrossing Europa\'s ice shell, stained reddish-brown by magnesium sulfate and sodium chloride salts vented from the ocean below.',
+      voice: 'Scanner locked onto Minos Linea! These reddish double ridges are stained with real sea salts squeezed up from Europa\'s hundred-kilometer-deep ocean.',
+      nasaQuery: 'Europa surface cracks ice ocean Galileo',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    },
+    {
+      id: 'europa_plumes', name: 'South Polar Water Vapor Plume Zone', coords: '65.0° S, 180.0° E', lat: -65.0, lon: 180.0,
+      metric: 'VAPOR JETS: 200 KM · EUROPA CLIPPER TARGET',
+      desc: 'Tentative water-vapor plumes detected by Hubble and Galileo magnetometer signatures where Europa Clipper will swoop to sample ocean chemistry.',
+      voice: 'Scanner locked onto Europa\'s South Polar Plume Zone! NASA\'s Europa Clipper will fly low over these fractures to taste water vented from the ocean beneath the ice.',
+      nasaQuery: 'Europa Clipper moon ocean NASA',
+      fallbackPhoto: 'photos/missions/jupiter/juno_storms.jpg'
+    }
+  ],
+  moon_titan: [
+    {
+      id: 'titan_kraken', name: 'Kraken Mare Liquid Methane Sea', coords: '68.0° N, 310.0° W', lat: 68.0, lon: -310.0,
+      metric: 'AREA: 500,000 KM² · DEPTH: >300 M METHANE/ETHANE',
+      desc: 'Larger than Earth\'s Caspian Sea, Kraken Mare is a vast polar sea of liquid methane and ethane fed by hydrocarbon rain and rivers.',
+      voice: 'Scanner locked onto Kraken Mare on Titan! Larger than Earth\'s Caspian Sea, this polar ocean is filled not with water, but with crystal-clear liquid methane and ethane.',
+      nasaQuery: 'Titan Kraken Mare lakes Cassini radar',
+      fallbackPhoto: 'photos/missions/cassini/saturn.jpg'
+    },
+    {
+      id: 'titan_huygens', name: 'Huygens Floodplain Landing Site', coords: '10.6° S, 192.3° W', lat: -10.6, lon: -192.3,
+      metric: 'JAN 14, 2005 · WATER-ICE RIVER COBBLES',
+      desc: 'Where ESA\'s Huygens probe parachuted through Titan\'s orange haze to make the farthest landing in human history, photographing rounded water-ice river stones.',
+      voice: 'Scanner locked onto the Huygens Landing Site! In two thousand and five, the Huygens probe landed here on a methane floodplain strewn with smooth pebbles of rock-hard water ice.',
+      nasaQuery: 'Titan Huygens surface landing Cassini',
+      fallbackPhoto: 'photos/missions/cassini/saturn.jpg'
+    },
+    {
+      id: 'titan_selk', name: 'Selk Crater & Shangri-La Dunes (Dragonfly)', coords: '7.0° N, 199.0° W', lat: 7.0, lon: -199.0,
+      metric: 'DRAGONFLY ROTORCRAFT TARGET · PREBIOTIC ORGANICS',
+      desc: 'Equatorial dark organic dunes beside an ancient impact crater where NASA\'s nuclear octocopter Dragonfly will fly from site to site.',
+      voice: 'Scanner locked onto Selk Crater! NASA\'s nuclear-powered Dragonfly rotorcraft will fly through Titan\'s dense nitrogen air to sample organic dunes and ancient impact melt.',
+      nasaQuery: 'Titan Dragonfly dunes Cassini NASA',
+      fallbackPhoto: 'photos/missions/cassini/saturn.jpg'
+    }
+  ],
+  moon_enceladus: [
+    {
+      id: 'enceladus_baghdad', name: 'Baghdad & Damascus Tiger Stripe Vents', coords: '81.0° S, 315.0° W', lat: -81.0, lon: -315.0,
+      metric: 'VENT TEMP: 90°C SEAFLOOR · 100+ GEYSER JETS',
+      desc: 'Four warm parallel fractures at Enceladus\'s south pole blasting supersonic jets of salty ocean water, organic molecules, and hydrothermal silica into space.',
+      voice: 'Scanner locked onto the Tiger Stripe Vents of Enceladus! Over one hundred supersonic geysers blast salty ocean water and hydrothermal minerals straight into space.',
+      nasaQuery: 'Enceladus plumes geysers Tiger Stripes Cassini',
+      fallbackPhoto: 'photos/missions/saturn/enceladus.jpg'
+    },
+    {
+      id: 'enceladus_ering', name: 'Cryovolcanic Plume Canopy & E-Ring Feed', coords: '74.0° S, 120.0° E', lat: -74.0, lon: 120.0,
+      metric: 'PLUME VELOCITY: 2,160 KM/H · H₂ BIOSIGNATURE',
+      desc: 'Where Cassini flew directly through Enceladus\'s water plumes and detected molecular hydrogen — a chemical energy source for hydrothermal life.',
+      voice: 'Scanner locked onto the Enceladus Plume Canopy! When Cassini flew right through these icy jets, it detected molecular hydrogen—food for potential deep-sea microbes!',
+      nasaQuery: 'Enceladus plume Cassini backlit',
+      fallbackPhoto: 'photos/missions/cassini/enceladus.jpg'
+    },
+    {
+      id: 'enceladus_samarkand', name: 'Samarkand Sulci Tectonic Grooves', coords: '30.0° N, 325.0° W', lat: 30.0, lon: -325.0,
+      metric: 'ALBEDO: 0.99 (FRESH SNOW) · RESURFACED ICE',
+      desc: 'Smooth, crater-free tectonic plains coated in freshly fallen plume snow, making Enceladus the most reflective body in the solar system.',
+      voice: 'Scanner locked onto Samarkand Sulci! Coated in fresh ice crystals falling back from its south-polar geysers, Enceladus reflects ninety-nine percent of all sunlight.',
+      nasaQuery: 'Enceladus surface ice Cassini',
+      fallbackPhoto: 'photos/missions/saturn/enceladus.jpg'
+    }
+  ]
+};
+
+let _activeHotspotBodyKey = null;
+let _activeHotspotParentMesh = null;
+let _activeHotspotSphereRadius = 1.0;
+let _activeHotspotContainerId = 'visor-scanner-container';
+let _activeHotspotEntries = [];
+let _activeHotspotPickMeshes = [];
+let _selectedHotspotId = null;
+
+function _getHotspotsForBody(bodyKey) {
+  if (SURFACE_HOTSPOTS[bodyKey]) return SURFACE_HOTSPOTS[bodyKey];
+  if (bodyKey && bodyKey.startsWith('moon_')) {
+    const mName = document.getElementById('moon-name')?.textContent || 'Lunar';
+    return [
+      {
+        id: `${bodyKey}_crater`, name: `${mName} Primary Impact Basin`, coords: '14.2° N, 48.5° E', lat: 14.2, lon: 48.5,
+        metric: 'PRIMORDIAL CRUST · EJECTA BLANKET',
+        desc: `A major multi-ring impact basin preserving ancient subsurface strata from the early formation of ${mName}.`,
+        voice: `Scanner locked onto the Primary Impact Basin of ${mName}! Ancient craters like this expose deep layers of ice and silicate rock from the birth of the solar system.`,
+        nasaQuery: `${mName} moon NASA spacecraft surface`,
+        fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+      },
+      {
+        id: `${bodyKey}_ridge`, name: `${mName} Equatorial Tectonic Chasma`, coords: '6.8° S, 162.0° E', lat: -6.8, lon: 162.0,
+        metric: 'TIDAL FLEXING FAULT · CRYOSPHERIC RIFT',
+        desc: `Extensional fault scarps carved across ${mName} by planetary tidal forces and interior thermal evolution.`,
+        voice: `Scanner locked onto the Equatorial Tectonic Chasma of ${mName}! Planetary gravity and interior cooling fractured this moon's surface into deep canyons.`,
+        nasaQuery: `${mName} moon surface crater`,
+        fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+      },
+      {
+        id: `${bodyKey}_pole`, name: `${mName} Polar Volatile Cold-Trap`, coords: '76.0° N, 285.0° E', lat: 76.0, lon: 285.0,
+        metric: 'CRYOGENIC VOLATILES · ORBITAL TELEMETRY',
+        desc: `High-latitude polar terrain on ${mName} where extreme cold traps volatile ices and space-weathered minerals.`,
+        voice: `Scanner locked onto the Polar Volatile Deposit of ${mName}! Extreme polar temperatures preserve ancient frozen volatiles across billions of years.`,
+        nasaQuery: `${mName} moon NASA`,
+        fallbackPhoto: 'photos/missions/earth/apollo.jpg'
+      }
+    ];
+  }
+  return [];
+}
+
+function clearSurfaceHotspots() {
+  _activeHotspotEntries.forEach(entry => {
+    if (entry.group && entry.group.parent) {
+      entry.group.parent.remove(entry.group);
+    }
+    if (entry.reticleEl && entry.reticleEl.parentNode) {
+      entry.reticleEl.parentNode.removeChild(entry.reticleEl);
+    }
+  });
+  _activeHotspotEntries = [];
+  _activeHotspotPickMeshes = [];
+  _activeHotspotBodyKey = null;
+  _activeHotspotParentMesh = null;
+  _selectedHotspotId = null;
+  _pickListSig = -1;
+  const layer = document.getElementById('hotspot-reticle-layer');
+  if (layer) layer.innerHTML = '';
+}
+
+function spawnSurfaceHotspotsForBody(bodyKey, targetMesh, sphereRadius = 1.0, containerId = 'visor-scanner-container') {
+  clearSurfaceHotspots();
+  if (!targetMesh) return;
+  const hotspots = _getHotspotsForBody(bodyKey);
+  if (!hotspots.length) return;
+
+  _activeHotspotBodyKey = bodyKey;
+  _activeHotspotParentMesh = targetMesh;
+  _activeHotspotSphereRadius = sphereRadius || 1.0;
+  _activeHotspotContainerId = containerId;
+
+  const reticleLayer = document.getElementById('hotspot-reticle-layer');
+  const markerScale = Math.max(0.032, sphereRadius * 0.115);
+
+  hotspots.forEach((h, idx) => {
+    const fullKey = `${bodyKey}:${h.id}`;
+    const isScanned = _scannedHotspots.has(fullKey);
+
+    const latR = (h.lat * Math.PI) / 180;
+    const lonR = (h.lon * Math.PI) / 180;
+    const nx = Math.cos(latR) * Math.cos(lonR);
+    const ny = Math.sin(latR);
+    const nz = Math.cos(latR) * Math.sin(lonR);
+    const normalVec = new THREE.Vector3(nx, ny, nz).normalize();
+
+    const g = new THREE.Group();
+    g.position.copy(normalVec).multiplyScalar(sphereRadius * 1.022);
+    // Orient local +Z along the outward surface normal so rings lie tangent to the planet's surface!
+    const lookTarget = normalVec.clone().multiplyScalar(sphereRadius * 2.5);
+    g.lookAt(lookTarget);
+
+    const ringCol = isScanned ? 0x00ff9d : 0x00e5ff;
+    const outerRing = new THREE.Mesh(
+      new THREE.RingGeometry(markerScale * 0.72, markerScale * 1.0, 28),
+      new THREE.MeshBasicMaterial({ color: ringCol, side: THREE.DoubleSide, transparent: true, opacity: 0.92, depthWrite: false, blending: THREE.AdditiveBlending })
+    );
+    const innerDot = new THREE.Mesh(
+      new THREE.CircleGeometry(markerScale * 0.28, 20),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending })
+    );
+    // Vertical normal beacon spike rising from the surface
+    const spikeGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, 0, markerScale * 1.65)
+    ]);
+    const spikeLine = new THREE.Line(
+      spikeGeo,
+      new THREE.LineBasicMaterial({ color: ringCol, transparent: true, opacity: 0.78 })
+    );
+
+    // Generous invisible 3D pick sphere so clicking directly on the 3D surface marker is effortless
+    const pickSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(markerScale * 1.85, 12, 12),
+      new THREE.MeshBasicMaterial({ color: ringCol, transparent: true, opacity: 0.0, depthWrite: false })
+    );
+    pickSphere.userData = {
+      isSurfaceHotspot: true,
+      bodyKey,
+      hotspotId: h.id,
+      hotspotName: h.name,
+      hotspotItem: h
+    };
+
+    g.add(outerRing, innerDot, spikeLine, pickSphere);
+    targetMesh.add(g);
+    _activeHotspotPickMeshes.push(pickSphere);
+
+    // Create 3D-projected Cockpit Visor Reticle in #hotspot-reticle-layer
+    let reticleEl = null;
+    if (reticleLayer) {
+      reticleEl = document.createElement('div');
+      reticleEl.className = 'hotspot-reticle' + (isScanned ? ' scanned' : '');
+      reticleEl.dataset.hotspotId = h.id;
+      reticleEl.innerHTML = `
+        <div class="hotspot-reticle-ring"><div class="hotspot-reticle-dot"></div></div>
+        <div class="hotspot-reticle-tag">
+          <span>${h.name}</span>
+          <span class="hotspot-reticle-xp">${isScanned ? '✓ LOCKED' : '+75 XP'}</span>
+        </div>`;
+      reticleEl.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        triggerHotspotScan(bodyKey, h.id);
+      });
+      reticleLayer.appendChild(reticleEl);
+    }
+
+    _activeHotspotEntries.push({
+      hotspot: h,
+      bodyKey,
+      group: g,
+      outerRing,
+      innerDot,
+      spikeLine,
+      pickSphere,
+      reticleEl,
+      localNormal: normalVec
+    });
+  });
+
+  _pickListSig = -1;
+  _renderVisorScannerUI(bodyKey, containerId);
+  _refreshMissionTrackerHUD();
+}
+
+function playArcadeScannerSFX(isNewDiscovery = true) {
+  if (!audioCtx || !audioEnabled) return;
+  try {
+    audioCtx.resume();
+    const ctx = audioCtx, now = ctx.currentTime;
+    const notes = isNewDiscovery ? [587.33, 880, 1174.66, 1567.98] : [659.25, 987.77, 1318.5];
+    notes.forEach((freq, i) => {
+      const t = now + i * 0.065;
+      const osc = ctx.createOscillator();
+      const gn  = ctx.createGain();
+      osc.type = i % 2 === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      gn.gain.setValueAtTime(0.001, t);
+      gn.gain.linearRampToValueAtTime(0.11 * masterUserVolume, t + 0.018);
+      gn.gain.exponentialRampToValueAtTime(0.0008, t + 0.24);
+      osc.connect(gn);
+      gn.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.26);
+    });
+  } catch (e) {}
+}
+
+function _renderVisorScannerUI(bodyKey, containerId = 'visor-scanner-container') {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const hotspots = _getHotspotsForBody(bodyKey);
+  if (!hotspots.length) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = '';
+  const scannedCount = hotspots.filter(h => _scannedHotspots.has(`${bodyKey}:${h.id}`)).length;
+  const activeHotspot = hotspots.find(h => h.id === _selectedHotspotId) || null;
+
+  container.innerHTML = `
+    <div class="vscan-header">
+      <span class="vscan-title">&#128225; 3D SURFACE ANOMALY SCANNER</span>
+      <span class="vscan-badge">${scannedCount} / ${hotspots.length} SCANNED</span>
+    </div>
+    <div class="vscan-hint">Rotate the 3D globe &amp; lock onto glowing surface targets (or click below) to scan + earn Flight License XP:</div>
+    <div class="vscan-list">
+      ${hotspots.map(h => {
+        const done = _scannedHotspots.has(`${bodyKey}:${h.id}`);
+        const isSel = h.id === _selectedHotspotId;
+        return `
+          <div class="vscan-item${done ? ' scanned' : ''}${isSel ? ' active' : ''}" data-hsid="${h.id}">
+            <div class="vscan-item-left">
+              <div class="vscan-item-name">&#9678; ${h.name}</div>
+              <div class="vscan-item-coords">${h.coords}</div>
+            </div>
+            <span class="vscan-status">${done ? '✓ SCANNED' : 'SCAN +75 XP'}</span>
+          </div>`;
+      }).join('')}
+    </div>
+    <div id="${containerId}-active-card" class="vscan-active-card${activeHotspot ? ' show' : ''}">
+      ${activeHotspot ? `
+        <div class="vscan-card-kicker">
+          <span>&#9672; TELEMETRY LOCK // ${activeHotspot.coords}</span>
+          <span>+75 XP</span>
+        </div>
+        <div class="vscan-card-title">${activeHotspot.name}</div>
+        <div class="vscan-card-metric">${activeHotspot.metric}</div>
+        <img id="${containerId}-photo" class="vscan-card-photo" src="${resolveMissionPhoto(activeHotspot.fallbackPhoto, activeHotspot.name)}" alt="${activeHotspot.name}">
+        <div class="vscan-card-desc">${activeHotspot.desc}</div>
+      ` : ''}
+    </div>`;
+
+  container.querySelectorAll('.vscan-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const hsid = el.dataset.hsid;
+      if (hsid) triggerHotspotScan(bodyKey, hsid);
+    });
+  });
+
+  if (activeHotspot) {
+    const imgEl = document.getElementById(`${containerId}-photo`);
+    if (imgEl) {
+      imgEl.addEventListener('click', () => {
+        window.openTourLightbox(imgEl.src, `${activeHotspot.name} (${activeHotspot.coords})`);
+      });
+      // Attempt live NASA image enrichment while keeping instant offline SVG schematic ready
+      if (activeHotspot.nasaQuery) {
+        fetch(`https://images-api.nasa.gov/search?q=${encodeURIComponent(activeHotspot.nasaQuery)}&media_type=image`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => {
+            const items = (data && data.collection && data.collection.items) || [];
+            for (const item of items.slice(0, 8)) {
+              const d = (item.data && item.data[0]) || {};
+              const l = (item.links && item.links[0]) || {};
+              if (l.href && !/portrait|astronaut|meeting|ceremony|logo/i.test(d.title || '')) {
+                imgEl.src = l.href;
+                break;
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }
+}
+
+const _hsWorldPos    = new THREE.Vector3();
+const _hsCenterPos   = new THREE.Vector3();
+const _hsWorldNormal = new THREE.Vector3();
+const _hsCamDir      = new THREE.Vector3();
+const _hsProjTmp     = new THREE.Vector3();
+
+function triggerHotspotScan(bodyKey, hotspotId) {
+  const entry = _activeHotspotEntries.find(e => e.bodyKey === bodyKey && e.hotspot.id === hotspotId);
+  const hotspots = _getHotspotsForBody(bodyKey);
+  const h = entry ? entry.hotspot : hotspots.find(x => x.id === hotspotId);
+  if (!h) return;
+
+  _selectedHotspotId = h.id;
+  const fullKey = `${bodyKey}:${h.id}`;
+  const isNew = !_scannedHotspots.has(fullKey);
+  if (isNew) {
+    _scannedHotspots.add(fullKey);
+    try { localStorage.setItem('ue_scanned_hotspots', JSON.stringify([..._scannedHotspots])); } catch (e) {}
+  }
+
+  playArcadeScannerSFX(isNew);
+
+  // Update 3D marker & reticle visual state to scanned green
+  if (entry) {
+    entry.outerRing.material.color.setHex(0x00ff9d);
+    entry.spikeLine.material.color.setHex(0x00ff9d);
+    if (entry.reticleEl) {
+      entry.reticleEl.classList.add('scanned');
+      const xpSpan = entry.reticleEl.querySelector('.hotspot-reticle-xp');
+      if (xpSpan) xpSpan.textContent = '✓ LOCKED';
+    }
+
+    // Orbit/fly the 3D camera to lock directly onto this surface coordinate on the 3D sphere!
+    if (_activeHotspotParentMesh) {
+      _activeHotspotParentMesh.updateMatrixWorld(true);
+      _activeHotspotParentMesh.getWorldPosition(_hsCenterPos);
+      entry.group.getWorldPosition(_hsWorldPos);
+      _hsWorldNormal.copy(_hsWorldPos).sub(_hsCenterPos).normalize();
+      if (_hsWorldNormal.lengthSq() < 0.0001) _hsWorldNormal.set(0, 0.3, 1).normalize();
+
+      const camDist = Math.max(_activeHotspotSphereRadius * 2.35, 1.45);
+      const upVec = new THREE.Vector3(0, 1, 0);
+      const rightVec = new THREE.Vector3().crossVectors(_hsWorldNormal, upVec).normalize();
+      // Slight right-shift of look target so the 3D planet & locked anomaly sit centered in the open 78% viewport
+      const targetLook = _hsCenterPos.clone()
+        .lerp(_hsWorldPos, 0.35)
+        .addScaledVector(rightVec, _activeHotspotSphereRadius * 0.22);
+      const targetCam = _hsCenterPos.clone()
+        .addScaledVector(_hsWorldNormal, camDist)
+        .addScaledVector(upVec, _activeHotspotSphereRadius * 0.18);
+
+      animateCameraTo(
+        { x: targetCam.x, y: targetCam.y, z: targetCam.z },
+        { x: targetLook.x, y: targetLook.y, z: targetLook.z }
+      );
+    }
+  }
+
+  if (isNew) {
+    awardPoints(75);
+    const allDone = hotspots.every(item => _scannedHotspots.has(`${bodyKey}:${item.id}`));
+    if (allDone) {
+      awardPoints(150);
+      showToast(`SURVEY COMPLETE: +225 XP!`, `All ${hotspots.length} 3D surface anomalies on ${bodyKey.replace('moon_','').toUpperCase()} locked & archived!`, '🛰️');
+    } else {
+      showToast(`ANOMALY SCANNED: +75 XP`, `${h.name} (${h.coords})`, '📡');
+    }
+  }
+
+  _renderVisorScannerUI(bodyKey, _activeHotspotContainerId);
+  _refreshMissionTrackerHUD();
+
+  // Trigger voiceover briefing & live transcript
+  if (h.voice) {
+    _updateTranscriptBoxes(bodyKey, h.voice);
+    speakNarration(h.voice, { rate: 0.95, pitch: 0.98 });
+  }
+}
+
+function _updateSurfaceHotspots(t) {
+  if (!_activeHotspotEntries.length || !_activeHotspotParentMesh || _introActive || _cinActive || _titleScreenOpen) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  _activeHotspotParentMesh.getWorldPosition(_hsCenterPos);
+  _hsCamDir.copy(camera.position).sub(_hsCenterPos).normalize();
+
+  const pulseScale = 1.0 + 0.16 * Math.sin(t * 4.2);
+
+  for (let i = 0; i < _activeHotspotEntries.length; i++) {
+    const entry = _activeHotspotEntries[i];
+    entry.outerRing.scale.setScalar(pulseScale);
+    entry.group.getWorldPosition(_hsWorldPos);
+    _hsWorldNormal.copy(_hsWorldPos).sub(_hsCenterPos).normalize();
+
+    // Dot product between outward surface normal and camera direction:
+    // > 0.08 means the surface hotspot is on the front hemisphere facing the player!
+    const facingDot = _hsWorldNormal.dot(_hsCamDir);
+    const reticle = entry.reticleEl;
+    if (!reticle) continue;
+
+    if (facingDot > 0.06) {
+      _hsProjTmp.copy(_hsWorldPos).project(camera);
+      const sx = (_hsProjTmp.x * 0.5 + 0.5) * W;
+      const sy = (-_hsProjTmp.y * 0.5 + 0.5) * H;
+      if (_hsProjTmp.z < 1.0 && sx > 24 && sx < W - 24 && sy > 48 && sy < H - 36) {
+        reticle.style.left = sx.toFixed(1) + 'px';
+        reticle.style.top  = sy.toFixed(1) + 'px';
+        const edgeFade = Math.min(1, (facingDot - 0.06) / 0.26);
+        reticle.style.opacity = edgeFade.toFixed(2);
+        reticle.style.pointerEvents = edgeFade > 0.35 ? 'auto' : 'none';
+      } else {
+        reticle.style.opacity = '0';
+        reticle.style.pointerEvents = 'none';
+      }
+    } else {
+      reticle.style.opacity = '0';
+      reticle.style.pointerEvents = 'none';
+    }
+  }
+}
+
+function _refreshMissionTrackerHUD() {
+  const rankEl = document.getElementById('mhud-rank-badge');
+  const xpEl   = document.getElementById('mhud-xp-readout');
+  const scanEl = document.getElementById('mhud-scan-status');
+  const lvlObj = (typeof EXPLORER_LEVELS !== 'undefined' && EXPLORER_LEVELS[explorerLevel]) || { name: 'CADET', icon: '★' };
+  if (rankEl) rankEl.textContent = `${lvlObj.icon || '★'} ${lvlObj.name}`;
+  if (xpEl)   xpEl.textContent   = `${explorerScore.toLocaleString()} XP`;
+
+  if (scanEl) {
+    const key = _activeHotspotBodyKey || currentPlanet || 'earth';
+    const list = _getHotspotsForBody(key);
+    const done = list.filter(h => _scannedHotspots.has(`${key}:${h.id}`)).length;
+    const labelName = key.startsWith('moon_')
+      ? (document.getElementById('moon-name')?.textContent || 'MOON').toUpperCase()
+      : key.toUpperCase();
+    scanEl.textContent = `📡 ${labelName} HOTSPOTS: ${done} / ${list.length} SCANNED`;
+  }
 }
 
 // ─── PANEL MANAGER — ensures only one major panel is open at a time ──────────
@@ -2746,16 +4545,58 @@ function closeAllPanels(opts={}) {
 
 window.showMoon = function(planetId, moonName) {
   const pdata = PLANETS.find(p=>p.id===planetId);
+  if(!pdata) return;
   const moon = pdata.moons.find(m=>m.name===moonName);
   if(!moon) return;
+
+  const moonVoiceKey = 'moon_' + moon.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Fly 3D camera directly to the clicked moon if it is rendered in 3D space (or to its host planet)
+  const pEntry = planetMeshes.find(p => p.pdata.id === planetId);
+  let targetMoonMesh = null;
+  let targetMoonRadius = 0.14;
+  if (pEntry) {
+    currentPlanet = planetId;
+    syncPnavIdx(planetId);
+    const mRef = (pEntry.moonRefs || []).find(mr => mr.moon && mr.moon.name === moonName);
+    if (mRef && mRef.mMesh) {
+      _currentMoonTargetRef = mRef;
+      targetMoonMesh = mRef.mMesh;
+      const mWpos = new THREE.Vector3();
+      const pWpos = new THREE.Vector3();
+      pEntry.group.updateMatrixWorld(true);
+      mRef.mMesh.getWorldPosition(mWpos);
+      pEntry.group.getWorldPosition(pWpos);
+      const outDir = mWpos.clone().sub(pWpos).normalize();
+      if (outDir.lengthSq() < 0.001) outDir.set(1, 0.25, 1).normalize();
+      targetMoonRadius = (mRef.mMesh.geometry && mRef.mMesh.geometry.parameters && mRef.mMesh.geometry.parameters.radius) || 0.14;
+      const dist = Math.max(targetMoonRadius * 5.2, 0.62);
+      animateCameraTo(
+        { x: mWpos.x + outDir.x * dist + 0.22, y: mWpos.y + targetMoonRadius * 2.1 + 0.12, z: mWpos.z + outDir.z * dist + 0.22 },
+        { x: mWpos.x, y: mWpos.y, z: mWpos.z }
+      );
+    } else {
+      _currentMoonTargetRef = null;
+      targetMoonMesh = pEntry.mesh;
+      targetMoonRadius = pdata.size || 1.0;
+      const pWpos = new THREE.Vector3();
+      pEntry.group.getWorldPosition(pWpos);
+      const offset = pdata.size * 2.8 + 1.8;
+      animateCameraTo(
+        { x: pWpos.x + offset, y: pWpos.y + pdata.size * 1.1, z: pWpos.z + offset },
+        { x: pWpos.x, y: pWpos.y, z: pWpos.z }
+      );
+    }
+  }
+  if (typeof playPlanetOpen === 'function') playPlanetOpen();
+
   document.getElementById('moon-name').textContent = moon.name;
-  document.getElementById('moon-tagline').textContent = moon.tagline;
+  document.getElementById('moon-tagline').textContent = `${pdata.name} · ${moon.tagline}`;
   document.getElementById('moon-desc').textContent = moon.desc;
   document.getElementById('moon-stats').innerHTML = Object.entries(moon.stats).map(([k,v])=>`
     <div class="stat-box"><div class="stat-label">${k.charAt(0).toUpperCase()+k.slice(1)}</div><div class="stat-value">${v}</div></div>
   `).join('');
 
-  const moonVoiceKey = 'moon_' + moon.name.toLowerCase().replace(/[^a-z0-9]/g, '');
   const moonSpeakBtn = document.getElementById('moon-speak');
   const moonMoreBtn  = document.getElementById('moon-speak-more');
   const moonTrans    = document.getElementById('moon-voice-transcript');
@@ -2768,12 +4609,15 @@ window.showMoon = function(planetId, moonName) {
     moonMoreBtn.dataset.body = moonVoiceKey;
     moonMoreBtn.onclick = () => speakAsPlanet(moonVoiceKey, true);
   }
-  fetchNasaGallery(`${moon.name} moon ${pdata.name} NASA`, document.getElementById('moon-nasa-gallery'), [
+  fetchNasaGallery(`${moon.name} moon ${pdata.name} surface`, document.getElementById('moon-nasa-gallery'), [
     {src: 'photos/missions/earth/apollo.jpg', title: `${moon.name} — Orbital Reconnaissance`}
   ]);
 
   closeAllPanels({keepTour:true});
   document.getElementById('moon-detail').classList.add('open');
+  if (targetMoonMesh) {
+    spawnSurfaceHotspotsForBody(moonVoiceKey, targetMoonMesh, targetMoonRadius, 'moon-scanner-container');
+  }
 };
 
 window.zoomCloser = function(id) {
@@ -2783,7 +4627,7 @@ window.zoomCloser = function(id) {
   entry.group.getWorldPosition(wpos);
   const pdata = entry.pdata;
   animateCameraTo(
-    {x: wpos.x+pdata.size*2.5, y: wpos.y+pdata.size, z: wpos.z+pdata.size*2.5},
+    {x: wpos.x+pdata.size*1.9, y: wpos.y+pdata.size*0.65, z: wpos.z+pdata.size*1.9},
     {x: wpos.x, y: wpos.y, z: wpos.z}
   );
 };
@@ -2794,14 +4638,25 @@ const mouse = new THREE.Vector2();
 const tooltip = document.getElementById('tooltip');
 let hoveredPlanet = null;
 
-// Cached raycast target list (includes planets, Sun, missions, and Human Frontier nodes)
+// Cached raycast target list (includes 3D surface hotspots, planets, all rendered moons + Galilean moons, Sun, missions, and Human Frontier nodes)
 let _pickList = [];
 let _pickListSig = -1;
 function getPickList() {
   const fCount = frontierVisible ? frontierMeshes.length : 0;
-  const sig = planetMeshes.length * 10000 + missionMeshes.length * 100 + fCount;
+  const hsCount = _activeHotspotPickMeshes.length;
+  const sig = planetMeshes.length * 100000 + missionMeshes.length * 1000 + fCount * 10 + hsCount;
   if(sig !== _pickListSig) {
-    _pickList = planetMeshes.map(p=>p.mesh);
+    _pickList = [];
+    _activeHotspotPickMeshes.forEach(hm => _pickList.push(hm));
+    planetMeshes.forEach(p => {
+      _pickList.push(p.mesh);
+      if (p.moonRefs) {
+        p.moonRefs.forEach(mr => {
+          if (mr.mMesh) _pickList.push(mr.mMesh);
+          if (mr.mPick) _pickList.push(mr.mPick);
+        });
+      }
+    });
     _pickList.push(sunObj.mesh);
     missionMeshes.forEach(mo => { if(mo.group.children[0]) _pickList.push(mo.group.children[0]); });
     if (frontierVisible) {
@@ -2812,23 +4667,49 @@ function getPickList() {
   return _pickList;
 }
 
+function _resolveHitTarget(hits) {
+  for (let i = 0; i < hits.length; i++) {
+    const obj = hits[i].object;
+    if (obj.userData && obj.userData.isSurfaceHotspot) return obj;
+  }
+  for (let i = 0; i < hits.length; i++) {
+    const obj = hits[i].object;
+    // Skip hidden LOD probes
+    if (obj.parent && obj.parent.visible === false) continue;
+    // Prefer direct moon hits when clicking near a planet so Galilean moons are easy to click
+    if (obj.userData && obj.userData.moonKey) return obj;
+  }
+  for (let i = 0; i < hits.length; i++) {
+    const obj = hits[i].object;
+    if (obj.parent && obj.parent.visible === false) continue;
+    return obj;
+  }
+  return null;
+}
+
 renderer.domElement.addEventListener('mousemove', e => {
   mouse.x=(e.clientX/window.innerWidth)*2-1;
   mouse.y=-(e.clientY/window.innerHeight)*2+1;
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(getPickList());
-  if(hits.length>0) {
-    const hit=hits[0].object;
-    const pm=planetMeshes.find(p=>p.mesh===hit);
-    const mo=pm ? null : missionMeshes.find(x=>x.group.children[0]===hit);
-    const fm=(pm || mo) ? null : frontierMeshes.find(x=>x.pickMesh===hit);
-    const name=pm?pm.pdata.name:mo?mo.mission.name:fm?('🛰️ '+fm.node.name):'The Sun';
+  const hits = raycaster.intersectObjects(getPickList(), false);
+  const hit = _resolveHitTarget(hits);
+  if(hit) {
+    const isHotspot = hit.userData && hit.userData.isSurfaceHotspot;
+    const isMoon = !isHotspot && hit.userData && hit.userData.moonKey;
+    const pm = (isHotspot || isMoon) ? null : planetMeshes.find(p=>p.mesh===hit);
+    const mo = (isHotspot || isMoon || pm) ? null : missionMeshes.find(x=>x.group.children[0]===hit);
+    const fm = (isHotspot || isMoon || pm || mo) ? null : frontierMeshes.find(x=>x.pickMesh===hit);
+    const name = isHotspot
+      ? `📡 SCAN ANOMALY: ${hit.userData.hotspotName} (+75 XP)`
+      : isMoon
+      ? `🌕 ${hit.userData.moonName} (${hit.userData.planetId.charAt(0).toUpperCase() + hit.userData.planetId.slice(1)} Moon)`
+      : pm ? pm.pdata.name : mo ? mo.mission.name : fm ? ('🛰️ ' + fm.node.name) : 'The Sun';
     tooltip.style.opacity='1';
     tooltip.style.left=(e.clientX+16)+'px';
     tooltip.style.top=(e.clientY-8)+'px';
     tooltip.textContent=name;
     renderer.domElement.style.cursor='pointer';
-    hoveredPlanet=pm?pm.pdata.id:null;
+    hoveredPlanet=pm?pm.pdata.id:(isMoon?hit.userData.planetId:null);
   } else {
     tooltip.style.opacity='0';
     renderer.domElement.style.cursor='';
@@ -2929,11 +4810,19 @@ renderer.domElement.addEventListener('click', e => {
   mouse.x=(e.clientX/window.innerWidth)*2-1;
   mouse.y=-(e.clientY/window.innerHeight)*2+1;
   raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObjects(getPickList());
-  if(hits.length>0) {
+  const hits = raycaster.intersectObjects(getPickList(), false);
+  const hit = _resolveHitTarget(hits);
+  if(hit) {
     triggerClickBurst(e);
+    if (hit.userData && hit.userData.isSurfaceHotspot) {
+      triggerHotspotScan(hit.userData.bodyKey, hit.userData.hotspotId);
+      return;
+    }
+    if (hit.userData && hit.userData.moonKey) {
+      window.showMoon(hit.userData.planetId, hit.userData.moonName);
+      return;
+    }
     if(tourActive) {
-      const hit = hits[0].object;
       const pm = planetMeshes.find(p=>p.mesh===hit);
       const isSun = hit === sunObj.mesh;
       if(pm || isSun) {
@@ -2945,7 +4834,6 @@ renderer.domElement.addEventListener('click', e => {
       }
       return;
     }
-    const hit = hits[0].object;
     if(hit === sunObj.mesh) { openSun(); return; }
     const pm = planetMeshes.find(p=>p.mesh===hit);
     if(pm) { openPlanet(pm.pdata.id, true); return; }
@@ -3008,11 +4896,22 @@ document.getElementById('panel-close').addEventListener('click', () => {
 
 document.getElementById('moon-close').addEventListener('click', () => {
   document.getElementById('moon-detail').classList.remove('open');
+  _currentMoonTargetRef = null;
+  if (currentPlanet === 'sun') {
+    spawnSurfaceHotspotsForBody('sun', sunObj.mesh, 2.5, 'visor-scanner-container');
+  } else if (currentPlanet) {
+    const pm = planetMeshes.find(p => p.pdata.id === currentPlanet);
+    const pdata = PLANETS.find(p => p.id === currentPlanet);
+    if (pm && pdata) spawnSurfaceHotspotsForBody(currentPlanet, pm.mesh, pdata.size, 'visor-scanner-container');
+  } else {
+    clearSurfaceHotspots();
+  }
   if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
 });
 document.getElementById('moon-detail').addEventListener('click', e => {
   if(e.target===document.getElementById('moon-detail')) {
     document.getElementById('moon-detail').classList.remove('open');
+    _currentMoonTargetRef = null;
     if (_speakingPlanet) { stopNarration(); _speakingPlanet = null; _syncSpeakBtn(); }
   }
 });
@@ -3048,20 +4947,30 @@ function animate() {
 
     // Orbit planets
     planetMeshes.forEach(pm => {
-      pm.angle = pm.angle + delta * pm.pdata.orbitSpeed * 0.08 * speedMult;
-      pm.group.position.x = Math.cos(pm.angle) * pm.pdata.orbitRadius;
-      pm.group.position.z = Math.sin(pm.angle) * pm.pdata.orbitRadius;
+      // Freeze Earth's orbital translation while the Main Title Screen is open so the close-up
+      // hero framing stays rock-steady while Earth's surface & clouds rotate live
+      if (!(_titleScreenOpen && pm.pdata.id === 'earth')) {
+        pm.angle = pm.angle + delta * pm.pdata.orbitSpeed * 0.08 * speedMult;
+        pm.group.position.x = Math.cos(pm.angle) * pm.pdata.orbitRadius;
+        pm.group.position.z = Math.sin(pm.angle) * pm.pdata.orbitRadius;
+      }
 
-      // Self rotation
-      pm.mesh.rotation.y += delta * pm.pdata.rotSpeed * speedMult * 0.3;
+      // Self rotation (keep Earth rotating smoothly in real time on the Title Screen)
+      const rotRate = (_titleScreenOpen && pm.pdata.id === 'earth') ? 0.14 : (pm.pdata.rotSpeed * speedMult * 0.3);
+      pm.mesh.rotation.y += delta * rotRate;
 
       // Moon pivots + cloud layer
       pm.group.children.forEach(child => {
         if(child.userData.moonSpeed) {
-          child.rotation.y += delta * child.userData.moonSpeed * speedMult * 0.2;
+          const mRate = (_titleScreenOpen && pm.pdata.id === 'earth') ? 0.025 : (child.userData.moonSpeed * speedMult * 0.2);
+          child.rotation.y += delta * mRate;
         }
         if(child.userData.isCloudLayer) {
-          child.rotation.y += delta * 0.06 * speedMult;
+          const cRate = (_titleScreenOpen && pm.pdata.id === 'earth') ? 0.21 : (0.06 * speedMult);
+          child.rotation.y += delta * cRate;
+          if (pm.pdata.id === 'earth' && _earthShaderUniforms) {
+            _earthShaderUniforms.uCloudDrift.value = (child.rotation.y - pm.mesh.rotation.y) / (Math.PI * 2);
+          }
         }
         if(child.userData.missionOrbitSpeed !== undefined) {
           child.rotation.y += delta * child.userData.missionOrbitSpeed * 0.001 * speedMult * 60;
@@ -3069,10 +4978,21 @@ function animate() {
       });
     });
 
-    // Mission mesh pulse (glow intensity)
-    const mPulse = 0.18 + Math.sin(elapsed * 2.2) * 0.08;
+    // Mission mesh pulse & distance-based LOD visibility (only show when zoomed near host planet or when mission panel is open)
+    const mPulse = 0.12 + Math.sin(elapsed * 2.2) * 0.06;
+    const mPanelOpen = document.getElementById('mission-panel') && document.getElementById('mission-panel').classList.contains('open');
+    const mDropOpen = document.getElementById('missions-dropdown') && document.getElementById('missions-dropdown').classList.contains('open');
     missionMeshes.forEach(mo => {
-      if(mo.group.children[1]) mo.group.children[1].material.opacity = mPulse;
+      mo.group.getWorldPosition(_wposTmp);
+      const camDist = camera.position.distanceTo(_wposTmp);
+      const pe = mo.hostPlanet ? planetMeshes.find(p => p.pdata.id === mo.hostPlanet) : null;
+      const lodThreshold = pe ? (pe.pdata.size * 10 + 7) : 28;
+      const shouldShow = !_introActive && (mPanelOpen || mDropOpen || camDist <= lodThreshold || (mo.hostPlanet && currentPlanet === mo.hostPlanet));
+      mo.group.visible = shouldShow;
+      if (shouldShow && mo.group.children[1]) {
+        const fade = (mPanelOpen || mDropOpen) ? 1.0 : Math.max(0.15, Math.min(1.0, 1.0 - (camDist - 4) / lodThreshold));
+        mo.group.children[1].material.opacity = mPulse * fade;
+      }
     });
 
     // Gravity well deformation
@@ -3092,8 +5012,20 @@ function animate() {
     sunObj.mesh.scale.setScalar(pulse);
     updateSolarProminences(elapsed);
   } else {
-    // Keep solar coronal loops gently alive even when orbits are paused
+    // Keep solar coronal loops gently alive even when orbits are paused (e.g. during intro flyby)
     updateSolarProminences(performance.now() * 0.0005);
+    const ee = planetMeshes.find(p => p.pdata.id === 'earth');
+    if (ee) {
+      ee.mesh.rotation.y += delta * 0.14;
+      ee.group.children.forEach(child => {
+        if (child.userData.isCloudLayer) {
+          child.rotation.y += delta * 0.22;
+          if (_earthShaderUniforms) {
+            _earthShaderUniforms.uCloudDrift.value = (child.rotation.y - ee.mesh.rotation.y) / (Math.PI * 2);
+          }
+        }
+      });
+    }
   }
 
   // Update 3D Human Frontier nodes (ISS, Starship, Orbital AI Center, JWST, Voyager)
@@ -3119,19 +5051,20 @@ function animate() {
     }
   }
 
-  // Gentle live 3D orbital camera drift while the Main Title Screen is open
+  // Keep the high-res multi-layer Earth framed on the right side of the viewport
+  // while the Main Game Title Menu is open on the left third
   if (_titleScreenOpen && !camTarget && !_introActive && !_cinActive && !rocketFlight && !tourActive) {
-    _titleCamAngle += delta * 0.045;
-    camera.position.set(
-      Math.sin(_titleCamAngle) * 56,
-      24 + Math.sin(_titleCamAngle * 0.7) * 3.5,
-      Math.cos(_titleCamAngle) * 56
-    );
-    controls.target.set(0, 0, 0);
+    _titleCamAngle += delta * 0.12;
+    const hero = _getEarthHeroFraming(_titleCamAngle);
+    camera.position.lerp(hero.camPos, 0.08);
+    controls.target.lerp(hero.lookPos, 0.08);
   }
 
-  // Update info panel planet position if open
-  if(currentPlanet && !camTarget && !_titleScreenOpen) {
+  // Update info panel planet / moon position if open
+  if (_currentMoonTargetRef && _currentMoonTargetRef.mMesh && !camTarget && !_titleScreenOpen) {
+    _currentMoonTargetRef.mMesh.getWorldPosition(_wposTmp);
+    controls.target.lerp(_wposTmp, 0.08);
+  } else if(currentPlanet && !camTarget && !_titleScreenOpen) {
     const entry = planetMeshes.find(p=>p.pdata.id===currentPlanet);
     if(entry) {
       entry.group.getWorldPosition(_wposTmp);
@@ -3143,6 +5076,7 @@ function animate() {
   controls.update();
   renderer.render(scene, camera);
   _updatePlanetLabels();
+  _updateSurfaceHotspots(elapsed);
 }
 
 // ─── RESIZE ──────────────────────────────────────────────────────────────────
@@ -4357,6 +6291,7 @@ function awardPoints(pts) {
   }
   updatePlanetCounter();
   checkLevelUp();
+  if (typeof _refreshMissionTrackerHUD === 'function') _refreshMissionTrackerHUD();
 }
 
 function updatePlanetCounter() {
@@ -4383,6 +6318,7 @@ let explorerLevel = 0;
 function updateRankBadge(levelIndex) {
   const badge = document.getElementById('rank-name');
   if(badge) badge.textContent = EXPLORER_LEVELS[levelIndex].name;
+  if (typeof _refreshMissionTrackerHUD === 'function') _refreshMissionTrackerHUD();
 }
 
 function playLevelFanfare() {
@@ -5296,6 +7232,97 @@ const MISSION_ART_SPECS = {
       <circle cx="400" cy="170" r="68" fill="#1e78d8" stroke="#88ddff" stroke-width="3"/>
       <path d="M360 150 Q405 130 435 165 T390 210" fill="#44aa55" opacity="0.85"/>`
   },
+  'photos/missions/earth/oceans_reef.jpg': {
+    tag:'EARTHBIOSPHERE // CORAL REEFS & OCEANS', title:'GREAT BARRIER REEF & PACIFIC ATOLLS FROM ORBIT', accent:'#00e5ff',
+    art:`<rect x="40" y="65" width="720" height="305" rx="16" fill="#062c58"/>
+      <ellipse cx="290" cy="215" rx="165" ry="85" fill="#0b6e99" opacity="0.85"/>
+      <ellipse cx="310" cy="210" rx="110" ry="52" fill="#1ee3cf" opacity="0.78"/>
+      <circle cx="545" cy="195" r="64" fill="#0d88b5" stroke="#5cf2e2" stroke-width="6" opacity="0.85"/>
+      <path d="M95 140 Q280 95 490 155 T710 135" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.55" stroke-linecap="round"/>`
+  },
+  'photos/missions/earth/rainforest_life.jpg': {
+    tag:'LIVING BIOSPHERE // AMAZON & WILDLIFE CANOPY', title:'AMAZON RIVER BASIN & TROPICAL RAINFOREST BIOME', accent:'#00e896',
+    art:`<rect x="40" y="65" width="720" height="305" rx="16" fill="#0d3b26"/>
+      <path d="M55 265 Q210 180 390 235 T745 165" fill="none" stroke="#28a8d8" stroke-width="22" stroke-linecap="round"/>
+      <path d="M190 220 Q260 140 345 125" fill="none" stroke="#3cc2e8" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="220" cy="155" r="55" fill="#1f6e3f" opacity="0.75"/>
+      <circle cx="515" cy="255" r="68" fill="#185c34" opacity="0.8"/>
+      <path d="M110 115 Q380 85 680 125" fill="none" stroke="#d8f8ff" stroke-width="6" opacity="0.45" stroke-linecap="round"/>`
+  },
+  'photos/missions/earth/aurora_lightning.jpg': {
+    tag:'ORBITAL PHENOMENA // AURORA & SUPERCELL STORMS', title:'AURORA AUSTRALIS & OCEANIC LIGHTNING FROM ISS', accent:'#70ffba',
+    art:`<path d="M40 285 Q400 215 760 285 L760 375 L40 375 Z" fill="#08244e" stroke="#38a8ff" stroke-width="3"/>
+      <path d="M85 235 Q260 105 445 185 T725 115" fill="none" stroke="#00ff9d" stroke-width="18" opacity="0.68" stroke-linecap="round"/>
+      <path d="M125 195 Q300 75 485 155 T705 90" fill="none" stroke="#9d5cff" stroke-width="10" opacity="0.52" stroke-linecap="round"/>
+      <circle cx="330" cy="315" r="18" fill="#d8ecff" opacity="0.85"/>
+      <circle cx="525" cy="302" r="14" fill="#d8ecff" opacity="0.75"/>`
+  },
+  'photos/missions/jupiter/juno_storms.jpg': {
+    tag:'JUNO // PERIJOVE POLAR PASS', title:'JUPITER CIRCUMPOLAR CYCLONES & CLOUD BELTS', accent:'#66bbff',
+    art:`<rect x="60" y="70" width="680" height="295" rx="18" fill="#1c355e"/>
+      <circle cx="400" cy="215" r="46" fill="#d86838" stroke="#ffaa66" stroke-width="4"/>
+      <circle cx="310" cy="160" r="28" fill="#c85828" stroke="#ff9955" stroke-width="3"/>
+      <circle cx="490" cy="160" r="28" fill="#c85828" stroke="#ff9955" stroke-width="3"/>
+      <circle cx="310" cy="270" r="28" fill="#c85828" stroke="#ff9955" stroke-width="3"/>
+      <circle cx="490" cy="270" r="28" fill="#c85828" stroke="#ff9955" stroke-width="3"/>`
+  },
+  'photos/missions/jupiter/great_red_spot.jpg': {
+    tag:'VOYAGER / JUNO // GREAT RED SPOT', title:'16,350 KM ANTICYCLONIC SUPER-STORM', accent:'#ff8844',
+    art:`<rect x="60" y="70" width="680" height="295" rx="18" fill="#b87b48"/>
+      <rect x="60" y="135" width="680" height="55" fill="#e2cbb0"/>
+      <rect x="60" y="230" width="680" height="60" fill="#8f542c"/>
+      <ellipse cx="420" cy="215" rx="115" ry="64" fill="#c83e1b" stroke="#ffaa77" stroke-width="5"/>`
+  },
+  'photos/missions/saturn/cassini_rings.jpg': {
+    tag:'CASSINI // GRAND FINALE ORBIT', title:'BACKLIT ICE RINGS & PLANETARY SHADOW', accent:'#ffe082',
+    art:`<ellipse cx="400" cy="220" rx="310" ry="78" fill="none" stroke="#e5c98b" stroke-width="24" opacity="0.82"/>
+      <ellipse cx="400" cy="220" rx="245" ry="58" fill="none" stroke="#fff2d0" stroke-width="10" opacity="0.65"/>
+      <circle cx="400" cy="220" r="82" fill="#d8b878" stroke="#fff0c0" stroke-width="3"/>`
+  },
+  'photos/missions/saturn/enceladus.jpg': {
+    tag:'CASSINI // ENCELADUS SOUTH POLE', title:'CRYO-VOLCANIC WATER ICE PLUMES', accent:'#88eeff',
+    art:`<path d="M60 325 Q400 265 740 325 L740 385 L60 385 Z" fill="#d8eeff" stroke="#88ccff" stroke-width="3"/>
+      <path d="M290 295 L255 110 M400 282 L400 85 M510 295 L545 115" stroke="#a8f0ff" stroke-width="14" opacity="0.65" stroke-linecap="round"/>`
+  },
+  'photos/missions/mars/perseverance.jpg': {
+    tag:'PERSEVERANCE // JEZERO CRATER DELTA', title:'ANCIENT RIVER DELTA & SAMPLE DEPOT', accent:'#ff6b3d',
+    art:`<rect x="60" y="70" width="680" height="150" fill="#c87d55"/>
+      <path d="M60 215 Q380 185 740 220 L740 370 L60 370 Z" fill="#8c3b1e"/>
+      <path d="M120 330 Q360 245 660 285" fill="none" stroke="#d88a58" stroke-width="10"/>`
+  },
+  'photos/missions/mars/valles.jpg': {
+    tag:'VALLES MARINERIS // TECTONIC CANYON', title:'4,000 KM GRAND CANYON OF MARS', accent:'#ff8855',
+    art:`<rect x="60" y="70" width="680" height="295" rx="16" fill="#a64422"/>
+      <path d="M90 215 Q280 185 450 225 T710 205" fill="none" stroke="#3d1206" stroke-width="36" stroke-linecap="round"/>
+      <path d="M90 215 Q280 185 450 225 T710 205" fill="none" stroke="#ffaa77" stroke-width="3" stroke-linecap="round"/>`
+  },
+  'photos/missions/mercury/messenger.jpg': {
+    tag:'MESSENGER // CALORIS BASIN', title:'1,550 KM IMPACT BASIN & SCARPS', accent:'#b8c4d0',
+    art:`<rect x="60" y="70" width="680" height="295" rx="16" fill="#4a4e54"/>
+      <circle cx="400" cy="215" r="105" fill="#686d75" stroke="#b0b8c4" stroke-width="4"/>
+      <circle cx="400" cy="215" r="68" fill="none" stroke="#9098a4" stroke-width="2"/>`
+  },
+  'photos/missions/mercury/bepi.jpg': {
+    tag:'BEPICOLOMBO // GRAVITY ASSIST', title:'CRATERED TERMINATOR & HOLLOWS', accent:'#90b4d4',
+    art:`<circle cx="400" cy="220" r="118" fill="#5a5e66" stroke="#c8d4e0" stroke-width="3"/>
+      <path d="M400 102 A118 118 0 0 1 400 338 Z" fill="#181c24"/>`
+  },
+  'photos/missions/venus/magellan.jpg': {
+    tag:'MAGELLAN // SYNTHETIC APERTURE RADAR', title:'MAAT MONS 8 KM SHIELD VOLCANO', accent:'#ffaa33',
+    art:`<rect x="60" y="70" width="680" height="295" rx="16" fill="#5e2c04"/>
+      <polygon points="120,335 400,125 680,335" fill="#c86414" stroke="#ffcc55" stroke-width="3"/>
+      <path d="M365 155 Q410 235 520 330" fill="none" stroke="#ffee88" stroke-width="8" stroke-linecap="round"/>`
+  },
+  'photos/missions/pluto/new_horizons.jpg': {
+    tag:'NEW HORIZONS // JULY 14, 2015', title:'SPUTNIK PLANITIA NITROGEN ICE HEART', accent:'#d8b498',
+    art:`<circle cx="400" cy="215" r="115" fill="#7a543c" stroke="#e8cdb8" stroke-width="3"/>
+      <path d="M350 195 C350 165 395 165 405 195 C415 165 460 165 460 195 C460 235 405 270 405 270 C405 270 350 235 350 195 Z" fill="#f2e6dc"/>`
+  },
+  'photos/missions/pluto/haze.jpg': {
+    tag:'NEW HORIZONS // HIGH-PHASE BACKLIGHT', title:'BLUE PHOTOCHEMICAL ATMOSPHERIC HAZE', accent:'#66ccff',
+    art:`<circle cx="400" cy="215" r="118" fill="none" stroke="#44bbff" stroke-width="10" opacity="0.75"/>
+      <circle cx="400" cy="215" r="105" fill="#060912" stroke="#88ddff" stroke-width="3"/>`
+  },
   'photos/missions/uranus/voyager2.jpg': {
     tag:'VOYAGER 2 // JAN 24, 1986', title:'CRESCENT URANUS & VERTICAL RINGS', accent:'#7de8e8',
     art:`<ellipse cx="400" cy="215" rx="52" ry="165" fill="none" stroke="#7de8e8" stroke-width="4" opacity="0.65"/>
@@ -5537,9 +7564,43 @@ document.getElementById('replay-premiere-btn').addEventListener('click', () => {
   startCinematicPremiere();
 });
 
-// ─── 35-SECOND COLD-OPEN WARP FLYBY & REAL AUDIO PIPELINE ────────────────────
+// ─── TWO-PART CINEMATIC CUTSCENE -> LIVE EARTH HANDOFF & REAL AUDIO PIPELINE ──
 let _saganAudioEl = null;
+let _saganBufferSource = null;
+let _saganGainNode = null;
+let _shipWelcomeAudioEl = null;
+let _shipWelcomeBufferSource = null;
+let _shipWelcomeGainNode = null;
 let _customIntroAudioEl = null;
+
+function _stopAllCutsceneNarrationAudio() {
+  if (_saganBufferSource) {
+    try { _saganBufferSource.stop(); } catch (e) {}
+    try { _saganBufferSource.disconnect(); } catch (e) {}
+    _saganBufferSource = null;
+  }
+  if (_saganGainNode) {
+    try { _saganGainNode.disconnect(); } catch (e) {}
+    _saganGainNode = null;
+  }
+  if (_saganAudioEl) {
+    try { _saganAudioEl.pause(); _saganAudioEl.currentTime = 0; } catch (e) {}
+    _saganAudioEl = null;
+  }
+  if (_shipWelcomeBufferSource) {
+    try { _shipWelcomeBufferSource.stop(); } catch (e) {}
+    try { _shipWelcomeBufferSource.disconnect(); } catch (e) {}
+    _shipWelcomeBufferSource = null;
+  }
+  if (_shipWelcomeGainNode) {
+    try { _shipWelcomeGainNode.disconnect(); } catch (e) {}
+    _shipWelcomeGainNode = null;
+  }
+  if (_shipWelcomeAudioEl) {
+    try { _shipWelcomeAudioEl.pause(); _shipWelcomeAudioEl.currentTime = 0; } catch (e) {}
+    _shipWelcomeAudioEl = null;
+  }
+}
 
 function playFlybyWhoosh(panVal = 0, intensity = 1.0) {
   if (!audioCtx || !audioEnabled || masterUserVolume <= 0.005) return;
@@ -5601,20 +7662,27 @@ function runCinematic() {
   }
 
   _introActive = true;
-  const div      = document.getElementById('cinematic');
-  const canvas   = document.getElementById('cine-canvas');
-  const textDiv  = document.getElementById('cine-text');
-  const progEl   = document.getElementById('cine-progress-legacy');
-  const phaseTag = document.getElementById('cine-phase-tag');
-  const skipBtn  = document.getElementById('cine-skip');
-  const ctx      = canvas.getContext('2d');
+  const div        = document.getElementById('cinematic');
+  const videoEl    = document.getElementById('warp-intro-video');
+  const canvas     = document.getElementById('cine-canvas');
+  const flareEl    = document.getElementById('cine-solar-flare');
+  const badgeEl    = document.getElementById('cine-flyin-badge');
+  const textDiv    = document.getElementById('cine-text');
+  const progEl     = document.getElementById('cine-progress-legacy');
+  const phaseTag   = document.getElementById('cine-phase-tag');
+  const skipBtn    = document.getElementById('cine-skip');
+  const ctx        = canvas.getContext('2d');
   div.style.display = '';
   div.style.opacity = '1';
   div.style.transition = '';
   div.classList.add('active');
+  if (flareEl) flareEl.style.opacity = '0';
+  if (badgeEl) {
+    badgeEl.innerHTML = '&#9672; COLD-OPEN CUTSCENE &middot; CARL SAGAN &ldquo;PALE BLUE DOT&rdquo; &#9672;';
+  }
 
-  // Freeze orbital drift during the 35-second choreographed flyby so planetary
-  // skim positions (Neptune -> Saturn's rings -> Jupiter -> Earth crescent) are 100% locked
+  // Freeze orbital revolution during the cutscene & handoff while
+  // Earth's surface & cloud layer continue rotating in animate()
   const _wasPaused = paused;
   paused = true;
   controls.enabled = false;
@@ -5625,67 +7693,290 @@ function runCinematic() {
   resize();
   window.addEventListener('resize', resize);
 
-  // High-energy warp star-streak tunnel particles (0s-7s interstellar arrival)
-  const stars = Array.from({length: 260}, () => ({
-    x: (Math.random() - 0.5) * 1800,
-    y: (Math.random() - 0.5) * 1800,
-    z: Math.random() * 1000 + 1,
-    pz: 1000,
-    r: Math.random() * 1.3 + 0.4
-  }));
+  // Ensure Web Audio context is ready and active
+  if (!audioCtx) initAudio();
+  if (audioCtx) {
+    audioCtx.resume();
+    audioEnabled = true;
+    syncAudioBtn();
+  }
+  _stopAllCutsceneNarrationAudio();
+  stopNarration();
 
-  // 35-Second Cold-Open Script synced to ./audio/intro-narration.mp3
-  // [audioStartSec, elapseStartSec, HTML subtitle, spokenText]
-  const SCRIPT = [
-    [ 0.40,  0.40, "From this distant vantage point,<br>the Earth might not seem of any particular interest.",
-                   "From this distant vantage point, the Earth might not seem of any particular interest." ],
-    [ 7.10,  7.00, "But for us, it's different.<br><em>Look again at that dot.</em>",
-                   "But for us, it's different. Look again at that dot." ],
-    [12.30, 11.80, "On it everyone you love, everyone you know,<br>every human being who ever was, lived out their lives.",
-                   "On it everyone you love, everyone you know, every human being who ever was, lived out their lives." ],
-    [21.00, 20.00, "That's here. That's home. <em>That's us.</em>",
-                   "That's here. That's home. That's us." ],
-    [24.85, 23.80, "On a mote of dust — <em>suspended in a sunbeam.</em>",
-                   "On a mote of dust, suspended in a sunbeam." ],
-    [29.05, 27.60, "To me, it underscores our responsibility to preserve and cherish<br><em>the pale blue dot, the only home we have ever known.</em>",
-                   "To me, it underscores our responsibility to preserve and cherish the pale blue dot, the only home we have ever known." ],
-  ];
-  const TOTAL = 35.0;
+  // Warm up 2K planet textures & compile Three.js GLSL shaders ONCE right at cutscene start
+  // so we never stall the main thread while Carl Sagan's voice is streaming!
+  warmUp3DEngineForHandoff();
 
-  // Play real local ./audio/intro-narration.mp3 via <audio> element with tight cinematic pacing
-  // (keeping speechSynthesis strictly as an emergency fallback if <audio> fails to play).
-  let _usingExternalSaganAudio = true;
-  try {
-    if (_saganAudioEl) {
-      try { _saganAudioEl.pause(); } catch(e){}
+  // Pre-fetch and pre-decode audio/welcome-handoff.mp3 during the 42s cutscene
+  // so the post-pause 3D handoff starts with 0ms latency and ZERO live browser TTS
+  let _preloadedWelcomeBuffer = null;
+  let _preloadedWelcomeBlobUrl = null;
+  (async function _preloadWelcomeHandoffAudio() {
+    const welcomeCandidates = ['audio/welcome-handoff.mp3', 'audio/ship-welcome.mp3'];
+    for (const url of welcomeCandidates) {
+      try {
+        const r = await fetch(url);
+        if (r && r.ok) {
+          const ab = await r.arrayBuffer();
+          if (ab && ab.byteLength > 1024) {
+            _preloadedWelcomeBlobUrl = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
+            if (audioCtx) {
+              try {
+                _preloadedWelcomeBuffer = await audioCtx.decodeAudioData(ab.slice(0));
+              } catch (e) {}
+            }
+            break;
+          }
+        }
+      } catch (e) {}
     }
-    const probeAudio = new Audio('audio/intro-narration.mp3');
-    probeAudio.preload = 'auto';
-    probeAudio.playbackRate = 1.07; // 37.46s / 1.07 = 35.00s exact match to 35s flyby
-    probeAudio.volume = Math.max(0, Math.min(1, _userVoiceVolume * 0.96));
-    _saganAudioEl = probeAudio;
+  })();
 
-    probeAudio.addEventListener('ended', () => setMusicDuck(false));
-    probeAudio.addEventListener('error', () => {
-      _usingExternalSaganAudio = false;
-    });
+  // PART 1 (0:00 - 0:42): Play audio/sagan-real.ogg in ONE continuous, uninterrupted stream
+  // from 0.00s without slicing, seeking, or competing with video audio tracks.
+  let _usingPreRenderedVideo = false;
+  let _saganStartCtxTime = null;
+  let _saganFinishedNaturally = false;
 
-    const playPromise = probeAudio.play();
-    if (playPromise && typeof playPromise.then === 'function') {
-      playPromise.then(() => {
-        if (dead) { probeAudio.pause(); return; }
-        _usingExternalSaganAudio = true;
-        stopNarration();
-        setMusicDuck(true);
-      }).catch(() => {
-        _usingExternalSaganAudio = false;
+  function _startContinuousSaganMasterAudio() {
+    if (dead || !_introActive || _saganAudioEl || _saganBufferSource) return;
+    try {
+      const el = new Audio('audio/sagan-real.ogg?v=7');
+      el.preload = 'auto';
+      el.volume = audioEnabled ? Math.max(0, Math.min(1, _userVoiceVolume * 0.98)) : 0;
+      _saganAudioEl = el;
+      setMusicDuck(true);
+      el.addEventListener('ended', () => {
+        _saganFinishedNaturally = true;
+        if (!dead && _introActive && !_pauseTriggered && !_part2Triggered) {
+          _beginCosmicSilencePause();
+        }
+      }, { once: true });
+      el.play().catch(async () => {
+        // Fallback if <audio> play rejected: decode once via Web Audio API from 0.0s
+        if (dead || !_introActive || _part2Triggered) return;
+        try {
+          const resp = await fetch('audio/sagan-real.ogg?v=7');
+          if (!resp || !resp.ok) return;
+          const ab = await resp.arrayBuffer();
+          if (!audioCtx || dead || !_introActive) return;
+          const audioBuf = await audioCtx.decodeAudioData(ab.slice(0));
+          const src = audioCtx.createBufferSource();
+          const gain = audioCtx.createGain();
+          src.buffer = audioBuf;
+          gain.gain.value = audioEnabled ? Math.max(0, Math.min(1.15, _userVoiceVolume)) : 0;
+          src.connect(gain);
+          gain.connect(audioCtx.destination);
+          _saganBufferSource = src;
+          _saganGainNode = gain;
+          _saganStartCtxTime = audioCtx.currentTime;
+          src.onended = () => {
+            _saganFinishedNaturally = true;
+            if (_saganBufferSource === src) _saganBufferSource = null;
+            if (!dead && _introActive && !_pauseTriggered && !_part2Triggered) {
+              _beginCosmicSilencePause();
+            }
+          };
+          src.start(0, 0);
+        } catch (e) {}
       });
-    }
-  } catch (e) {
-    _usingExternalSaganAudio = false;
+    } catch (e) {}
   }
 
-  // Helper to get world position of a planet for our 35-second camera choreography
+  // Start Carl Sagan's uninterrupted audio stream immediately
+  _startContinuousSaganMasterAudio();
+
+  if (videoEl) {
+    videoEl.classList.remove('active', 'playing');
+    try { videoEl.pause(); } catch (e) {}
+    // Always mute videoEl so it only provides visuals and NEVER double-plays or fights audio/sagan-real.ogg
+    videoEl.muted = true;
+    videoEl.volume = 0;
+
+    const startVisualVideoFromUrl = (vUrl) => {
+      if (dead || !_introActive) return;
+      if (!videoEl.getAttribute('src') || !videoEl.getAttribute('src').includes(vUrl)) {
+        videoEl.src = vUrl;
+      }
+      videoEl.currentTime = 0;
+      videoEl.muted = true;
+      videoEl.play().then(() => {
+        if (dead || !_introActive) { try { videoEl.pause(); } catch (e) {} return; }
+        _usingPreRenderedVideo = true;
+        videoEl.classList.add('active', 'playing');
+      }).catch(() => {
+        _usingPreRenderedVideo = false;
+      });
+    };
+
+    fetch('video/intro-cutscene.mp4?v=7', { method: 'HEAD' })
+      .then(r => {
+        if (r && r.ok) {
+          startVisualVideoFromUrl('video/intro-cutscene.mp4?v=7');
+        } else {
+          return fetch('video/warp-intro.mp4', { method: 'HEAD' }).then(r2 => {
+            if (r2 && r2.ok) startVisualVideoFromUrl('video/warp-intro.mp4');
+          });
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Fallback procedural star/nebula arrays if video/intro-cutscene.mp4 is ever removed
+  const stars = Array.from({length: 420}, (_, idx) => {
+    const palette = idx % 5 === 0 ? '140,220,255' : (idx % 7 === 0 ? '255,215,175' : '215,242,255');
+    return {
+      x: (Math.random() - 0.5) * 2400,
+      y: (Math.random() - 0.5) * 2400,
+      z: Math.random() * 1200 + 1,
+      pz: 1200,
+      r: Math.random() * 1.65 + 0.45,
+      rgb: palette
+    };
+  });
+
+  const nebulaClouds = [
+    { x: -380, y: -190, z: 420, rad: 340, r: 18,  g: 135, b: 235, a: 0.24 },
+    { x:  410, y:  165, z: 740, rad: 390, r: 120, g: 55,  b: 225, a: 0.20 },
+    { x: -160, y:  260, z: 980, rad: 320, r: 0,   g: 195, b: 220, a: 0.19 },
+    { x:  260, y: -240, z: 620, rad: 360, r: 235, g: 95,  b: 155, a: 0.15 },
+    { x:   40, y:  -40, z: 860, rad: 440, r: 30,  g: 105, b: 210, a: 0.22 },
+    { x: -310, y:   90, z: 1150,rad: 370, r: 90,  g: 180, b: 255, a: 0.18 },
+  ];
+
+  // PART 1 SUBTITLE SCRIPT (0.00s - 42.00s):
+  // Passively matched 100% verbatim to audio/sagan-real.ogg currentTime — audio is NEVER sliced or seeked
+  const SAGAN_SCRIPT = [
+    [ 0.15,  5.55, "From this distant vantage point,<br>the Earth might not seem <em>of any particular interest.</em>" ],
+    [ 5.80, 10.35, "But for us, it's different.<br><em>Consider again that dot.</em>" ],
+    [11.10, 15.05, "That's here. That's home. <em>That's us.</em>" ],
+    [15.35, 25.65, "On it, everyone you love, everyone you know, everyone you ever heard of,<br>every human being who ever was, <em>lived out their lives.</em>" ],
+    [26.00, 37.75, "To me, it underscores our responsibility to deal more kindly with one another,<br>and to preserve and cherish <em>the pale blue dot, the only home we've ever known.</em>" ],
+    [38.05, 41.85, "...on a mote of dust,<br><em>suspended in a sunbeam.</em>" ],
+  ];
+
+  // PART 2 SUBTITLE SCRIPT (After the 3.5-second dramatic cosmic silence pause):
+  // Passively matched 100% verbatim to audio/welcome-handoff.mp3 (13.82s)
+  const SHIP_SCRIPT = [
+    [ 0.15,  5.80, "Welcome to Solar Explorer.<br><em>I hope you have fun traveling the galaxy with us...</em>" ],
+    [ 6.20,  8.95, "<em>One last turn...</em>" ],
+    [ 9.30, 13.75, "...and... here we are.<br><strong>Earth... <em>our home.</em></strong>" ],
+  ];
+
+  const PART1_END    = 42.05;
+  const PAUSE_DUR    = 3.50; // 3.5-second dramatic pause of eerie cosmic silence after Sagan finishes
+  const HANDOFF_DUR  = 13.85;
+  const TOTAL        = PART1_END + PAUSE_DUR + HANDOFF_DUR;
+
+  let _pauseTriggered = false;
+  let _pauseStartWallSec = null;
+  let _part2Triggered = false;
+  let _part2StartWallSec = null;
+  let _handoffStartCtxTime = null;
+
+  function _beginCosmicSilencePause() {
+    if (_pauseTriggered || _part2Triggered || dead || !_introActive) return;
+    _pauseTriggered = true;
+    _pauseStartWallSec = elapsed;
+
+    // Clear Part 1 subtitle so the 3.5-second cosmic silence feels vast and weightless
+    if (lineEl) lineEl.classList.remove('show');
+    curLineKey = 'cosmic_pause';
+    lineEl = null;
+
+    if (badgeEl) {
+      badgeEl.innerHTML = '&#9672; DEEP SPACE SILENCE &middot; ENTERING THE SOLAR SYSTEM PERIMETER &#9672;';
+    }
+    if (phaseTag) {
+      phaseTag.textContent = 'COSMIC SILENCE // A MOTE OF DUST IN THE VAST ARENA';
+    }
+
+    // Dissolve out the pre-rendered video during the silence so the live 3D solar system perimeter is revealed
+    if (videoEl) {
+      videoEl.classList.remove('active', 'playing');
+      setTimeout(() => {
+        if (videoEl) { try { videoEl.pause(); } catch (e) {} }
+      }, 700);
+      _usingPreRenderedVideo = false;
+    }
+
+    // Position the 3D camera at the outer perimeter of the solar system looking across the ecliptic
+    update3DHandoffCamera(0);
+    setMusicDuck(false);
+  }
+
+  function _startPart2ShipNarrator() {
+    if (_part2Triggered || dead || !_introActive) return;
+    _part2Triggered = true;
+    _part2StartWallSec = elapsed;
+
+    if (videoEl) {
+      videoEl.classList.remove('active', 'playing');
+      try { videoEl.pause(); } catch (e) {}
+      _usingPreRenderedVideo = false;
+    }
+
+    if (badgeEl) {
+      badgeEl.innerHTML = '&#9672; FULL SYSTEM PERIMETER ORBIT &middot; INWARD BANK TO EARTH &#9672;';
+    }
+
+    const playDecodedWelcome = (buf) => {
+      if (dead || !_introActive || !audioCtx) return false;
+      try {
+        const src = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        src.buffer = buf;
+        src.playbackRate.value = 1.0;
+        gain.gain.value = audioEnabled ? Math.max(0, Math.min(1.15, _userVoiceVolume * 1.0)) : 0;
+        src.connect(gain);
+        gain.connect(audioCtx.destination);
+        _shipWelcomeBufferSource = src;
+        _shipWelcomeGainNode = gain;
+        _handoffStartCtxTime = audioCtx.currentTime;
+        setMusicDuck(true);
+        src.onended = () => setMusicDuck(false);
+        src.start(0);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    if (_preloadedWelcomeBuffer && playDecodedWelcome(_preloadedWelcomeBuffer)) {
+      return;
+    }
+
+    if (_preloadedWelcomeBlobUrl) {
+      try {
+        const el = new Audio(_preloadedWelcomeBlobUrl);
+        el.volume = audioEnabled ? Math.max(0, Math.min(1, _userVoiceVolume)) : 0;
+        _shipWelcomeAudioEl = el;
+        setMusicDuck(true);
+        el.onended = () => setMusicDuck(false);
+        el.play().catch(() => {});
+        return;
+      } catch (e) {}
+    }
+
+    // Fallback fetch of local audio/welcome-handoff.mp3 (never live window.speechSynthesis)
+    fetch('audio/welcome-handoff.mp3')
+      .then(r => (r && r.ok ? r.arrayBuffer() : fetch('audio/ship-welcome.mp3').then(r2 => r2.arrayBuffer())))
+      .then(async ab => {
+        if (dead || !_introActive || !ab) return;
+        if (audioCtx) {
+          const buf = await audioCtx.decodeAudioData(ab.slice(0));
+          if (!playDecodedWelcome(buf)) {
+            const el = new Audio('audio/welcome-handoff.mp3');
+            el.volume = audioEnabled ? Math.max(0, Math.min(1, _userVoiceVolume)) : 0;
+            _shipWelcomeAudioEl = el;
+            el.play().catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  // Helper to get world position of a planet for our live 3D camera handoff
   function getPlanetWorldPos(id, fallbackVec) {
     const pm = planetMeshes.find(p => p.pdata.id === id);
     if (!pm) return fallbackVec.clone();
@@ -5697,86 +7988,116 @@ function runCinematic() {
   const neptunePos = getPlanetWorldPos('neptune', new THREE.Vector3(52, 0, -18));
   const saturnPos  = getPlanetWorldPos('saturn',  new THREE.Vector3(30, 0, 12));
   const jupiterPos = getPlanetWorldPos('jupiter', new THREE.Vector3(-22, 0, 15));
-  const earthPos   = getPlanetWorldPos('earth',   new THREE.Vector3(12, 0, 6));
   const sunPos     = new THREE.Vector3(0, 0, 0);
 
-  // Compute sunlit crescent offset for Earth (approaching from night/terminator side looking across sunlit crescent toward Sun)
-  const earthToSunDir = sunPos.clone().sub(earthPos).normalize();
-  const earthRightDir = new THREE.Vector3(-earthToSunDir.z, 0, earthToSunDir.x).normalize();
-  const earthCrescentApproach = earthPos.clone()
-    .add(earthToSunDir.clone().multiplyScalar(-3.2))
-    .add(earthRightDir.clone().multiplyScalar(1.85))
-    .add(new THREE.Vector3(0, 0.85, 0));
-  const earthCrescentClose = earthPos.clone()
-    .add(earthToSunDir.clone().multiplyScalar(-1.65))
-    .add(earthRightDir.clone().multiplyScalar(1.15))
-    .add(new THREE.Vector3(0, 0.42, 0));
+  // Compute exact final Right-Side Live Earth Hero Framing so the handoff lands
+  // on the exact millimeter where the Main Title Screen begins!
+  const hero = _getEarthHeroFraming(0);
+  const earthPos = hero.earthPos.clone();
 
-  // 35-Second High-Energy 3D Camera Choreography with Dynamic Banking Roll:
-  // a) 0s-7s:   Warp-speed star-streak tunnel arriving from deep interstellar space.
-  // b) 7s-20s:  Dynamic banking flybys skimming close past Neptune (7-11.5s),
-  //             sweeping right across Saturn's rings (11.5-16s), and banking past Jupiter (16-20s).
-  // c) 20s-35s: Smooth deceleration curving past the sunlit crescent of Earth (20-28s)
-  //             before settling into a majestic high orbital overview of the inner solar system (28-35s).
-  const CAM_KEYFRAMES = [
-    { t:  0.0, pos: neptunePos.clone().multiplyScalar(2.65).add(new THREE.Vector3(0, 38, 95)), look: sunPos.clone(),     roll:  0.00 },
-    { t:  7.0, pos: neptunePos.clone().add(new THREE.Vector3(7.5, 2.2, 8.5)),                  look: neptunePos.clone(), roll:  0.18 },
-    { t: 10.8, pos: neptunePos.clone().add(new THREE.Vector3(-2.6, 0.75, 2.9)),                look: saturnPos.clone(),  roll:  0.26 },
-    { t: 13.5, pos: saturnPos.clone().add(new THREE.Vector3(8.2, 2.9, 6.4)),                   look: saturnPos.clone(),  roll: -0.28 },
-    { t: 16.2, pos: saturnPos.clone().add(new THREE.Vector3(-4.8, -0.65, 4.4)),                look: jupiterPos.clone(), roll: -0.18 },
-    { t: 19.8, pos: jupiterPos.clone().add(new THREE.Vector3(4.6, 1.35, 5.2)),                 look: jupiterPos.clone(), roll:  0.22 },
-    { t: 22.8, pos: earthCrescentApproach,                                                     look: earthPos.clone(),   roll:  0.08 },
-    { t: 27.6, pos: earthCrescentClose,                                                        look: earthPos.clone(),   roll:  0.00 },
-    { t: 35.0, pos: new THREE.Vector3(0, 28, 55),                                              look: sunPos.clone(),     roll:  0.00 },
+  // Position Earth's Moon along our incoming deceleration vector so on "One last turn..."
+  // the camera banks right around the Moon's bump-mapped cratered horizon to reveal our multi-layer Earth!
+  let moonWorldPos = earthPos.clone()
+    .addScaledVector(hero.baseDir, 2.25)
+    .addScaledVector(hero.screenRight, -0.75)
+    .add(new THREE.Vector3(0, 0.16, 0));
+
+  if (hero.earthEntry && hero.earthEntry.moonRefs && hero.earthEntry.moonRefs.length > 0) {
+    const moonRef = hero.earthEntry.moonRefs[0];
+    const desiredMoonDir = hero.baseDir.clone().multiplyScalar(0.88)
+      .addScaledVector(hero.screenRight, -0.46)
+      .normalize();
+    moonRef.moonPivot.rotation.y = Math.atan2(-desiredMoonDir.z, desiredMoonDir.x);
+    hero.earthEntry.group.updateMatrixWorld(true);
+    moonRef.mMesh.getWorldPosition(moonWorldPos);
+  }
+
+  // Wide, graceful outer-perimeter arc waypoints around the entire solar system before banking inward to Earth:
+  const baseAngle = Math.atan2(earthPos.z, earthPos.x);
+  const perimArc0 = new THREE.Vector3(Math.cos(baseAngle - 2.15) * 78, 26, Math.sin(baseAngle - 2.15) * 78);
+  const perimArc1 = new THREE.Vector3(Math.cos(baseAngle - 1.35) * 68, 20, Math.sin(baseAngle - 1.35) * 68);
+  const perimArc2 = new THREE.Vector3(Math.cos(baseAngle - 0.65) * 52, 13, Math.sin(baseAngle - 0.65) * 52);
+  const outerGiantBankPos = saturnPos.clone().lerp(jupiterPos, 0.45).add(new THREE.Vector3(5.5, 4.2, 5.5));
+
+  const cislunarEntryPos = moonWorldPos.clone()
+    .addScaledVector(hero.baseDir, 2.65)
+    .addScaledVector(hero.screenRight, -1.15)
+    .add(new THREE.Vector3(0, 0.52, 0));
+
+  const moonSkimApproachPos = moonWorldPos.clone()
+    .addScaledVector(hero.baseDir, 0.58)
+    .addScaledVector(hero.screenRight, -0.34)
+    .add(new THREE.Vector3(0, 0.08, 0));
+
+  const moonLimbLook = moonWorldPos.clone()
+    .lerp(earthPos, 0.24)
+    .add(new THREE.Vector3(0, 0.03, 0));
+
+  const moonHorizonTurnPos = moonWorldPos.clone()
+    .lerp(hero.camPos, 0.48)
+    .addScaledVector(hero.screenRight, 0.24)
+    .add(new THREE.Vector3(0, 0.06, 0));
+
+  const earthRevealLookMid = earthPos.clone()
+    .lerp(hero.lookPos, 0.68);
+
+  // LIVE 3D HANDOFF CAMERA KEYFRAMES (handoffSec: 0.00s -> 13.85s):
+  // Sweeping in a wide, graceful arc around the outer perimeter of the solar system (0.0s -> 6.8s)
+  // before banking inward past the outer giants and the Moon to come to rest at Earth (6.8s -> 13.85s).
+  const HANDOFF_KEYFRAMES = [
+    { t:  0.00, pos: perimArc0,           look: sunPos.clone(),       roll:  0.06 },
+    { t:  2.40, pos: perimArc1,           look: sunPos.clone(),       roll:  0.18 },
+    { t:  4.75, pos: perimArc2,           look: saturnPos.clone(),    roll: -0.20 },
+    { t:  6.40, pos: outerGiantBankPos,   look: earthPos.clone(),     roll:  0.16 },
+    { t:  7.55, pos: cislunarEntryPos,    look: moonWorldPos.clone(), roll:  0.08 },
+    { t:  9.10, pos: moonSkimApproachPos, look: moonLimbLook,         roll: -0.16 },
+    { t: 10.95, pos: moonHorizonTurnPos,  look: earthRevealLookMid,   roll:  0.12 },
+    { t: 13.45, pos: hero.camPos.clone(), look: hero.lookPos.clone(), roll:  0.00 },
+    { t: 13.85, pos: hero.camPos.clone(), look: hero.lookPos.clone(), roll:  0.00 },
   ];
 
-  // Spatial low-end flyby whoosh triggers at Neptune, Saturn's rings, Jupiter, and Earth
+  // Spatial low-end flyby whoosh triggers during the Live 3D Handoff
   const WHOOSH_CUES = [
-    { t:  8.4, pan: -0.45, intensity: 0.95, fired: false }, // Neptune skim
-    { t: 13.6, pan:  0.55, intensity: 1.25, fired: false }, // Saturn ring plane sweep
-    { t: 18.0, pan: -0.50, intensity: 1.35, fired: false }, // Jupiter gravity bank
-    { t: 21.4, pan:  0.25, intensity: 0.75, fired: false }, // Earth crescent deceleration
+    { t: 2.10, pan: -0.45, intensity: 0.85, fired: false }, // Outer system perimeter sweep
+    { t: 4.55, pan:  0.50, intensity: 1.10, fired: false }, // Ecliptic inward bank
+    { t: 6.30, pan: -0.45, intensity: 1.15, fired: false }, // Giant planets pass
+    { t: 8.15, pan:  0.30, intensity: 0.78, fired: false }, // Lunar horizon bank into Earth
   ];
 
-  function update3DFlyInCamera(sec) {
-    let k0 = CAM_KEYFRAMES[0], k1 = CAM_KEYFRAMES[CAM_KEYFRAMES.length - 1];
-    for (let i = 0; i < CAM_KEYFRAMES.length - 1; i++) {
-      if (sec >= CAM_KEYFRAMES[i].t && sec <= CAM_KEYFRAMES[i + 1].t) {
-        k0 = CAM_KEYFRAMES[i];
-        k1 = CAM_KEYFRAMES[i + 1];
+  function update3DHandoffCamera(handoffSec) {
+    let k0 = HANDOFF_KEYFRAMES[0], k1 = HANDOFF_KEYFRAMES[HANDOFF_KEYFRAMES.length - 1];
+    for (let i = 0; i < HANDOFF_KEYFRAMES.length - 1; i++) {
+      if (handoffSec >= HANDOFF_KEYFRAMES[i].t && handoffSec <= HANDOFF_KEYFRAMES[i + 1].t) {
+        k0 = HANDOFF_KEYFRAMES[i];
+        k1 = HANDOFF_KEYFRAMES[i + 1];
         break;
       }
     }
     const span = Math.max(0.001, k1.t - k0.t);
-    const raw = Math.max(0, Math.min(1, (sec - k0.t) / span));
+    const raw = Math.max(0, Math.min(1, (handoffSec - k0.t) / span));
     const ease = 0.5 - 0.5 * Math.cos(raw * Math.PI);
     camera.position.lerpVectors(k0.pos, k1.pos, ease);
     controls.target.lerpVectors(k0.look, k1.look, ease);
 
-    // Apply smooth banking roll to camera.up
     const bankAngle = (k0.roll || 0) + ((k1.roll || 0) - (k0.roll || 0)) * ease;
     camera.up.set(Math.sin(bankAngle), Math.cos(bankAngle), 0).normalize();
     camera.lookAt(controls.target);
 
     if (phaseTag) {
-      if (sec < 7.0) {
-        phaseTag.textContent = 'PHASE I // INTERSTELLAR WARP ARRIVAL';
-      } else if (sec < 11.5) {
-        phaseTag.textContent = 'PHASE II // NEPTUNE OUTER RIM FLYBY';
-      } else if (sec < 16.2) {
-        phaseTag.textContent = 'PHASE II // SATURN RING PLANE SWEEP';
-      } else if (sec < 20.0) {
-        phaseTag.textContent = 'PHASE II // JUPITER GRAVITY BANK';
-      } else if (sec < 28.0) {
-        phaseTag.textContent = 'PHASE III // EARTH SUNLIT CRESCENT — PALE BLUE DOT';
+      if (handoffSec < 4.8) {
+        phaseTag.textContent = 'SOLAR SYSTEM PERIMETER // WIDE OUTER ORBITAL SWEEP';
+      } else if (handoffSec < 7.5) {
+        phaseTag.textContent = 'INWARD ECLIPTIC BANK // CROSSING THE OUTER GIANTS';
+      } else if (handoffSec < 10.8) {
+        phaseTag.textContent = 'CISLUNAR APPROACH // BANKING PAST THE MOON';
       } else {
-        phaseTag.textContent = 'PHASE III // INNER SYSTEM ORBITAL OVERVIEW';
+        phaseTag.textContent = 'ORBITAL LOCK // RIGHT AT HOME — EARTH';
       }
     }
   }
 
   let elapsed = 0, lastTs = null;
-  let curLineIdx = -1, lineEl = null;
+  let curLineKey = '', lineEl = null;
 
   function endCinematic() {
     if (dead) return;
@@ -5788,10 +8109,12 @@ function runCinematic() {
       document.removeEventListener('keydown', _cineSkipKeys);
       _cineSkipKeys = null;
     }
-    if (_saganAudioEl) {
-      try { _saganAudioEl.pause(); _saganAudioEl.currentTime = 0; } catch(e){}
-      _saganAudioEl = null;
+    if (videoEl) {
+      videoEl.classList.remove('active', 'playing');
+      try { videoEl.pause(); } catch (e) {}
     }
+    if (flareEl) flareEl.style.opacity = '0';
+    _stopAllCutsceneNarrationAudio();
     stopNarration();
     setMusicDuck(false);
     camera.up.set(0, 1, 0);
@@ -5820,101 +8143,218 @@ function runCinematic() {
   function frame(ts) {
     if (dead) return;
     if (!lastTs) lastTs = ts;
-    elapsed += (ts - lastTs) / 1000;
+    const dt = (ts - lastTs) / 1000;
+    elapsed += dt;
     lastTs = ts;
 
-    // Move the real 3D Three.js camera along the 35-second choreographed spline
-    update3DFlyInCamera(elapsed);
-
-    // Fire spatial low-end flyby whooshes as we skim past Neptune, Saturn, Jupiter & Earth
-    for (let w = 0; w < WHOOSH_CUES.length; w++) {
-      if (!WHOOSH_CUES[w].fired && elapsed >= WHOOSH_CUES[w].t) {
-        WHOOSH_CUES[w].fired = true;
-        playFlybyWhoosh(WHOOSH_CUES[w].pan, WHOOSH_CUES[w].intensity);
-      }
-    }
-
-    // Clear 2D overlay canvas so the live 3D solar system shines through crystal clear
-    ctx.clearRect(0, 0, W, H);
-
-    // Subtle cinematic letterbox vignette around edges for subtitle legibility
-    const vg = ctx.createRadialGradient(W*0.5, H*0.5, Math.min(W,H)*0.28, W*0.5, H*0.5, Math.max(W,H)*0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,3,14,0.58)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
-    // 0s-7s Warp-speed star-streak tunnel arriving from deep interstellar space (fading out smoothly by 9.5s)
-    if (elapsed < 9.5) {
-      const warpIntensity = elapsed < 6.2 ? 1.0 : Math.max(0, 1 - (elapsed - 6.2) / 3.3);
-      const speed = 3.5 + warpIntensity * 14.5;
-      const cx = W * 0.5, cy = H * 0.5;
-      stars.forEach(s => {
-        s.pz = s.z;
-        s.z -= speed * 5.2;
-        if (s.z <= 1) {
-          s.x = (Math.random() - 0.5) * 1800;
-          s.y = (Math.random() - 0.5) * 1800;
-          s.z = 1000; s.pz = 1000;
+    // PHASE 1: CARL SAGAN UNINTERRUPTED AUDIO STREAM (0.00s -> ~42.00s)
+    if (!_pauseTriggered && !_part2Triggered) {
+      let part1Clock = elapsed;
+      let part1Duration = PART1_END;
+      if (_saganAudioEl && !_saganAudioEl.paused && _saganAudioEl.currentTime > 0) {
+        part1Clock = _saganAudioEl.currentTime;
+        if (_saganAudioEl.duration && isFinite(_saganAudioEl.duration) && _saganAudioEl.duration > 10) {
+          part1Duration = _saganAudioEl.duration;
         }
-        const sx = (s.x / s.z) * W * 0.5 + cx, sy = (s.y / s.z) * H * 0.5 + cy;
-        const px = (s.x / s.pz) * W * 0.5 + cx, py = (s.y / s.pz) * H * 0.5 + cy;
-        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
-        ctx.strokeStyle = `rgba(190,235,255,${(warpIntensity * 0.72).toFixed(3)})`;
-        ctx.lineWidth = s.r * (0.65 + warpIntensity * 0.85);
-        ctx.stroke();
-      });
-    }
+      } else if (_saganBufferSource && _saganStartCtxTime !== null && audioCtx) {
+        part1Clock = Math.max(0, audioCtx.currentTime - _saganStartCtxTime);
+      }
 
-    // Progress bar synced to 35.0s duration
-    if (progEl) progEl.style.width = Math.min(100, (elapsed / TOTAL * 100)).toFixed(1) + '%';
+      if (phaseTag) {
+        if (part1Clock < 15.0) {
+          phaseTag.textContent = 'CUTSCENE // DEEP INTERSTELLAR WARP — THOUSANDS OF LIGHT-YEARS OUT';
+        } else if (part1Clock < 30.0) {
+          phaseTag.textContent = 'CUTSCENE // WARP DECELERATION — SOLAR IGNITION IN THE COSMIC DARK';
+        } else {
+          phaseTag.textContent = 'CUTSCENE // OUTER SOLAR SYSTEM GLIDE — SUSPENDED IN A SUNBEAM';
+        }
+      }
 
-    // Sync subtitles directly to _saganAudioEl.currentTime when real audio is playing, or elapsed fallback
-    const useAudioClock = _usingExternalSaganAudio && _saganAudioEl && !_saganAudioEl.paused && _saganAudioEl.currentTime > 0.05;
-    const syncClock = useAudioClock ? _saganAudioEl.currentTime : elapsed;
+      // Golden Solar Flare swell at the very end of Sagan's speech (40.5s -> 42.0s)
+      if (flareEl) {
+        const flareStart = Math.max(0, part1Duration - 1.5);
+        if (part1Clock >= flareStart) {
+          const fp = Math.min(1, (part1Clock - flareStart) / Math.max(0.2, part1Duration - flareStart));
+          flareEl.style.opacity = (fp * fp * 0.85).toFixed(3);
+        } else {
+          flareEl.style.opacity = '0';
+        }
+      }
 
-    for (let i = 0; i < SCRIPT.length; i++) {
-      const [audioAt, elapseAt, htmlText, spokenText] = SCRIPT[i];
-      const startAt = useAudioClock ? audioAt : elapseAt;
-      const nextAt  = (i < SCRIPT.length - 1)
-        ? (useAudioClock ? SCRIPT[i + 1][0] : SCRIPT[i + 1][1]) - 0.35
-        : (useAudioClock ? 37.3 : TOTAL - 0.3);
+      // Wait for Sagan's audio stream to finish naturally (with safety timeout at 43.2s if muted/blocked)
+      if (_saganFinishedNaturally || elapsed >= PART1_END + 1.2) {
+        _beginCosmicSilencePause();
+      }
 
-      if (syncClock >= startAt && syncClock < nextAt) {
-        if (curLineIdx !== i) {
-          curLineIdx = i;
-          textDiv.innerHTML = `<div class="cine-line">${htmlText}<div style="font-size:11px;letter-spacing:.22em;color:rgba(0,212,255,.65);margin-top:10px;font-family:Orbitron,sans-serif">— CARL SAGAN · PALE BLUE DOT</div></div>`;
-          lineEl = textDiv.querySelector('.cine-line');
-          requestAnimationFrame(() => lineEl && lineEl.classList.add('show'));
-          if (!_usingExternalSaganAudio && spokenText) {
-            speakNarration(spokenText, { rate: 0.90, pitch: 0.88 });
+      ctx.clearRect(0, 0, W, H);
+
+      if (!_usingPreRenderedVideo) {
+        const warpIntensity = part1Clock < 15.0
+          ? 1.0
+          : (part1Clock < 30.0 ? 1.0 - ((part1Clock - 15.0) / 15.0) * 0.75 : 0.25);
+        const cx = W * 0.5, cy = H * 0.5;
+        ctx.fillStyle = '#01030a';
+        ctx.fillRect(0, 0, W, H);
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        const nebSpeed = 5.5 + warpIntensity * 16.0;
+        for (let n = 0; n < nebulaClouds.length; n++) {
+          const nb = nebulaClouds[n];
+          nb.z -= nebSpeed;
+          if (nb.z <= 40) { nb.z = 1180; }
+          const scale = 520 / nb.z;
+          const nx = cx + nb.x * scale, ny = cy + nb.y * scale;
+          const nr = Math.max(20, nb.rad * scale * (0.7 + warpIntensity * 0.45));
+          const ng = ctx.createRadialGradient(nx, ny, nr * 0.06, nx, ny, nr);
+          ng.addColorStop(0, `rgba(${nb.r},${nb.g},${nb.b},${(nb.a * warpIntensity).toFixed(3)})`);
+          ng.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = ng;
+          ctx.beginPath(); ctx.arc(nx, ny, nr, 0, Math.PI * 2); ctx.fill();
+        }
+        const starSpeed = 4.0 + warpIntensity * 20.0;
+        for (let i = 0; i < stars.length; i++) {
+          const s = stars[i];
+          s.pz = s.z + starSpeed * (1.0 + warpIntensity * 2.2);
+          s.z -= starSpeed * 5.2;
+          if (s.z <= 1) { s.z = 1200; s.pz = 1200; }
+          const sx = (s.x / s.z) * W * 0.5 + cx, sy = (s.y / s.z) * H * 0.5 + cy;
+          const px = (s.x / s.pz) * W * 0.5 + cx, py = (s.y / s.pz) * H * 0.5 + cy;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy);
+          ctx.strokeStyle = `rgba(${s.rgb},0.85)`;
+          ctx.lineWidth = s.r;
+          ctx.stroke();
+        }
+        if (part1Clock >= 15.0) {
+          const sunP = Math.min(1, (part1Clock - 15.0) / 27.0);
+          const sr = 6 + Math.pow(sunP, 2.8) * Math.max(W, H) * 0.65;
+          const sg = ctx.createRadialGradient(cx, cy, 0, cx, cy, sr);
+          sg.addColorStop(0, 'rgba(255,252,230,0.98)');
+          sg.addColorStop(0.35, 'rgba(255,200,80,0.65)');
+          sg.addColorStop(1, 'rgba(255,120,20,0)');
+          ctx.fillStyle = sg;
+          ctx.fillRect(0, 0, W, H);
+        }
+        ctx.restore();
+      }
+
+      // Passively sync Part 1 Subtitles to part1Clock
+      let matched = false;
+      for (let i = 0; i < SAGAN_SCRIPT.length; i++) {
+        const [t0, t1, htmlText] = SAGAN_SCRIPT[i];
+        if (part1Clock >= t0 && part1Clock < t1) {
+          matched = true;
+          const key = `sagan_${i}`;
+          if (curLineKey !== key) {
+            curLineKey = key;
+            textDiv.innerHTML = `<div class="cine-line">${htmlText}<div style="font-size:11px;letter-spacing:.22em;color:rgba(0,212,255,.68);margin-top:10px;font-family:Orbitron,sans-serif">— CARL SAGAN · PALE BLUE DOT (ORIGINAL RECORDING)</div></div>`;
+            lineEl = textDiv.querySelector('.cine-line');
+            requestAnimationFrame(() => lineEl && lineEl.classList.add('show'));
           }
+          break;
         }
-      } else if (curLineIdx === i && syncClock >= nextAt) {
+      }
+      if (!matched && curLineKey.startsWith('sagan_')) {
         if (lineEl) lineEl.classList.remove('show');
-        curLineIdx = -1; lineEl = null;
+        curLineKey = ''; lineEl = null;
+      }
+
+      if (progEl) {
+        progEl.style.width = Math.min(100, (part1Clock / TOTAL) * 100).toFixed(1) + '%';
+      }
+    } else if (_pauseTriggered && !_part2Triggered) {
+      // PHASE 1.5: 3.5-SECOND DRAMATIC PAUSE OF EERIE COSMIC SILENCE
+      const pauseSec = Math.max(0, elapsed - (_pauseStartWallSec ?? PART1_END));
+      ctx.clearRect(0, 0, W, H);
+
+      // Slowly dissolve the golden solar flare to reveal the vast 3D solar system perimeter
+      if (flareEl) {
+        const fadeOut = Math.max(0, 1.0 - pauseSec / 2.2);
+        flareEl.style.opacity = (fadeOut * fadeOut * 0.85).toFixed(3);
+      }
+
+      // Begin a slow drift at the outer edge of the solar system during the silence
+      const preDriftAngle = (pauseSec / PAUSE_DUR) * 0.12;
+      camera.position.set(
+        perimArc0.x * Math.cos(preDriftAngle) - perimArc0.z * Math.sin(preDriftAngle),
+        perimArc0.y,
+        perimArc0.x * Math.sin(preDriftAngle) + perimArc0.z * Math.cos(preDriftAngle)
+      );
+      controls.target.copy(sunPos);
+      camera.lookAt(controls.target);
+
+      if (progEl) {
+        progEl.style.width = Math.min(100, ((PART1_END + pauseSec) / TOTAL) * 100).toFixed(1) + '%';
+      }
+
+      if (pauseSec >= PAUSE_DUR) {
+        _startPart2ShipNarrator();
+      }
+    } else {
+      // PHASE 2: FULL SOLAR SYSTEM PERIMETER ORBIT -> INWARD BANK TO EARTH (0.00s -> 13.85s)
+      ctx.clearRect(0, 0, W, H);
+      let handoffSec = Math.max(0, elapsed - (_part2StartWallSec ?? (PART1_END + PAUSE_DUR)));
+      if (_shipWelcomeBufferSource && _handoffStartCtxTime !== null && audioCtx) {
+        handoffSec = Math.max(0, audioCtx.currentTime - _handoffStartCtxTime);
+      } else if (_shipWelcomeAudioEl && !_shipWelcomeAudioEl.paused) {
+        handoffSec = _shipWelcomeAudioEl.currentTime;
+      }
+
+      if (flareEl) flareEl.style.opacity = '0';
+
+      // Sweep the 3D camera around the outer perimeter of the solar system and bank inward to Earth
+      update3DHandoffCamera(handoffSec);
+
+      // Fire spatial low-end flyby whooshes
+      for (let w = 0; w < WHOOSH_CUES.length; w++) {
+        if (!WHOOSH_CUES[w].fired && handoffSec >= WHOOSH_CUES[w].t) {
+          WHOOSH_CUES[w].fired = true;
+          playFlybyWhoosh(WHOOSH_CUES[w].pan, WHOOSH_CUES[w].intensity);
+        }
+      }
+
+      // Subtle cinematic vignette around edges (lightening as we park at Earth)
+      const vigAlpha = handoffSec < 8.0 ? 0.42 : Math.max(0.18, 0.42 - (handoffSec - 8.0) * 0.04);
+      const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.30, W * 0.5, H * 0.5, Math.max(W, H) * 0.74);
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, `rgba(0,3,14,${vigAlpha.toFixed(3)})`);
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Sync Part 2 Subtitles to handoffSec
+      let matched = false;
+      for (let i = 0; i < SHIP_SCRIPT.length; i++) {
+        const [t0, t1, htmlText] = SHIP_SCRIPT[i];
+        if (handoffSec >= t0 && handoffSec < t1) {
+          matched = true;
+          const key = `ship_${i}`;
+          if (curLineKey !== key) {
+            curLineKey = key;
+            textDiv.innerHTML = `<div class="cine-line">${htmlText}<div style="font-size:11px;letter-spacing:.22em;color:rgba(110,235,255,.78);margin-top:10px;font-family:Orbitron,sans-serif">— ODYSSEY SHIP AI · SOLAR SYSTEM PERIMETER TO EARTH</div></div>`;
+            lineEl = textDiv.querySelector('.cine-line');
+            requestAnimationFrame(() => lineEl && lineEl.classList.add('show'));
+          }
+          break;
+        }
+      }
+      if (!matched && curLineKey.startsWith('ship_')) {
+        if (lineEl) lineEl.classList.remove('show');
+        curLineKey = ''; lineEl = null;
+      }
+
+      if (progEl) {
+        progEl.style.width = Math.min(100, ((PART1_END + PAUSE_DUR + handoffSec) / TOTAL) * 100).toFixed(1) + '%';
+      }
+
+      if (handoffSec >= HANDOFF_DUR) {
+        endCinematic();
+        return;
       }
     }
 
-    if (elapsed >= TOTAL) { endCinematic(); return; }
     requestAnimationFrame(frame);
   }
 
   requestAnimationFrame(frame);
-
-  // Initialise and start the custom-intro track or upgraded eerie deep-space synthesizer
-  if (!audioCtx) initAudio();
-  if (audioCtx) {
-    audioCtx.resume();
-    audioEnabled = true;
-    syncAudioBtn();
-    if (ambientMaster) {
-      ambientMaster.gain.cancelScheduledValues(audioCtx.currentTime);
-      ambientMaster.gain.setValueAtTime(0, audioCtx.currentTime);
-      ambientMaster.gain.linearRampToValueAtTime(_effectiveAmbientGain(), audioCtx.currentTime + 3.5);
-    }
-    playCinematicScore();
-  }
 }
 
 // ─── CINEMATIC SCORE — Custom Track Check + Eerie Haunting Deep-Space Synth ───
@@ -5928,12 +8368,12 @@ function playCinematicScore() {
   const peakGain = 0.28 * masterUserVolume;
   scoreMaster.gain.setValueAtTime(0.001, t);
   scoreMaster.gain.linearRampToValueAtTime(peakGain * 0.72, t + 4.0);
-  // Dynamic swell during the 7s-20s Outer Giants & Saturn Ring flyby
-  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.15, t + 14.5);
-  // Warm emotional swell at 20s-30s as we curve past the sunlit crescent of Earth
-  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.25, t + 23.0);
-  scoreMaster.gain.setValueAtTime(peakGain, t + 31.0);
-  scoreMaster.gain.linearRampToValueAtTime(0, t + 36.0);
+  // Dynamic swell during the Outer Giants & Saturn Ring flyby (9s-25s)
+  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.15, t + 16.5);
+  // Warm emotional swell at 32s-42s as we bank around the Moon's horizon to reveal 8K Earth
+  scoreMaster.gain.linearRampToValueAtTime(peakGain * 1.28, t + 38.5);
+  scoreMaster.gain.setValueAtTime(peakGain, t + 41.5);
+  scoreMaster.gain.linearRampToValueAtTime(0, t + 45.2);
   scoreMaster.connect(audioCtx.destination);
 
   // 1) Check if user-supplied ./audio/custom-intro.mp3 exists; if so, play it and crossfade!
@@ -5967,14 +8407,14 @@ function playCinematicScore() {
     const filt = audioCtx.createBiquadFilter();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(fStart, t);
-    osc.frequency.linearRampToValueAtTime(fEnd, t + 20.0);
+    osc.frequency.linearRampToValueAtTime(fEnd, t + 26.0);
     filt.type = 'lowpass'; filt.frequency.value = 115; filt.Q.value = 0.5;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gPeak, t + 3.5);
-    g.gain.setValueAtTime(gPeak, t + 31.0);
-    g.gain.linearRampToValueAtTime(0, t + 35.8);
+    g.gain.setValueAtTime(gPeak, t + 40.5);
+    g.gain.linearRampToValueAtTime(0, t + 45.0);
     osc.connect(filt); filt.connect(g); g.connect(dry); g.connect(cineReverb);
-    osc.start(t); osc.stop(t + 36.2); nodes.push(osc);
+    osc.start(t); osc.stop(t + 45.5); nodes.push(osc);
   });
 
   // Eerie high glassy cosmic harmonic shimmer (slow LFO-modulated fifths in E minor / C Lydian)
@@ -5986,23 +8426,25 @@ function playCinematicScore() {
     lfoG.gain.value = 0.0045;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(0.0085, t + 4.0 + i * 1.5);
-    g.gain.setValueAtTime(0.0085, t + 29.0);
-    g.gain.linearRampToValueAtTime(0, t + 35.5);
+    g.gain.setValueAtTime(0.0085, t + 39.0);
+    g.gain.linearRampToValueAtTime(0, t + 45.0);
     lfo.connect(lfoG); lfoG.connect(g.gain);
     osc.connect(g); g.connect(cineReverb);
     osc.start(t); lfo.start(t);
-    osc.stop(t + 36.0); lfo.stop(t + 36.0);
+    osc.stop(t + 45.2); lfo.stop(t + 45.2);
     nodes.push(osc, lfo);
   });
 
-  // Evolving 4-Act Deep-Space Pad Chords synced to the 35s flyby:
-  // 0s-9s (Interstellar Void): Em9 -> 8s-18s (Neptune & Saturn Rings): Cmaj7(#11)
-  // -> 17s-26s (Jupiter & Pale Blue Dot Earth Crescent): Fmaj9(#11) -> 25s-35s (Solar Overview): Cmaj9
+  // Evolving 5-Act Deep-Space Pad Chords synced to the 44s Two-Part Cutscene:
+  // 0s-10s (Interstellar Nebula Warp): Em9 -> 9s-20s (Neptune & Saturn Rings): Cmaj7(#11)
+  // -> 19s-32s (Jupiter & Pale Blue Dot): Fmaj9(#11) -> 31s-38s (Lunar Approach): Am9
+  // -> 37s-45s ("One last turn... Earth, our home" Hero Reveal): Cmaj9(#11)
   const CINE_CHORDS = [
-    { freqs: [82.41, 123.47, 164.81, 246.94, 329.63, 369.99], start:  0.0, dur: 9.5  },
-    { freqs: [65.41, 130.81, 196.00, 246.94, 293.66, 369.99], start:  8.0, dur: 10.5 },
-    { freqs: [87.31, 130.81, 174.61, 220.00, 261.63, 392.00], start: 17.0, dur: 10.0 },
-    { freqs: [65.41, 130.81, 164.81, 196.00, 246.94, 293.66], start: 25.5, dur: 10.5 },
+    { freqs: [82.41, 123.47, 164.81, 246.94, 329.63, 369.99], start:  0.0, dur: 10.5 },
+    { freqs: [65.41, 130.81, 196.00, 246.94, 293.66, 369.99], start:  9.0, dur: 11.5 },
+    { freqs: [87.31, 130.81, 174.61, 220.00, 261.63, 392.00], start: 19.0, dur: 13.0 },
+    { freqs: [110.00, 164.81, 220.00, 261.63, 329.63, 493.88], start: 31.0, dur: 7.5  },
+    { freqs: [65.41, 130.81, 196.00, 246.94, 329.63, 392.00], start: 37.0, dur: 8.2  },
   ];
   CINE_CHORDS.forEach(({ freqs, start, dur }) => {
     freqs.forEach((freq, vi) => {
@@ -6013,7 +8455,7 @@ function playCinematicScore() {
       osc.detune.value = (vi - 2.5) * 4.2;
       filt.type = 'lowpass';
       filt.frequency.setValueAtTime(190, t + start);
-      filt.frequency.linearRampToValueAtTime(620 + vi * 85, t + start + dur * 0.55);
+      filt.frequency.linearRampToValueAtTime(640 + vi * 85, t + start + dur * 0.55);
       filt.frequency.linearRampToValueAtTime(260, t + start + dur);
       filt.Q.value = 0.55;
       const vGain = vi % 2 === 1 && vi >= 2 ? 0.016 : 0.026;
@@ -8198,11 +10640,12 @@ function showMissionBriefing(idx) {
     : 'Planetary geology, extreme weather, and subsurface oceans are highlighted across every world. ';
   const aiGreeting = idx === 0
     ? (explorerTier === 'kids'
-        ? `Welcome aboard the Odyssey cockpit, Young Explorer! I am your Ship AI. ${trackLine}Drag to spin around space, scroll to zoom, click any glowing planet to hear it speak in first person, and press F to explore the Human Frontier! `
+        ? `Welcome aboard the Odyssey cockpit, Young Explorer! I am your Ship AI. ${trackLine}Drag to spin around space, scroll to zoom, click any glowing planet or 3D surface anomaly marker to scan it, and press F to explore the Human Frontier! `
         : explorerTier === 'director'
-        ? `Ship AI online. Welcome, Mission Director. ${trackLine}Deep telemetry, Live ISS orbital tracking, Human Frontier nodes, and NASA archive feeds are active. Use orbital camera controls to inspect any body or press F to toggle the Human Frontier layer. `
-        : `Welcome to the Odyssey cockpit, Space Cadet! Ship AI online. ${trackLine}Click any world to scan its NASA photo gallery and hear its first-person story, or toggle the Human Frontier bar to track the Live ISS, SpaceX Starship, and JWST. `)
+        ? `Ship AI online. Welcome, Mission Director. ${trackLine}3D Surface Anomaly Scanner, Live ISS orbital tracking, Human Frontier nodes, and NASA archive feeds are active. Lock onto any 3D surface marker to scan telemetry. `
+        : `Welcome to the Odyssey cockpit, Space Cadet! Ship AI online. ${trackLine}Rotate any planet and lock onto its pulsing 3D surface markers to scan NASA telemetry and earn Flight License XP! `)
     : '';
+  // Populate legacy modal fields in case inspected, but activate directly in the non-blocking top-left Visor Objective Tracker!
   document.getElementById('mbrief-chapter').textContent = `${trackInfo.icon} ${trackInfo.short.toUpperCase()} · ${tierInfo.icon} ${tierInfo.label.toUpperCase()} · Mission ${m.ch} of ${MISSION_CHAIN.length}`;
   document.getElementById('mbrief-icon').textContent = m.icon;
   document.getElementById('mbrief-title').textContent = m.title;
@@ -8211,9 +10654,15 @@ function showMissionBriefing(idx) {
   document.getElementById('mbrief-task-text').textContent = m.task;
   document.getElementById('mbrief-reward').textContent =
     m.reward.medal+' Reward: "'+m.reward.name+'" Medal · +'+m.reward.xp+' XP';
-  document.getElementById('mission-briefing').classList.add('open');
+  document.getElementById('mission-briefing').classList.remove('open');
+
+  _setActiveMission(idx);
   _playMissionSFX('briefing');
-  setTimeout(() => speakNarration(aiGreeting + 'Mission '+m.ch+'. '+m.title+'. '+m.briefing, {rate:0.94, pitch:0.98}), 400);
+  showToast(`MISSION ${m.ch}: ${m.title.toUpperCase()}`, `Objective: ${m.taskShort} · Target: ${pname} (+${m.reward.xp} XP)`, m.icon);
+  setTimeout(() => speakNarration(aiGreeting + 'Mission '+m.ch+'. '+m.title+'. '+m.task+'.', {rate:0.95, pitch:0.98}), 350);
+  if (idx === 0) {
+    setTimeout(() => { if(window.maybeShowHints) window.maybeShowHints(); }, 1200);
+  }
 }
 
 function _dismissMissionBriefingAndStart() {
@@ -8238,6 +10687,23 @@ document.getElementById('mission-complete').addEventListener('click', e => {
   }
 });
 
+const _mhudWarpBtn = document.getElementById('mhud-warp-btn');
+if (_mhudWarpBtn) {
+  _mhudWarpBtn.addEventListener('click', () => {
+    if (_activeMissionIdx >= 0 && _activeMissionIdx < MISSION_CHAIN.length) {
+      const m = MISSION_CHAIN[_activeMissionIdx];
+      let targetPlanet = m.planet;
+      if (m.trigger === 'visit_both' && m.triggerData && m.triggerData.planets) {
+        const set = _missionPartial[m.id];
+        const nextUnvisited = m.triggerData.planets.find(id => !(set && set.has(id)));
+        if (nextUnvisited) targetPlanet = nextUnvisited;
+      }
+      if (targetPlanet === 'sun') openSun();
+      else if (targetPlanet) openPlanet(targetPlanet, true);
+    }
+  });
+}
+
 function _setActiveMission(idx) {
   _activeMissionIdx = idx;
   _missionFreeMode = false;
@@ -8249,6 +10715,7 @@ function _setActiveMission(idx) {
   document.getElementById('mhud-bar').style.width = (_completedMissions.size/MISSION_CHAIN.length*100)+'%';
   document.getElementById('mission-hud').classList.add('visible');
   _createMissionRing(m.planet);
+  if (typeof _refreshMissionTrackerHUD === 'function') _refreshMissionTrackerHUD();
 }
 
 function checkMissionComplete(eventType, data) {
@@ -8525,9 +10992,17 @@ function openMainTitleScreen() {
   controls.enabled = true;
   camera.up.set(0, 1, 0);
 
+  // Frame the live rotating multi-layer Earth on the right two-thirds of the screen
+  // while the Main Game Title Menu docks on the left third
+  const hero = _getEarthHeroFraming(_titleCamAngle);
+  camera.position.copy(hero.camPos);
+  controls.target.copy(hero.lookPos);
+  controls.update();
+
   refreshMainTitleScreenUI();
-  const hasSaved = !!loadVoyageSave();
-  _setTitleSubpanel(hasSaved ? null : 'new');
+  // Start with the sub-drawer closed so the left-third title menu + right-side rotating 8K Earth
+  // composition is completely unobstructed on reveal (clicking NEW VOYAGE or SETTINGS opens the drawer)
+  _setTitleSubpanel(null);
 
   const mts = document.getElementById('main-title-screen');
   if (mts) {
@@ -8666,7 +11141,24 @@ function closeMainTitleScreen() {
   if (btnSettings) {
     btnSettings.addEventListener('click', () => {
       if (typeof playUIClick === 'function') playUIClick();
-      _setTitleSubpanel('settings');
+      const setCard = document.getElementById('title-settings-card');
+      const isOpen = setCard && setCard.classList.contains('open');
+      _setTitleSubpanel(isOpen ? null : 'settings');
+    });
+  }
+
+  const nvCloseBtn  = document.getElementById('title-nv-close');
+  const setCloseBtn = document.getElementById('title-settings-close');
+  if (nvCloseBtn) {
+    nvCloseBtn.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      _setTitleSubpanel(null);
+    });
+  }
+  if (setCloseBtn) {
+    setCloseBtn.addEventListener('click', () => {
+      if (typeof playUIClick === 'function') playUIClick();
+      _setTitleSubpanel(null);
     });
   }
 
@@ -8709,6 +11201,8 @@ function closeMainTitleScreen() {
       if (voiceValEl) voiceValEl.textContent = `${Math.round(pct)}%`;
       try { localStorage.setItem('ue_voice_vol', String(_userVoiceVolume)); } catch(err){}
       if (_saganAudioEl) _saganAudioEl.volume = Math.max(0, Math.min(1, _userVoiceVolume * 0.96));
+      if (_saganGainNode) _saganGainNode.gain.value = Math.max(0, Math.min(1.2, _userVoiceVolume * 1.05));
+      if (_shipWelcomeGainNode) _shipWelcomeGainNode.gain.value = Math.max(0, Math.min(1.15, _userVoiceVolume * 1.0));
     });
   }
 

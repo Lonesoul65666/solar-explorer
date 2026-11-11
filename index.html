@@ -9,7 +9,7 @@
 <!-- Orbitron is self-hosted (vendor/fonts/) rather than pulled from Google Fonts,
      so the app renders correctly offline and on networks that block it. -->
 <link rel="stylesheet" href="vendor/fonts/orbitron.css">
-<link rel="stylesheet" href="universe.css?v=8">
+<link rel="stylesheet" href="universe.css?v=11">
 <script>
 // Catch any JS errors and show them on-screen so we can diagnose
 window.addEventListener('error', function(e) {
@@ -168,7 +168,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
 
       <!-- Card 2: Audio & Voice Settings Drawer -->
-      <div id="title-settings-card" class="mts-card" style="display:none">
+      <div id="title-settings-card" class="mts-card">
         <div class="mts-card-header">
           <div>
             <div class="mts-card-kicker">SHIP COMMUNICATIONS &amp; SYNTH</div>
@@ -207,7 +207,7 @@ window.addEventListener('unhandledrejection', function(e) {
           Tip: Drop any custom soundtrack at <code>audio/custom-intro.mp3</code> to override the procedural deep-space synthesizer automatically.
         </div>
 
-        <button type="button" id="title-replay-intro-btn" class="mts-secondary-cta">&#8634; Replay 35s Cold-Open Warp Flyby</button>
+        <button type="button" id="title-replay-intro-btn" class="mts-secondary-cta">&#8634; Replay Two-Part Cutscene &amp; Earth Reveal</button>
       </div>
     </div>
   </div>
@@ -227,12 +227,20 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 
 <!-- Mission HUD -->
-<div id="mission-hud">
-  <div id="mhud-chapter">Mission 1 of 9</div>
+<div id="mission-hud" class="visor-objective-tracker">
+  <div class="mhud-license-row">
+    <span id="mhud-rank-badge" class="mhud-rank-pill">&#9733; CADET</span>
+    <span id="mhud-xp-readout" class="mhud-xp-pill">0 XP</span>
+  </div>
+  <div id="mhud-chapter">ACTIVE OBJECTIVE &middot; MISSION 1 OF 9</div>
   <div id="mhud-title">Signal Detected</div>
-  <div id="mhud-objective">Navigate to Earth</div>
+  <div id="mhud-objective">Navigate to Earth &amp; Scan Surface Hotspots</div>
+  <div id="mhud-scan-status" class="mhud-scan-counter">&#128225; SURFACE ANOMALIES: 0 / 4 SCANNED</div>
   <div id="mhud-track"><div id="mhud-bar"></div></div>
-  <div id="mhud-free">Free Explore &#8599;</div>
+  <div class="mhud-actions-row">
+    <button id="mhud-warp-btn" type="button" title="Lock camera onto active mission target">&#127919; Lock Target</button>
+    <div id="mhud-free" title="Switch to open sandbox flight">Free Flight &#8599;</div>
+  </div>
 </div>
 
 <!-- Mission Briefing -->
@@ -268,10 +276,12 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 </div>
 
-<!-- Cinematic 35-Second Cold-Open Warp Flyby Overlay -->
+<!-- Video-Game Cutscene (video/intro-cutscene.mp4) -> Solar Flare Crossfade -> Live 3D Earth Handoff -->
 <div id="cinematic">
+  <video id="warp-intro-video" playsinline preload="auto" src="video/intro-cutscene.mp4?v=7"></video>
   <canvas id="cine-canvas"></canvas>
-  <div id="cine-flyin-badge">&#9672; COLD-OPEN TELEMETRY &middot; CARL SAGAN &ldquo;PALE BLUE DOT&rdquo; &#9672;</div>
+  <div id="cine-solar-flare"></div>
+  <div id="cine-flyin-badge">&#9672; COLD-OPEN CUTSCENE &middot; CARL SAGAN &ldquo;PALE BLUE DOT&rdquo; &#9672;</div>
   <div id="cine-phase-tag">INTERSTELLAR WARP APPROACH</div>
   <div id="cine-text"></div>
   <div id="cine-bottom">
@@ -499,16 +509,18 @@ window.addEventListener('unhandledrejection', function(e) {
   <button class="pnav-btn" id="pnav-next" title="Next planet">&#8594;</button>
 </div>
 
-<!-- Info Panel -->
-<div id="info-panel">
-  <div class="panel-sticky-header">
-    <span class="panel-sticky-title">&#9672; PLANETARY TELEMETRY</span>
-    <button id="panel-close" class="modal-close-pill" title="Close Panel (Esc)">&#10005; Close</button>
+<!-- Cockpit Visor HUD (Leaves 78%+ of 3D Viewport Unobstructed) -->
+<div id="info-panel" class="cockpit-visor-hud">
+  <div class="panel-sticky-header visor-header">
+    <span class="panel-sticky-title">&#9672; COCKPIT VISOR // 3D SCANNER</span>
+    <button id="panel-close" class="modal-close-pill" title="Close Visor (Esc)">&#10005; Close</button>
   </div>
   <div id="panel-scroll">
-    <canvas id="panel-canvas" width="320" height="320"></canvas>
-    <div id="panel-name">Earth</div>
-    <div id="panel-tagline">Our Blue Home</div>
+    <canvas id="panel-canvas" width="320" height="320" style="display:none"></canvas>
+    <div class="visor-world-header">
+      <div id="panel-name">Earth</div>
+      <div id="panel-tagline">Our Blue Home</div>
+    </div>
     <div class="panel-speak-row">
       <button id="panel-speak" title="Let this world introduce itself in first person">
         <span id="panel-speak-icon">&#128266;</span>
@@ -520,6 +532,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </button>
     </div>
     <div id="panel-voice-transcript" class="voice-transcript-box"></div>
+    <div id="visor-scanner-container" class="visor-scanner-box"></div>
     <div id="panel-body-content"></div>
   </div>
 </div>
@@ -612,15 +625,15 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 </div>
 
-<!-- Moon Detail Modal -->
-<div id="moon-detail">
+<!-- Moon Detail Visor HUD (Non-blocking Right-Edge Cockpit Visor) -->
+<div id="moon-detail" class="cockpit-visor-moon">
   <div id="moon-card">
-    <div class="modal-sticky-header">
+    <div class="modal-sticky-header visor-header">
       <h2 id="moon-name" style="margin:0">The Moon</h2>
       <button id="moon-close" class="modal-close-pill" title="Close (Esc)">&#10005; Close</button>
     </div>
     <div class="tagline" id="moon-tagline"></div>
-    <div class="panel-speak-row" style="margin-bottom:12px">
+    <div class="panel-speak-row" style="margin-bottom:10px">
       <button id="moon-speak" class="speak-btn-shared" title="Hear this moon speak in first person">
         <span>&#128266;</span>
         <span id="moon-speak-label">Hear Me Speak</span>
@@ -631,6 +644,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </button>
     </div>
     <div id="moon-voice-transcript" class="voice-transcript-box"></div>
+    <div id="moon-scanner-container" class="visor-scanner-box"></div>
     <p id="moon-desc"></p>
     <div class="stat-grid" id="moon-stats"></div>
     <div id="moon-nasa-gallery" class="nasa-gallery-section"></div>
@@ -690,6 +704,7 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 </div>
 <div id="planet-labels"></div>
+<div id="hotspot-reticle-layer"></div>
 <div id="tour-rocket-flash"><canvas id="tour-warp-canvas"></canvas><div id="trf-inner"></div></div>
 <div id="tour-sagan-quote"><div id="tsq-text"></div><div id="tsq-author"></div></div>
 
@@ -773,6 +788,6 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 
-<script type="module" src="universe.js?v=8"></script>
+<script type="module" src="universe.js?v=11"></script>
 </body>
 </html>
