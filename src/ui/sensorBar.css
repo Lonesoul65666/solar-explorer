@@ -1,0 +1,71 @@
+#sensor-bar {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  min-height: 48px;
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 22;
+}
+
+.sensor-stops,
+.sensor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stop-btn,
+.act-btn {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid var(--cyan-dim);
+  color: var(--text);
+  font-family: var(--font-hud);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+
+.stop-btn .idx {
+  color: var(--amber);
+  font-size: 9px;
+}
+
+.stop-btn:hover,
+.act-btn:hover {
+  border-color: var(--cyan);
+  color: #ffffff;
+}
+
+.stop-btn.active {
+  border-color: var(--amber);
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--amber);
+}
+
+.sensor-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-hud);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+
+#scale-slider {
+  width: 115px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
